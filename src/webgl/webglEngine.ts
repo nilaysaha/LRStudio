@@ -1,11 +1,13 @@
 import { Adjustments } from '../types';
 import { VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE } from './shaders';
+import { createCurveLUT, isCurvesActive } from '../utils/curveUtils';
 
 export class WebGLFilterEngine {
   private canvas: HTMLCanvasElement;
   private gl: WebGLRenderingContext | null = null;
   private program: WebGLProgram | null = null;
   private texture: WebGLTexture | null = null;
+  private curveTexture: WebGLTexture | null = null;
   private positionBuffer: WebGLBuffer | null = null;
   private texCoordBuffer: WebGLBuffer | null = null;
 
@@ -97,6 +99,7 @@ export class WebGLFilterEngine {
       'u_saturation', 'u_vibrance', 'u_clarity',
       'u_hsl_red', 'u_hsl_orange', 'u_hsl_yellow', 'u_hsl_green',
       'u_hsl_cyan', 'u_hsl_blue', 'u_hsl_purple', 'u_hsl_magenta',
+      'u_curve_lut', 'u_curves_active',
       'u_preset_strength',
       'u_grain_amount', 'u_grain_size', 'u_grain_roughness',
       'u_dust_type', 'u_dust_amount',
@@ -111,9 +114,17 @@ export class WebGLFilterEngine {
       this.uniformLocations[name] = gl.getUniformLocation(this.program, name);
     }
 
-    // Create texture
+    // Create main image texture
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    // Create 1D/2D Tone Curves LUT texture (256x1 RGBA)
+    this.curveTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.curveTexture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -235,6 +246,26 @@ export class WebGLFilterEngine {
     gl.uniform3f(this.uniformLocations.u_hsl_purple, hsl.purple.hue, hsl.purple.saturation, hsl.purple.luminance);
     gl.uniform3f(this.uniformLocations.u_hsl_magenta, hsl.magenta.hue, hsl.magenta.saturation, hsl.magenta.luminance);
 
+    // Tone Curves LUT (Upload 256x1 RGBA data to Texture Unit 1)
+    if (this.curveTexture) {
+      const lutData = createCurveLUT(adjustments.curves);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.curveTexture);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        256,
+        1,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        lutData
+      );
+      gl.uniform1i(this.uniformLocations.u_curve_lut, 1);
+      gl.uniform1f(this.uniformLocations.u_curves_active, isCurvesActive(adjustments.curves) ? 1.0 : 0.0);
+    }
+
     // Film Effects
     gl.uniform1f(this.uniformLocations.u_grain_amount, adjustments.grainAmount);
     gl.uniform1f(this.uniformLocations.u_grain_size, adjustments.grainSize);
@@ -302,6 +333,7 @@ export class WebGLFilterEngine {
     }
     if (this.gl) {
       if (this.texture) this.gl.deleteTexture(this.texture);
+      if (this.curveTexture) this.gl.deleteTexture(this.curveTexture);
       if (this.positionBuffer) this.gl.deleteBuffer(this.positionBuffer);
       if (this.texCoordBuffer) this.gl.deleteBuffer(this.texCoordBuffer);
       if (this.program) this.gl.deleteProgram(this.program);

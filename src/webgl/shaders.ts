@@ -50,6 +50,10 @@ uniform vec3 u_hsl_blue;
 uniform vec3 u_hsl_purple;
 uniform vec3 u_hsl_magenta;
 
+// Tone Curves (256x1 RGBA LUT for Master + RGB channels)
+uniform sampler2D u_curve_lut;
+uniform float u_curves_active;
+
 // Preset strength
 uniform float u_preset_strength;
 
@@ -345,6 +349,13 @@ void main() {
   if (abs(u_clarity) > 0.001) {
     float midtoneMask = sin(clamp(luminance, 0.0, 1.0) * 3.14159265);
     color = mix(color, (color - 0.5) * (1.0 + u_clarity * 0.4) + 0.5, midtoneMask);
+  }
+
+  // --- 6b. Tone Curves (Master + RGB Channels) ---
+  if (u_curves_active > 0.5) {
+    color.r = texture2D(u_curve_lut, vec2(clamp(color.r, 0.0, 1.0), 0.5)).r;
+    color.g = texture2D(u_curve_lut, vec2(clamp(color.g, 0.0, 1.0), 0.5)).g;
+    color.b = texture2D(u_curve_lut, vec2(clamp(color.b, 0.0, 1.0), 0.5)).b;
   }
 
   // --- 7. HSL Selective Grading ---
