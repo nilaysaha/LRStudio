@@ -327,6 +327,8 @@ export default function App() {
           media={currentMedia}
           adjustments={adjustments}
           compareMode={compareMode}
+          activeTab={activeTab}
+          onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, false)}
         />
       </section>
 

@@ -1,14 +1,17 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, RotateCcw, ZoomIn, ZoomOut, Maximize2, Grid3X3 } from 'lucide-react';
-import { Adjustments, MediaItem } from '../types';
+import { Play, Pause, Volume2, VolumeX, RotateCcw, ZoomIn, ZoomOut, Maximize2, Grid3X3, Crop } from 'lucide-react';
+import { ActiveTab, Adjustments, CropBox, MediaItem } from '../types';
 import { WebGLFilterEngine } from '../webgl/webglEngine';
+import { InteractiveCropOverlay } from './tools/InteractiveCropOverlay';
 import { soundFx } from '../utils/audio';
 
 interface ViewportCanvasProps {
   media: MediaItem | null;
   adjustments: Adjustments;
   compareMode: 'none' | 'split' | 'hold';
+  activeTab?: ActiveTab;
   onMediaLoaded?: (width: number, height: number) => void;
+  onChangeAdjustments?: (newAdj: Adjustments) => void;
   showGrid?: boolean;
 }
 
@@ -16,10 +19,13 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   media,
   adjustments,
   compareMode,
+  activeTab,
   onMediaLoaded,
+  onChangeAdjustments,
   showGrid = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -28,6 +34,9 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
 
   const [splitPos, setSplitPos] = useState(0.5);
   const [isDraggingSplit, setIsDraggingSplit] = useState(false);
+
+  // Canvas display dimensions for crop overlay alignment
+  const [displayDim, setDisplayDim] = useState({ width: 0, height: 0 });
 
   // Video playback states
   const [isPlaying, setIsPlaying] = useState(false);
@@ -42,6 +51,22 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   const panStartRef = useRef({ x: 0, y: 0 });
 
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Measure canvas element on load / resize
+  const updateDisplayDimensions = useCallback(() => {
+    if (canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setDisplayDim({ width: rect.width, height: rect.height });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    updateDisplayDimensions();
+    window.addEventListener('resize', updateDisplayDimensions);
+    return () => window.removeEventListener('resize', updateDisplayDimensions);
+  }, [updateDisplayDimensions, isLoaded, adjustments.frameType, adjustments.rotation]);
 
   // Initialize WebGL Engine
   useEffect(() => {
@@ -342,13 +367,58 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
             : ''
         }`}
       >
-        {/* WebGL Canvas */}
-        <canvas
-          ref={canvasRef}
-          className={`max-w-full max-h-[72vh] object-contain shadow-md ${
-            adjustments.frameType === 'retro-tv' ? 'rounded-2xl' : ''
-          }`}
-        />
+        {/* WebGL Canvas Wrapper with Interactive Crop Overlay */}
+        <div ref={canvasWrapperRef} className="relative flex items-center justify-center">
+          <canvas
+            ref={canvasRef}
+            className={`max-w-full max-h-[72vh] object-contain shadow-md ${
+              adjustments.frameType === 'retro-tv' ? 'rounded-2xl' : ''
+            }`}
+          />
+
+          {/* Interactive Touch & Cursor Tip Crop Overlay */}
+          {activeTab === 'crop' && (
+            <InteractiveCropOverlay
+              cropBox={adjustments.cropBox || { x: 0, y: 0, width: 1, height: 1 }}
+              cropShape={adjustments.cropShape || (adjustments.cropAspect === 'circle' ? 'circle' : adjustments.cropAspect === '1:1' ? 'square' : 'rect')}
+              cropAspect={adjustments.cropAspect || 'free'}
+              onChangeCrop={(newBox) => {
+                if (onChangeAdjustments) {
+                  onChangeAdjustments({
+                    ...adjustments,
+                    cropBox: newBox,
+                  });
+                }
+              }}
+              containerWidth={displayDim.width}
+              containerHeight={displayDim.height}
+              imageNaturalWidth={media?.width || 1200}
+              imageNaturalHeight={media?.height || 1200}
+              isActive={activeTab === 'crop'}
+            />
+          )}
+
+          {/* Passive Circular Preview when not in Crop tab */}
+          {activeTab !== 'crop' && (adjustments.cropShape === 'circle' || adjustments.cropAspect === 'circle') && compareMode !== 'split' && (
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <svg className="w-full h-full">
+                <defs>
+                  <mask id="passive-circle-mask">
+                    <rect width="100%" height="100%" fill="white" />
+                    <ellipse
+                      cx={`${((adjustments.cropBox?.x ?? 0) + (adjustments.cropBox?.width ?? 1) / 2) * 100}%`}
+                      cy={`${((adjustments.cropBox?.y ?? 0) + (adjustments.cropBox?.height ?? 1) / 2) * 100}%`}
+                      rx={`${((adjustments.cropBox?.width ?? 1) / 2) * 100}%`}
+                      ry={`${((adjustments.cropBox?.height ?? 1) / 2) * 100}%`}
+                      fill="black"
+                    />
+                  </mask>
+                </defs>
+                <rect width="100%" height="100%" fill="rgba(0, 0, 0, 0.75)" mask="url(#passive-circle-mask)" />
+              </svg>
+            </div>
+          )}
+        </div>
 
         {/* 35mm Film Frame Sprockets Decorative Overlay */}
         {adjustments.frameType === 'film-35mm' && (

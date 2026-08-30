@@ -18,6 +18,13 @@ export const defaultCurves: ToneCurves = {
   blue: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
 };
 
+export const defaultCropBox = {
+  x: 0,
+  y: 0,
+  width: 1,
+  height: 1,
+};
+
 export const defaultAdjustments: Adjustments = {
   presetId: 'none',
   presetStrength: 1.0,
@@ -66,6 +73,8 @@ export const defaultAdjustments: Adjustments = {
   frameColor: '#FFFFFF',
 
   cropAspect: 'free',
+  cropShape: 'rect',
+  cropBox: { ...defaultCropBox },
   rotation: 0,
   flipH: false,
   flipV: false,

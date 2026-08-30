@@ -106,11 +106,23 @@ export interface Adjustments {
   frameColor: string; // hex
 
   // Crop & Transform
-  cropAspect: 'free' | '1:1' | '4:5' | '9:16' | '16:9' | '3:4' | '2:3';
+  cropBox: CropBox;
+  cropShape: CropShape;
+  cropAspect: CropAspect;
   rotation: number; // 0, 90, 180, 270
   flipH: boolean;
   flipV: boolean;
 }
+
+export interface CropBox {
+  x: number; // 0 to 1
+  y: number; // 0 to 1
+  width: number; // 0 to 1
+  height: number; // 0 to 1
+}
+
+export type CropShape = 'rect' | 'square' | 'circle';
+export type CropAspect = 'free' | '1:1' | 'circle' | '4:5' | '9:16' | '16:9' | '3:4' | '2:3';
 
 export interface Preset {
   id: string;

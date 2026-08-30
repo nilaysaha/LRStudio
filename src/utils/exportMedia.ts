@@ -60,7 +60,7 @@ export async function exportPhoto(
 }
 
 /**
- * Composite frame borders and aspect ratio crops on final canvas
+ * Composite frame borders and aspect ratio / box / circular crops on final canvas
  */
 function applyFramesAndCrop(
   sourceCanvas: HTMLCanvasElement,
@@ -68,12 +68,23 @@ function applyFramesAndCrop(
   width: number,
   height: number
 ): HTMLCanvasElement {
+  const isCircular = adj.cropShape === 'circle' || adj.cropAspect === 'circle';
+  const isSquare = adj.cropShape === 'square' || adj.cropAspect === '1:1';
+
+  // Determine Source Slicing Coordinates
+  let sx = 0;
+  let sy = 0;
   let cropW = width;
   let cropH = height;
 
-  if (adj.cropAspect !== 'free') {
+  if (adj.cropBox && (adj.cropBox.width < 0.999 || adj.cropBox.height < 0.999 || adj.cropBox.x > 0.001 || adj.cropBox.y > 0.001)) {
+    sx = Math.max(0, Math.round(adj.cropBox.x * width));
+    sy = Math.max(0, Math.round(adj.cropBox.y * height));
+    cropW = Math.min(width - sx, Math.round(adj.cropBox.width * width));
+    cropH = Math.min(height - sy, Math.round(adj.cropBox.height * height));
+  } else if (adj.cropAspect !== 'free' || isCircular || isSquare) {
     let targetRatio = 1.0;
-    if (adj.cropAspect === '1:1') targetRatio = 1.0;
+    if (isCircular || isSquare) targetRatio = 1.0;
     else if (adj.cropAspect === '4:5') targetRatio = 4 / 5;
     else if (adj.cropAspect === '9:16') targetRatio = 9 / 16;
     else if (adj.cropAspect === '16:9') targetRatio = 16 / 9;
@@ -88,6 +99,17 @@ function applyFramesAndCrop(
       cropW = width;
       cropH = Math.round(width / targetRatio);
     }
+    sx = Math.round((width - cropW) / 2);
+    sy = Math.round((height - cropH) / 2);
+  }
+
+  // If circular crop, normalize to 1:1 square bounding box
+  if (isCircular) {
+    const diam = Math.min(cropW, cropH);
+    sx = Math.round(sx + (cropW - diam) / 2);
+    sy = Math.round(sy + (cropH - diam) / 2);
+    cropW = diam;
+    cropH = diam;
   }
 
   const outputCanvas = document.createElement('canvas');
@@ -97,9 +119,17 @@ function applyFramesAndCrop(
   if (adj.frameType === 'none') {
     outputCanvas.width = cropW;
     outputCanvas.height = cropH;
-    const sx = Math.round((width - cropW) / 2);
-    const sy = Math.round((height - cropH) / 2);
-    ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+
+    if (isCircular) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cropW / 2, cropH / 2, cropW / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+    }
     return outputCanvas;
   }
 
@@ -118,9 +148,16 @@ function applyFramesAndCrop(
     ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
 
     // Draw image inside
-    const sx = Math.round((width - cropW) / 2);
-    const sy = Math.round((height - cropH) / 2);
-    ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, borderSides, borderTopBottom, cropW, cropH);
+    if (isCircular) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(borderSides + cropW / 2, borderTopBottom + cropH / 2, cropW / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, borderSides, borderTopBottom, cropW, cropH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, borderSides, borderTopBottom, cropW, cropH);
+    }
 
     // Draw Sprocket holes along top and bottom
     const holeW = Math.round(borderTopBottom * 0.45);
@@ -159,9 +196,16 @@ function applyFramesAndCrop(
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-    const sx = Math.round((width - cropW) / 2);
-    const sy = Math.round((height - cropH) / 2);
-    ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, padSide, padTop, cropW, cropH);
+    if (isCircular) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(padSide + cropW / 2, padTop + cropH / 2, cropW / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, padSide, padTop, cropW, cropH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, padSide, padTop, cropW, cropH);
+    }
 
     // Subtle drop shadow inside image box
     ctx.strokeStyle = 'rgba(0,0,0,0.06)';
@@ -176,9 +220,16 @@ function applyFramesAndCrop(
     ctx.fillStyle = adj.frameType === 'gallery-cream' ? '#F4EDE2' : '#FFFFFF';
     ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-    const sx = Math.round((width - cropW) / 2);
-    const sy = Math.round((height - cropH) / 2);
-    ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+    if (isCircular) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(pad + cropW / 2, pad + cropH / 2, cropW / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+    }
 
   } else if (adj.frameType === 'slide-120') {
     // 120mm medium format slide mount
@@ -189,9 +240,16 @@ function applyFramesAndCrop(
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-    const sx = Math.round((width - cropW) / 2);
-    const sy = Math.round((height - cropH) / 2);
-    ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+    if (isCircular) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(pad + cropW / 2, pad + cropH / 2, cropW / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+    }
 
     ctx.font = `600 ${Math.max(11, Math.round(pad * 0.22))}px sans-serif`;
     ctx.fillStyle = '#888888';
@@ -210,9 +268,16 @@ function applyFramesAndCrop(
     ctx.roundRect(pad, pad, cropW, cropH, Math.min(30, pad * 0.8));
     ctx.clip();
 
-    const sx = Math.round((width - cropW) / 2);
-    const sy = Math.round((height - cropH) / 2);
-    ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+    if (isCircular) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(pad + cropW / 2, pad + cropH / 2, cropW / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
+    }
     ctx.restore();
   }
 
