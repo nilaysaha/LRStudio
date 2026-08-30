@@ -280,13 +280,39 @@ void main() {
     return;
   }
 
-  // --- Chromatic Aberration / Prism ---
+  // --- Chromatic Aberration / Prism & Glass Dispersion ---
   vec3 color;
   if (u_prism_amount > 0.001) {
-    vec2 offsetDir = (uv - 0.5) * (u_prism_amount * 0.02);
-    float r = texture2D(u_image, uv + offsetDir).r;
-    float g = texture2D(u_image, uv).g;
-    float b = texture2D(u_image, uv - offsetDir).b;
+    vec2 centerVec = uv - vec2(0.5);
+    float dist = length(centerVec);
+    vec2 normDir = (dist > 0.0001) ? (centerVec / dist) : vec2(0.7071, 0.7071);
+    
+    // Combining radial optical lens aberration with diagonal glass prism refraction
+    vec2 dispersionDir = normalize(normDir * 0.7 + vec2(0.65, 0.35) * 0.3);
+    
+    // Smooth non-linear scale: visible across mid-frame and intensifying toward high radius
+    float maxShift = u_prism_amount * 0.045 * (0.35 + 0.65 * pow(clamp(dist * 1.414, 0.0, 1.0), 1.2));
+    
+    // Multi-spectral 6-band waveband sampling (Red, Orange, Green, Cyan, Blue, Violet)
+    vec2 shiftR = dispersionDir * (maxShift * 1.5);
+    vec2 shiftO = dispersionDir * (maxShift * 0.85);
+    vec2 shiftG = vec2(0.0);
+    vec2 shiftC = -dispersionDir * (maxShift * 0.85);
+    vec2 shiftB = -dispersionDir * (maxShift * 1.5);
+    vec2 shiftV = -dispersionDir * (maxShift * 2.1);
+
+    vec3 sampleR = texture2D(u_image, clamp(uv + shiftR, 0.0, 1.0)).rgb;
+    vec3 sampleO = texture2D(u_image, clamp(uv + shiftO, 0.0, 1.0)).rgb;
+    vec3 sampleG = texture2D(u_image, uv).rgb;
+    vec3 sampleC = texture2D(u_image, clamp(uv + shiftC, 0.0, 1.0)).rgb;
+    vec3 sampleB = texture2D(u_image, clamp(uv + shiftB, 0.0, 1.0)).rgb;
+    vec3 sampleV = texture2D(u_image, clamp(uv + shiftV, 0.0, 1.0)).rgb;
+
+    // Continuous spectral reconstruction
+    float r = sampleR.r * 0.65 + sampleO.r * 0.35;
+    float g = sampleO.g * 0.18 + sampleG.g * 0.64 + sampleC.g * 0.18;
+    float b = sampleC.b * 0.35 + sampleB.b * 0.45 + sampleV.b * 0.20;
+    
     color = vec3(r, g, b);
   } else {
     color = texture2D(u_image, uv).rgb;

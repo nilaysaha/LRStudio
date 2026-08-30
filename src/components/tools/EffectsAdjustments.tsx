@@ -264,6 +264,27 @@ export const EffectsAdjustments: React.FC<EffectsAdjustmentsProps> = ({
             onChange={(e) => updateField('prismAmount', parseFloat(e.target.value))}
             className="w-full accent-[#2A2723]"
           />
+          <div className="flex items-center gap-1.5 pt-0.5">
+            {[
+              { label: 'Off', val: 0 },
+              { label: 'Subtle', val: 0.25 },
+              { label: 'Cinematic', val: 0.5 },
+              { label: 'Glass Prism', val: 0.85 },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => updateField('prismAmount', preset.val)}
+                className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                  Math.abs(adjustments.prismAmount - preset.val) < 0.05
+                    ? 'bg-[#2A2723] text-white border-[#2A2723]'
+                    : 'bg-white text-[#5E5549] border-[#E6E2D3] hover:bg-[#F2EFE9]'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 6. Vignette */}
