@@ -424,7 +424,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
         {adjustments.frameType === 'film-35mm' && (
           <>
             <div className="absolute top-1 left-4 right-4 flex justify-between text-[9px] font-mono text-[#D4A373]/90 tracking-widest pointer-events-none">
-              <span>★ LRSTUDIO FILM 400</span>
+              <span>★ LUMENLAB FILM 400</span>
               <span>24A</span>
               <span>KODAK SAFETY</span>
             </div>
@@ -439,7 +439,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
         {/* Polaroid Decorative bottom text */}
         {adjustments.frameType === 'polaroid' && (
           <div className="absolute bottom-3 left-6 font-serif-editorial italic text-base text-[#4A453E] opacity-80 tracking-wider pointer-events-none">
-            LRStudio Memories • 1984
+            LumenLab Memories • 1984
           </div>
         )}
 
@@ -479,7 +479,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
               Original
             </div>
             <div className="absolute right-[-60px] top-4 bg-[#2A2723] text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm backdrop-blur-sm pointer-events-none">
-              LRStudio
+              LumenLab
             </div>
           </div>
         )}

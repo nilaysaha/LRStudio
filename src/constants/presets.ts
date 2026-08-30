@@ -5,7 +5,7 @@ export const BUILT_IN_PRESETS: Preset[] = [
   {
     id: 'none',
     name: 'Original',
-    category: 'LR Signature',
+    category: 'LumenLab Signature',
     description: 'Zero adjustments applied. Natural raw capture.',
     thumbnailColor: '#555555',
     adjustments: {
@@ -16,9 +16,9 @@ export const BUILT_IN_PRESETS: Preset[] = [
   {
     id: 'inso',
     name: 'INSO',
-    category: 'LR Signature',
+    category: 'LumenLab Signature',
     badge: 'Iconic',
-    description: 'LRStudio’s legendary sun-kissed signature. Warm golden highlights, soft contrast, nostalgic vintage film tones.',
+    description: 'LumenLab’s legendary sun-kissed signature. Warm golden highlights, soft contrast, nostalgic vintage film tones.',
     thumbnailColor: '#DDA15E',
     adjustments: {
       ...defaultAdjustments,
@@ -55,7 +55,7 @@ export const BUILT_IN_PRESETS: Preset[] = [
   {
     id: 'yum',
     name: 'YUM',
-    category: 'LR Signature',
+    category: 'LumenLab Signature',
     badge: 'Popular',
     description: 'Deep, rich chocolate undertones, creamy skin highlights, and high-impact editorial warmth.',
     thumbnailColor: '#BC6C25',

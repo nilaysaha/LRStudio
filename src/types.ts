@@ -1,5 +1,5 @@
 /**
- * LRStudio Type Definitions
+ * LumenLab Type Definitions
  */
 
 export type MediaType = 'image' | 'video';
@@ -127,7 +127,7 @@ export type CropAspect = 'free' | '1:1' | 'circle' | '4:5' | '9:16' | '16:9' | '
 export interface Preset {
   id: string;
   name: string;
-  category: 'LR Signature' | 'Editorial' | 'Vintage Film' | 'Golden & Warm' | 'Moody & B&W' | 'Custom';
+  category: 'LumenLab Signature' | 'Editorial' | 'Vintage Film' | 'Golden & Warm' | 'Moody & B&W' | 'Custom';
   description: string;
   isCustom?: boolean;
   isFavorite?: boolean;

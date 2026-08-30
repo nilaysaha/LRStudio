@@ -18,7 +18,7 @@ interface PresetsBarProps {
 
 const CATEGORIES = [
   'All',
-  'LR Signature',
+  'LumenLab Signature',
   'Editorial',
   'Vintage Film',
   'Golden & Warm',
@@ -90,7 +90,7 @@ export const PresetsBar: React.FC<PresetsBarProps> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".json,.lrpreset,.lrstudio"
+            accept=".json,.lrpreset,.lumenlab,.lrstudio"
             onChange={handleImportFile}
             className="hidden"
           />

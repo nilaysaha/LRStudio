@@ -1,5 +1,5 @@
 /**
- * LRStudio - WebGL Photo & Video Filter Editor
+ * LumenLab - WebGL Photo & Video Filter Editor
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -15,8 +15,8 @@ import { SavePresetModal } from './components/SavePresetModal';
 import { ExportModal } from './components/ExportModal';
 import { soundFx } from './utils/audio';
 
-const STORAGE_KEY_CUSTOM_PRESETS = 'lrstudio_custom_presets_v1';
-const STORAGE_KEY_FAVORITES = 'lrstudio_favorite_presets_v1';
+const STORAGE_KEY_CUSTOM_PRESETS = 'lumenlab_custom_presets_v1';
+const STORAGE_KEY_FAVORITES = 'lumenlab_favorite_presets_v1';
 
 export default function App() {
   // Current media state
@@ -155,7 +155,7 @@ export default function App() {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(preset, null, 2));
     const dlAnchor = document.createElement('a');
     dlAnchor.setAttribute('href', dataStr);
-    dlAnchor.setAttribute('download', `lrstudio_${preset.name.toLowerCase().replace(/\s+/g, '_')}.json`);
+    dlAnchor.setAttribute('download', `lumenlab_${preset.name.toLowerCase().replace(/\s+/g, '_')}.json`);
     document.body.appendChild(dlAnchor);
     dlAnchor.click();
     dlAnchor.remove();

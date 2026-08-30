@@ -1,5 +1,5 @@
 /**
- * WebGL Shaders for LRStudio Film Engine
+ * WebGL Shaders for LumenLab Film Engine
  */
 
 export const VERTEX_SHADER_SOURCE = `

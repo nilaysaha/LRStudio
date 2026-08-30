@@ -181,7 +181,7 @@ function applyFramesAndCrop(
     // Editorial text along frame edge
     ctx.font = `600 ${Math.max(12, Math.round(borderTopBottom * 0.22))}px monospace`;
     ctx.fillStyle = '#D4A373';
-    ctx.fillText('LRSTUDIO 400 FILM  •  24 EXP', borderSides + 10, outputCanvas.height - borderTopBottom * 0.15);
+    ctx.fillText('LUMENLAB 400 FILM  •  24 EXP', borderSides + 10, outputCanvas.height - borderTopBottom * 0.15);
     ctx.fillText('SAFETY FILM 5063', outputCanvas.width - borderSides - 200, outputCanvas.height - borderTopBottom * 0.15);
 
   } else if (adj.frameType === 'polaroid') {

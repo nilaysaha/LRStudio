@@ -35,7 +35,7 @@ export const SavePresetModal: React.FC<SavePresetModalProps> = ({
       id: `custom-${Date.now()}`,
       name: name.trim().toUpperCase(),
       category: 'Custom',
-      description: 'Custom recipe created in LRStudio.',
+      description: 'Custom recipe created in LumenLab.',
       badge: badge.trim() || undefined,
       isCustom: true,
       thumbnailColor: selectedColor,

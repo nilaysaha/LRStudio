@@ -92,7 +92,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               onClick={onOpenMediaLibrary}
             >
               <span className="font-editorial text-lg lg:text-xl tracking-[0.2em] font-bold text-[#2A2723] group-hover:text-black transition-colors">
-                LRSTUDIO
+                LUMENLAB
               </span>
               <span className="text-[9px] tracking-wider text-[#7E7365] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3]">
                 PRO
@@ -256,7 +256,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               className="flex items-center gap-1.5 text-left focus:outline-none"
             >
               <span className="font-editorial text-base tracking-[0.16em] font-bold text-[#2A2723]">
-                LRSTUDIO
+                LUMENLAB
               </span>
               <span className="text-[8px] tracking-wider text-[#7E7365] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3]">
                 PRO
@@ -352,7 +352,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-[#F0EEE6]">
               <div className="flex items-center gap-2">
                 <span className="font-editorial text-lg tracking-[0.18em] font-bold text-[#2A2723]">
-                  LRSTUDIO
+                  LUMENLAB
                 </span>
                 <span className="text-[9px] tracking-wider text-[#7E7365] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3]">
                   PRO MENU

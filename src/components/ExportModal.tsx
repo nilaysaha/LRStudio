@@ -50,7 +50,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
         // Trigger automatic download
         const ext = photoFormat === 'image/png' ? 'png' : photoFormat === 'image/webp' ? 'webp' : 'jpg';
-        const filename = `lrstudio_${Date.now()}.${ext}`;
+        const filename = `lumenlab_${Date.now()}.${ext}`;
         downloadDataUrl(dataUrl, filename);
       } else {
         // Video export
@@ -70,7 +70,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         setExportComplete(true);
         soundFx.playHapticTick();
 
-        const filename = `lrstudio_video_${Date.now()}.webm`;
+        const filename = `lumenlab_video_${Date.now()}.webm`;
         downloadBlob(blob, filename);
       }
     } catch (err) {
@@ -85,11 +85,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       try {
         const res = await fetch(exportedUrl);
         const blob = await res.blob();
-        const file = new File([blob], `lrstudio_${Date.now()}.jpg`, { type: blob.type });
+        const file = new File([blob], `lumenlab_${Date.now()}.jpg`, { type: blob.type });
 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
-            title: 'Edited with LRStudio',
+            title: 'Edited with LumenLab',
             files: [file],
           });
         }
