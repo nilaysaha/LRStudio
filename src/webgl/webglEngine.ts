@@ -133,6 +133,10 @@ export class WebGLFilterEngine {
     return shader;
   }
 
+  public getSource(): HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | null {
+    return this.sourceElement;
+  }
+
   public setSource(element: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement) {
     this.sourceElement = element;
     this.isTextureLoaded = false;
