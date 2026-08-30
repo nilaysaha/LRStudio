@@ -88,7 +88,7 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
     ctx.stroke();
 
     // Draw control points
-    sorted.forEach((pt, idx) => {
+    sorted.forEach((pt) => {
       const cx = pt.x * w;
       const cy = h - pt.y * h;
 
@@ -103,23 +103,36 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
     });
   }, [points, activeChannel]);
 
-  // Point Interaction
-  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const xNorm = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const yNorm = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+  const updateChannelPoints = (newPoints: CurvePoint[]) => {
+    onChange({
+      ...adjustments,
+      curves: {
+        ...adjustments.curves,
+        [activeChannel]: newPoints,
+      },
+    });
+  };
 
-    // Find if clicked near an existing point (within 0.08)
+  const getPointerPos = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { xNorm: 0, yNorm: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const xNorm = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const yNorm = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
+    return { xNorm, yNorm };
+  };
+
+  // Pointer/Touch interactions
+  const handlePointerDown = (clientX: number, clientY: number) => {
+    const { xNorm, yNorm } = getPointerPos(clientX, clientY);
+
     const existingIndex = points.findIndex(
-      (pt) => Math.hypot(pt.x - xNorm, pt.y - yNorm) < 0.08
+      (pt) => Math.hypot(pt.x - xNorm, pt.y - yNorm) < 0.12
     );
 
     if (existingIndex !== -1) {
       setIsDraggingIndex(existingIndex);
     } else {
-      // Add new control point if fewer than 5 points
       if (points.length < 5) {
         const newPoints = [...points, { x: xNorm, y: yNorm }].sort((a, b) => a.x - b.x);
         updateChannelPoints(newPoints);
@@ -130,16 +143,11 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
     }
   };
 
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (clientX: number, clientY: number) => {
     if (isDraggingIndex === null) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const xNorm = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const yNorm = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+    const { xNorm, yNorm } = getPointerPos(clientX, clientY);
 
     const updated = [...points];
-    // Keep first point pinned to x=0, last point to x=1
     if (isDraggingIndex === 0) {
       updated[0] = { x: 0, y: yNorm };
     } else if (isDraggingIndex === points.length - 1) {
@@ -151,18 +159,8 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
     updateChannelPoints(updated);
   };
 
-  const handleCanvasMouseUp = () => {
+  const handlePointerUp = () => {
     setIsDraggingIndex(null);
-  };
-
-  const updateChannelPoints = (newPoints: CurvePoint[]) => {
-    onChange({
-      ...adjustments,
-      curves: {
-        ...adjustments.curves,
-        [activeChannel]: newPoints,
-      },
-    });
   };
 
   const resetCurrentCurve = () => {
@@ -174,10 +172,10 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto px-1 pr-2 no-scrollbar">
+    <div className="flex flex-col gap-3 max-h-[35vh] sm:max-h-[300px] overflow-y-auto px-1 pr-2 no-scrollbar">
       {/* Channel Switcher */}
       <div className="flex items-center justify-between pb-1 border-b border-[#F0EEE6] text-xs">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           {(['master', 'red', 'green', 'blue'] as const).map((ch) => (
             <button
               key={ch}
@@ -185,7 +183,7 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
                 setActiveChannel(ch);
                 soundFx.playHapticTick();
               }}
-              className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider transition-all ${
+              className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
                 activeChannel === ch
                   ? ch === 'master'
                     ? 'bg-[#2A2723] text-white shadow-xs'
@@ -203,28 +201,35 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
         </div>
         <button
           onClick={resetCurrentCurve}
-          className="flex items-center gap-1 text-[11px] text-[#7E7365] hover:text-[#2A2723] transition-colors"
+          className="flex items-center gap-1 text-[11px] text-[#7E7365] hover:text-[#2A2723] transition-colors cursor-pointer flex-shrink-0"
         >
           <RotateCcw className="w-2.5 h-2.5" />
-          Reset Curve
+          <span>Reset</span>
         </button>
       </div>
 
       {/* Interactive Canvas Area */}
-      <div className="flex items-center justify-center bg-[#FAF9F6] p-3 rounded-2xl border border-[#E6E2D3]">
+      <div className="flex items-center justify-center bg-[#FAF9F6] p-2 sm:p-3 rounded-2xl border border-[#E6E2D3] touch-none">
         <canvas
           ref={canvasRef}
           width={280}
-          height={200}
-          onMouseDown={handleCanvasMouseDown}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
-          onMouseLeave={handleCanvasMouseUp}
-          className="rounded-lg cursor-crosshair shadow-inner border border-[#E6E2D3]"
+          height={180}
+          onMouseDown={(e) => handlePointerDown(e.clientX, e.clientY)}
+          onMouseMove={(e) => handlePointerMove(e.clientX, e.clientY)}
+          onMouseUp={handlePointerUp}
+          onMouseLeave={handlePointerUp}
+          onTouchStart={(e) => {
+            if (e.touches[0]) handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
+          }}
+          onTouchMove={(e) => {
+            if (e.touches[0]) handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+          }}
+          onTouchEnd={handlePointerUp}
+          className="rounded-lg cursor-crosshair shadow-inner border border-[#E6E2D3] max-w-full touch-none"
         />
       </div>
       <p className="text-[11px] text-center text-[#7E7365]">
-        Click to place points on the curve. Drag points to adjust highlights, midtones, and shadows.
+        Tap or click to place points. Drag points to shape contrast, highlights, and tones.
       </p>
     </div>
   );
@@ -241,7 +246,6 @@ function evaluateCurve(points: CurvePoint[], x: number): number {
     const p1 = points[i + 1];
     if (x >= p0.x && x <= p1.x) {
       const t = (x - p0.x) / (p1.x - p0.x);
-      // Smooth Hermite blend
       const smoothT = t * t * (3 - 2 * t);
       return p0.y + smoothT * (p1.y - p0.y);
     }
