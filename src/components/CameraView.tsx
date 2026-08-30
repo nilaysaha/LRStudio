@@ -1,7 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   X, Camera, SwitchCamera, Sparkles, Timer, Grid3X3,
-  Sun, Check, RefreshCw
+  Sun, Check, RefreshCw, FlipHorizontal
 } from 'lucide-react';
 import { Adjustments, Preset } from '../types';
 import { WebGLFilterEngine } from '../webgl/webglEngine';
@@ -25,6 +25,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const engineRef = useRef<WebGLFilterEngine | null>(null);
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [isMirrored, setIsMirrored] = useState(true);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [currentDeviceIndex, setCurrentDeviceIndex] = useState(0);
+
   const [activePreset, setActivePreset] = useState<Preset>(
     presets.find((p) => p.id === 'inso') || presets[0]
   );
@@ -34,37 +38,88 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const [isFlashActive, setIsFlashActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
+  // Enumerate video devices on mount or when opened
+  const refreshDevices = useCallback(async () => {
+    try {
+      if (navigator.mediaDevices?.enumerateDevices) {
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = allDevices.filter((d) => d.kind === 'videoinput');
+        setDevices(videoInputs);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Initialize Camera Stream
   useEffect(() => {
     if (!isOpen) return;
 
+    let isMounted = true;
     let stream: MediaStream | null = null;
     setCameraError(null);
 
-    navigator.mediaDevices
-      ?.getUserMedia({
-        video: {
-          facingMode: facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      })
-      .then((s) => {
-        stream = s;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
+    const startCamera = async () => {
+      try {
+        const activeDeviceId = devices.length > 1 && devices[currentDeviceIndex]
+          ? devices[currentDeviceIndex].deviceId
+          : undefined;
+
+        const constraints: MediaStreamConstraints = {
+          video: activeDeviceId
+            ? {
+                deviceId: { ideal: activeDeviceId },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+              }
+            : {
+                facingMode: { ideal: facingMode },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+              },
+          audio: false,
+        };
+
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (firstErr) {
+          console.warn('Initial camera constraints failed, attempting fallback...', firstErr);
+          // Fallback with simpler constraint
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facingMode },
+            audio: false,
+          }).catch(async () => {
+            // Absolute fallback
+            return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          });
+        }
+
+        if (!isMounted) {
+          if (stream) stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        if (videoRef.current && stream) {
+          videoRef.current.srcObject = stream;
           videoRef.current.play().catch(() => {});
         }
-      })
-      .catch((err) => {
+
+        // Refresh enumerated devices list once permission is granted
+        refreshDevices();
+      } catch (err) {
         console.warn('Camera access denied or unavailable:', err);
-        setCameraError(
-          'Camera access could not be initialized. Please verify browser camera permissions.'
-        );
-      });
+        if (isMounted) {
+          setCameraError(
+            'Camera access could not be initialized. Please verify browser permissions or select an image from your library.'
+          );
+        }
+      }
+    };
+
+    startCamera();
 
     return () => {
+      isMounted = false;
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
       }
@@ -72,7 +127,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         videoRef.current.srcObject = null;
       }
     };
-  }, [isOpen, facingMode]);
+  }, [isOpen, facingMode, currentDeviceIndex, refreshDevices]);
 
   // Initialize WebGL Filter Engine for Viewfinder
   useEffect(() => {
@@ -139,15 +194,48 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
     setTimeout(() => {
       setIsFlashActive(false);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+
+      let dataUrl: string;
+      if (isMirrored) {
+        // Render mirrored snapshot
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+        const ctx = offscreen.getContext('2d');
+        if (ctx) {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(canvas, 0, 0);
+          dataUrl = offscreen.toDataURL('image/jpeg', 0.95);
+        } else {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        }
+      } else {
+        dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      }
+
       onCapture(dataUrl);
       onClose();
     }, 150);
   };
 
+  // Toggle/Reverse camera direction (Front <-> Rear / Multi-camera cycle)
   const toggleCameraFacing = () => {
     soundFx.playHapticTick();
-    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
+    const nextMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextMode);
+    // Adjust mirroring automatically based on direction
+    setIsMirrored(nextMode === 'user');
+
+    if (devices.length > 1) {
+      setCurrentDeviceIndex((prev) => (prev + 1) % devices.length);
+    }
+  };
+
+  // Toggle Mirror / Flip
+  const toggleMirror = () => {
+    soundFx.playHapticTick();
+    setIsMirrored((prev) => !prev);
   };
 
   if (!isOpen) return null;
@@ -167,11 +255,34 @@ export const CameraView: React.FC<CameraViewProps> = ({
         <button
           onClick={() => { onClose(); soundFx.playHapticTick(); }}
           className="p-2 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20 transition-colors"
+          title="Close Camera"
         >
           <X className="w-5 h-5" />
         </button>
 
+        {/* Camera Mode Indicator & Reversing Button */}
         <div className="flex items-center gap-2">
+          {/* Active Facing Badge / Reverse Direction */}
+          <button
+            onClick={toggleCameraFacing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/15 hover:bg-white/25 text-white backdrop-blur-md transition-all border border-white/10 active:scale-95"
+            title="Reverse Camera Direction (Front / Rear)"
+          >
+            <SwitchCamera className="w-3.5 h-3.5" />
+            <span>{facingMode === 'user' ? 'Front (Selfie)' : 'Rear (Back)'}</span>
+          </button>
+
+          {/* Mirror / Flip Toggle */}
+          <button
+            onClick={toggleMirror}
+            className={`p-2 rounded-full backdrop-blur-md transition-colors ${
+              isMirrored ? 'bg-white text-black font-semibold' : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+            title={isMirrored ? 'Mirror View: On' : 'Mirror View: Off'}
+          >
+            <FlipHorizontal className="w-4 h-4" />
+          </button>
+
           {/* Timer Toggle */}
           <button
             onClick={() => {
@@ -181,6 +292,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
             className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md transition-colors ${
               timerSeconds > 0 ? 'bg-white text-black font-semibold' : 'bg-white/10 text-white hover:bg-white/20'
             }`}
+            title="Timer"
           >
             <Timer className="w-3.5 h-3.5" />
             <span>{timerSeconds === 0 ? 'Off' : `${timerSeconds}s`}</span>
@@ -192,17 +304,19 @@ export const CameraView: React.FC<CameraViewProps> = ({
             className={`p-2 rounded-full backdrop-blur-md transition-colors ${
               showGrid ? 'bg-white text-black font-semibold' : 'bg-white/10 text-white hover:bg-white/20'
             }`}
+            title="Composition Grid"
           >
             <Grid3X3 className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Switch Front/Back Camera */}
+        {/* Switch Front/Back Camera Shortcut */}
         <button
           onClick={toggleCameraFacing}
-          className="p-2 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20 transition-colors"
+          className="p-2 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20 transition-colors active:rotate-180 duration-300"
+          title="Switch Camera Direction"
         >
-          <SwitchCamera className="w-5 h-5" />
+          <RefreshCw className="w-4 h-4" />
         </button>
       </div>
 
@@ -224,7 +338,13 @@ export const CameraView: React.FC<CameraViewProps> = ({
           </div>
         ) : (
           <>
-            <canvas ref={canvasRef} className="max-w-full max-h-full object-cover" />
+            <canvas
+              ref={canvasRef}
+              style={{
+                transform: isMirrored ? 'scaleX(-1)' : 'none',
+              }}
+              className="max-w-full max-h-full object-cover transition-transform duration-200"
+            />
 
             {/* Countdown Overlay */}
             {countdown !== null && (
@@ -244,8 +364,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 <div className="border-r border-b border-white/20" />
                 <div className="border-r border-b border-white/20" />
                 <div className="border-b border-white/20" />
-                <div className="border-r border-white/20" />
-                <div className="border-r border-white/20" />
+                <div className="border-r border-b border-white/20" />
+                <div className="border-r border-b border-white/20" />
                 <div />
               </div>
             )}
@@ -283,6 +403,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
           <button
             onClick={handleShutterClick}
             className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center p-1 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+            title="Take Photo"
           >
             <div className="w-full h-full rounded-full bg-white hover:bg-neutral-200 transition-colors" />
           </button>

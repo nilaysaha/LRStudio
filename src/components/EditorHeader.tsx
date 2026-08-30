@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Undo2, Redo2, Copy, Check, Camera, Image as ImageIcon,
   Download, SlidersHorizontal, Eye, SplitSquareVertical,
-  RotateCcw, Sparkles
+  RotateCcw, Sparkles, Upload
 } from 'lucide-react';
 import { MediaItem } from '../types';
 import { soundFx } from '../utils/audio';
@@ -24,6 +24,7 @@ interface EditorHeaderProps {
   onOpenMediaLibrary: () => void;
   onOpenCamera: () => void;
   onOpenExport: () => void;
+  onImportMediaFile?: (file: File) => void;
 }
 
 export const EditorHeader: React.FC<EditorHeaderProps> = ({
@@ -43,8 +44,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onOpenMediaLibrary,
   onOpenCamera,
   onOpenExport,
+  onImportMediaFile,
 }) => {
   const [copiedNotification, setCopiedNotification] = React.useState(false);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCopy = () => {
     onCopyRecipe();
@@ -53,8 +56,24 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
     setTimeout(() => setCopiedNotification(false), 2000);
   };
 
+  const handleMediaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && onImportMediaFile) {
+      onImportMediaFile(e.target.files[0]);
+    }
+    e.target.value = '';
+  };
+
   return (
     <header className="w-full bg-white/80 backdrop-blur-md border-b border-[#E6E2D3] px-3 sm:px-6 py-2.5 flex items-center justify-between z-30 select-none">
+      {/* Hidden File Input for direct photo/video import */}
+      <input
+        ref={mediaFileInputRef}
+        type="file"
+        accept="image/*,video/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif"
+        onChange={handleMediaFileChange}
+        className="hidden"
+      />
+
       {/* Brand & Media Badge */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 cursor-pointer" onClick={onOpenMediaLibrary}>
@@ -70,7 +89,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           <button
             onClick={onOpenMediaLibrary}
             className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-xs text-[#4A453E] transition-colors"
-            title="Switch or import media"
+            title="Switch or browse media library"
           >
             <ImageIcon className="w-3.5 h-3.5 text-[#2A2723]" />
             <span className="max-w-[140px] truncate">{currentMedia.name}</span>
@@ -167,8 +186,23 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         </button>
       </div>
 
-      {/* Right Side (Camera, Media Gallery, Export) */}
+      {/* Right Side (Import, Camera, Media Gallery, Export) */}
       <div className="flex items-center gap-2">
+        {/* Direct Import Image/Video Button */}
+        <button
+          onClick={() => {
+            if (mediaFileInputRef.current) {
+              mediaFileInputRef.current.click();
+              soundFx.playHapticTick();
+            }
+          }}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#2A2723]/30 text-xs font-medium text-[#2A2723] shadow-xs transition-colors"
+          title="Import photo or video from device"
+        >
+          <Upload className="w-3.5 h-3.5 text-[#2A2723]" />
+          <span className="font-semibold">Import</span>
+        </button>
+
         <button
           onClick={() => { onOpenCamera(); soundFx.playHapticTick(); }}
           className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs transition-colors"
@@ -181,7 +215,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         <button
           onClick={() => { onOpenMediaLibrary(); soundFx.playHapticTick(); }}
           className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs transition-colors"
-          title="Open Media Library / Upload"
+          title="Open Curated Gallery & Uploads"
         >
           <ImageIcon className="w-3.5 h-3.5 text-[#2A2723]" />
           <span className="hidden sm:inline">Library</span>

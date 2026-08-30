@@ -62,7 +62,9 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
 
     if (media.type === 'image') {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      if (media.url.startsWith('http://') || media.url.startsWith('https://')) {
+        img.crossOrigin = 'anonymous';
+      }
       img.onload = () => {
         if (!canvasRef.current || !engineRef.current) return;
 

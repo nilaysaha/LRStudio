@@ -29,24 +29,64 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const file = files[0];
-    const isVideo = file.type.startsWith('video/');
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
     const url = URL.createObjectURL(file);
 
-    const newMedia: MediaItem = {
-      id: `user-${Date.now()}`,
-      name: file.name,
-      type: isVideo ? 'video' : 'image',
-      url: url,
-      file: file,
-      aspectRatio: isVideo ? 16 / 9 : 4 / 5,
-      width: 1200,
-      height: 1200,
-    };
+    if (isVideo) {
+      const newMedia: MediaItem = {
+        id: `user-${Date.now()}`,
+        name: file.name,
+        type: 'video',
+        url: url,
+        file: file,
+        aspectRatio: 16 / 9,
+        width: 1920,
+        height: 1080,
+      };
 
-    setUserMediaList((prev) => [newMedia, ...prev]);
-    onSelectMedia(newMedia);
-    soundFx.playHapticTick();
-    onClose();
+      setUserMediaList((prev) => [newMedia, ...prev]);
+      onSelectMedia(newMedia);
+      soundFx.playHapticTick();
+      onClose();
+    } else {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth || 1200;
+        const h = img.naturalHeight || 1200;
+        const newMedia: MediaItem = {
+          id: `user-${Date.now()}`,
+          name: file.name,
+          type: 'image',
+          url: url,
+          file: file,
+          aspectRatio: w / h,
+          width: w,
+          height: h,
+        };
+
+        setUserMediaList((prev) => [newMedia, ...prev]);
+        onSelectMedia(newMedia);
+        soundFx.playHapticTick();
+        onClose();
+      };
+      img.onerror = () => {
+        const newMedia: MediaItem = {
+          id: `user-${Date.now()}`,
+          name: file.name,
+          type: 'image',
+          url: url,
+          file: file,
+          aspectRatio: 4 / 5,
+          width: 1200,
+          height: 1200,
+        };
+        setUserMediaList((prev) => [newMedia, ...prev]);
+        onSelectMedia(newMedia);
+        soundFx.playHapticTick();
+        onClose();
+      };
+      img.src = url;
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -200,8 +240,11 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,video/*"
-                  onChange={(e) => handleFiles(e.target.files)}
+                  accept="image/*,video/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.webm"
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    e.target.value = '';
+                  }}
                   className="hidden"
                 />
                 <div className="w-12 h-12 rounded-full bg-white border border-[#E6E2D3] flex items-center justify-center text-[#2A2723] mb-3 shadow-xs">

@@ -196,6 +196,60 @@ export default function App() {
     }
   };
 
+  // Direct Import Media File (from device)
+  const handleImportMediaFile = (file: File) => {
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
+    const url = URL.createObjectURL(file);
+
+    if (isVideo) {
+      const newMedia: MediaItem = {
+        id: `user-${Date.now()}`,
+        name: file.name,
+        type: 'video',
+        url: url,
+        file: file,
+        aspectRatio: 16 / 9,
+        width: 1920,
+        height: 1080,
+      };
+      setCurrentMedia(newMedia);
+      soundFx.playHapticTick();
+    } else {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth || 1200;
+        const h = img.naturalHeight || 1200;
+        const newMedia: MediaItem = {
+          id: `user-${Date.now()}`,
+          name: file.name,
+          type: 'image',
+          url: url,
+          file: file,
+          aspectRatio: w / h,
+          width: w,
+          height: h,
+        };
+        setCurrentMedia(newMedia);
+        soundFx.playHapticTick();
+      };
+      img.onerror = () => {
+        const newMedia: MediaItem = {
+          id: `user-${Date.now()}`,
+          name: file.name,
+          type: 'image',
+          url: url,
+          file: file,
+          aspectRatio: 4 / 5,
+          width: 1200,
+          height: 1200,
+        };
+        setCurrentMedia(newMedia);
+        soundFx.playHapticTick();
+      };
+      img.src = url;
+    }
+  };
+
   // Camera capture callback
   const handleCameraCapture = (capturedDataUrl: string) => {
     const capturedMedia: MediaItem = {
@@ -264,6 +318,7 @@ export default function App() {
         onOpenMediaLibrary={() => setIsMediaLibraryOpen(true)}
         onOpenCamera={() => setIsCameraOpen(true)}
         onOpenExport={() => setIsExportOpen(true)}
+        onImportMediaFile={handleImportMediaFile}
       />
 
       {/* Main Canvas Viewport Area */}

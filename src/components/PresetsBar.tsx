@@ -85,7 +85,7 @@ export const PresetsBar: React.FC<PresetsBarProps> = ({
           ))}
         </div>
 
-        {/* Action buttons: Save Custom & Import JSON */}
+        {/* Action buttons: Save Custom & Import Preset Recipe */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <input
             ref={fileInputRef}
@@ -97,10 +97,10 @@ export const PresetsBar: React.FC<PresetsBarProps> = ({
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1 px-3 py-1 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs text-[#2A2723] transition-colors"
-            title="Import preset file (.json)"
+            title="Import preset recipe JSON file"
           >
             <Upload className="w-3 h-3 text-[#2A2723]" />
-            <span className="hidden sm:inline">Import</span>
+            <span className="hidden sm:inline">Import Recipe</span>
           </button>
 
           <button
