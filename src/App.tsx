@@ -250,18 +250,25 @@ export default function App() {
     }
   };
 
-  // Camera capture callback
-  const handleCameraCapture = (capturedDataUrl: string) => {
+  // Camera capture callback (supports both photo capture and video recording)
+  const handleCameraCapture = (
+    capturedUrl: string,
+    capturedAdjustments?: Adjustments,
+    mediaType: 'image' | 'video' = 'image'
+  ) => {
     const capturedMedia: MediaItem = {
       id: `capture-${Date.now()}`,
-      name: `Photo Capture ${new Date().toLocaleTimeString()}`,
-      type: 'image',
-      url: capturedDataUrl,
-      aspectRatio: 4 / 5,
-      width: 1920,
-      height: 1440,
+      name: `${mediaType === 'video' ? 'Retro Video' : 'Photo Capture'} ${new Date().toLocaleTimeString()}`,
+      type: mediaType,
+      url: capturedUrl,
+      aspectRatio: mediaType === 'video' ? 16 / 9 : 4 / 5,
+      width: mediaType === 'video' ? 1920 : 1920,
+      height: mediaType === 'video' ? 1080 : 1440,
     };
     setCurrentMedia(capturedMedia);
+    if (capturedAdjustments) {
+      updateAdjustments(createAdjustmentsCopy(capturedAdjustments));
+    }
   };
 
   // Keyboard Shortcuts

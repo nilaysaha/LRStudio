@@ -1,4 +1,4 @@
-import { Adjustments, HSLAdjustments, ToneCurves } from '../types';
+import { Adjustments, DateStampSettings, HSLAdjustments, ToneCurves } from '../types';
 
 export const defaultHSL: HSLAdjustments = {
   red: { hue: 0, saturation: 0, luminance: 0 },
@@ -25,9 +25,22 @@ export const defaultCropBox = {
   height: 1,
 };
 
+export const defaultDateStamp: DateStampSettings = {
+  enabled: false,
+  style: 'led-orange',
+  position: 'bottom-right',
+  includeTime: false,
+  customDate: '',
+  customTime: '',
+  size: 1.0,
+  opacity: 0.95,
+};
+
 export const defaultAdjustments: Adjustments = {
   presetId: 'none',
   presetStrength: 1.0,
+  cameraType: 'none',
+  dateStamp: { ...defaultDateStamp },
 
   exposure: 0,
   contrast: 0,

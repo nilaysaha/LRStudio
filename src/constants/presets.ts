@@ -1,7 +1,8 @@
 import { Preset, MediaItem } from '../types';
 import { defaultAdjustments, defaultHSL } from './defaultAdjustments';
+import { CAMERA_PROFILES } from './cameraProfiles';
 
-export const BUILT_IN_PRESETS: Preset[] = [
+const BASE_PRESETS: Preset[] = [
   {
     id: 'none',
     name: 'Original',
@@ -477,6 +478,18 @@ export const BUILT_IN_PRESETS: Preset[] = [
     },
   },
 ];
+
+const CAMERA_PRESETS: Preset[] = CAMERA_PROFILES.map((cam) => ({
+  id: `cam-${cam.id}`,
+  name: cam.name,
+  category: 'Analog Cameras',
+  badge: cam.name === 'Disposable' || cam.name === 'kodak gold' || cam.name === 'Polaroid' || cam.name === 'vhs' || cam.name === 'cinestil' ? 'Featured' : undefined,
+  description: `${cam.subtitle} • ${cam.tagline}`,
+  thumbnailColor: cam.accentColor,
+  adjustments: cam.adjustments,
+}));
+
+export const BUILT_IN_PRESETS: Preset[] = [...BASE_PRESETS, ...CAMERA_PRESETS];
 
 export const SAMPLE_MEDIA_GALLERY: MediaItem[] = [
   {

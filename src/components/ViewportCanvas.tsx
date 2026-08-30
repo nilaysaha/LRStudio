@@ -3,6 +3,7 @@ import { Play, Pause, Volume2, VolumeX, RotateCcw, ZoomIn, ZoomOut, Maximize2, G
 import { ActiveTab, Adjustments, CropBox, MediaItem } from '../types';
 import { WebGLFilterEngine } from '../webgl/webglEngine';
 import { InteractiveCropOverlay } from './tools/InteractiveCropOverlay';
+import { CameraVisualOverlay } from './CameraVisualOverlay';
 import { soundFx } from '../utils/audio';
 
 interface ViewportCanvasProps {
@@ -417,6 +418,15 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
                 <rect width="100%" height="100%" fill="rgba(0, 0, 0, 0.75)" mask="url(#passive-circle-mask)" />
               </svg>
             </div>
+          )}
+
+          {/* Camera-Specific Visual Overlays, HUD & Superimposed Date/Time Stamp */}
+          {((adjustments.cameraType && adjustments.cameraType !== 'none') || adjustments.dateStamp?.enabled) && compareMode !== 'split' && (
+            <CameraVisualOverlay
+              cameraType={adjustments.cameraType}
+              dateStamp={adjustments.dateStamp}
+              isLive={false}
+            />
           )}
         </div>
 

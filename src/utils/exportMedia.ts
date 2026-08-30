@@ -1,5 +1,6 @@
 import { Adjustments, MediaItem } from '../types';
 import { WebGLFilterEngine } from '../webgl/webglEngine';
+import { renderCameraOverlayOnCanvas, renderDateStampOnCanvas } from './cameraOverlayRenderer';
 
 export interface ExportOptions {
   format: 'image/jpeg' | 'image/png' | 'image/webp' | 'video/webm' | 'video/mp4';
@@ -279,6 +280,16 @@ function applyFramesAndCrop(
       ctx.drawImage(sourceCanvas, sx, sy, cropW, cropH, pad, pad, cropW, cropH);
     }
     ctx.restore();
+  }
+
+  // Burn in authentic camera overlay features if cameraType is active
+  if (adj.cameraType && adj.cameraType !== 'none') {
+    renderCameraOverlayOnCanvas(ctx, adj.cameraType, outputCanvas.width, outputCanvas.height);
+  }
+
+  // Superimpose Date / Time Stamp if enabled
+  if (adj.dateStamp?.enabled) {
+    renderDateStampOnCanvas(ctx, adj.dateStamp, outputCanvas.width, outputCanvas.height);
   }
 
   return outputCanvas;

@@ -2,7 +2,8 @@
   "name": "LumenLab",
   "description": "Editorial photo and video editing studio with WebGL film filters, grain, light leaks, custom presets, camera capture, and real-time adjustments.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "microphone"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

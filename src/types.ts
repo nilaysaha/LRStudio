@@ -51,10 +51,93 @@ export type LightLeakType = 'none' | 'sunset' | 'side-flare' | 'prism-beam' | 'c
 export type DustType = 'none' | 'fine-specks' | 'film-scratches' | 'vintage-dust' | 'heavy-grunge';
 export type FrameType = 'none' | 'film-35mm' | 'polaroid' | 'gallery-white' | 'gallery-cream' | 'slide-120' | 'retro-tv';
 
+export type CameraType =
+  | 'none'
+  | 'disposable'
+  | 'fling35'
+  | 'kodak-gold'
+  | 'klasse'
+  | 'polaroid'
+  | 'paradiso'
+  | 'calagold'
+  | 'sunshot07'
+  | 'solare17'
+  | 'prima'
+  | 'novagold'
+  | 'moka-v'
+  | '5cam'
+  | 'asteria'
+  | 'natura'
+  | 'aurea'
+  | 'fuji400'
+  | 'velour'
+  | 'lunaria'
+  | 'velvia'
+  | 'ilford'
+  | 'curva'
+  | 'camcorder'
+  | 'handicam'
+  | 'digiscan'
+  | 'pinky'
+  | 'lomo'
+  | 'lumina'
+  | 'ultragold'
+  | 'retra'
+  | 'vhs'
+  | 'tzachrome'
+  | 'lofi'
+  | 'photobooth'
+  | 'cinestil'
+  | '8mm'
+  | '16mm'
+  | 'super8'
+  | 'super16';
+
+export type DateStampStyle =
+  | 'led-orange'     // Classic 90s Amber LED ('98 08 30)
+  | 'led-red'        // Red Quartz LED (30 08 '98)
+  | 'y2k-yellow'     // 2000s Digicam Yellow (2007.08.30 14:32)
+  | 'camcorder-green'// Retro Camcorder Green (AUG 30 1996 14:32:00)
+  | 'vhs-white'      // VHS OSD White (30.08.1998 14:32:00)
+  | 'handicam-white' // Sony DCR White (REC 0:14:32)
+  | 'film-gold'      // Kodak Film Gold (★ KODAK '98 08 30)
+  | 'classic-white'; // Minimalist White Clean
+
+export type DateStampPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+export interface DateStampSettings {
+  enabled: boolean;
+  style: DateStampStyle;
+  position: DateStampPosition;
+  includeTime: boolean;
+  customDate?: string; // e.g. "1998-08-30" or "'98 08 30"
+  customTime?: string; // e.g. "14:32:00"
+  size: number; // 0.6 to 2.0 (default 1.0)
+  opacity: number; // 0.3 to 1.0 (default 0.95)
+}
+
+export interface CameraProfile {
+  id: CameraType;
+  name: string;
+  subtitle: string;
+  tagline: string;
+  iconName?: string;
+  accentColor: string;
+  dateStampFormat?: 'led-orange' | 'led-red' | 'y2k-yellow' | 'camcorder-green' | 'vhs-white' | 'handicam-white' | 'none';
+  featuresDescription: string[];
+  adjustments: Adjustments;
+}
+
 export interface Adjustments {
   // Preset Info
   presetId: string;
   presetStrength: number; // 0 to 1 (default 1)
+
+  // Camera Type Overlay & Profile
+  cameraType: CameraType;
+
+  // Date / Time Stamp Superimpose
+  dateStamp: DateStampSettings;
 
   // Basic Tones
   exposure: number; // -1 to 1 (default 0)
@@ -127,7 +210,7 @@ export type CropAspect = 'free' | '1:1' | 'circle' | '4:5' | '9:16' | '16:9' | '
 export interface Preset {
   id: string;
   name: string;
-  category: 'LumenLab Signature' | 'Editorial' | 'Vintage Film' | 'Golden & Warm' | 'Moody & B&W' | 'Custom';
+  category: 'LumenLab Signature' | 'Analog Cameras' | 'Editorial' | 'Vintage Film' | 'Golden & Warm' | 'Moody & B&W' | 'Custom';
   description: string;
   isCustom?: boolean;
   isFavorite?: boolean;
