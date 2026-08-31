@@ -2,13 +2,16 @@ import React, { useRef, useState } from 'react';
 import {
   Undo2, Redo2, Copy, Check, Camera, Image as ImageIcon,
   Download, Eye, SplitSquareVertical, Sparkles, Upload,
-  RotateCcw, Menu, X, ChevronRight, Sliders, Info
+  RotateCcw, Menu, X, ChevronRight, Sliders, Info, FolderOpen,
+  Plus, ChevronDown, Video, LayoutGrid
 } from 'lucide-react';
-import { MediaItem } from '../types';
+import { MediaItem, Project } from '../types';
+import { PROJECT_TEMPLATE_TAGS } from '../constants/projectTemplates';
 import { soundFx } from '../utils/audio';
 
 interface EditorHeaderProps {
   currentMedia: MediaItem | null;
+  currentProject?: Project | null;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -23,12 +26,17 @@ interface EditorHeaderProps {
   hasCopiedRecipe: boolean;
   onOpenMediaLibrary: () => void;
   onOpenCamera: () => void;
+  onOpenRecordVideo?: () => void;
+  onOpenCollages?: () => void;
   onOpenExport: () => void;
   onImportMediaFile?: (file: File) => void;
+  onOpenProjectsModal?: () => void;
+  onOpenTemplatesGallery?: () => void;
 }
 
 export const EditorHeader: React.FC<EditorHeaderProps> = ({
   currentMedia,
+  currentProject,
   canUndo,
   canRedo,
   onUndo,
@@ -43,8 +51,12 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   hasCopiedRecipe,
   onOpenMediaLibrary,
   onOpenCamera,
+  onOpenRecordVideo,
+  onOpenCollages,
   onOpenExport,
   onImportMediaFile,
+  onOpenProjectsModal,
+  onOpenTemplatesGallery,
 }) => {
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
@@ -69,6 +81,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
     setIsHamburgerOpen(false);
   };
 
+  const currentTagInfo = currentProject?.templateTag && currentProject.templateTag !== 'custom'
+    ? PROJECT_TEMPLATE_TAGS.find((t) => t.id === currentProject.templateTag)
+    : null;
+
   return (
     <>
       {/* Hidden Native File Input for direct photo/video import */}
@@ -85,11 +101,11 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         {/* 1. DESKTOP & TABLET TOP BAR (md:flex, hidden on mobile) */}
         {/* ========================================================= */}
         <div className="hidden md:flex items-center justify-between gap-3">
-          {/* Brand & Media Badge */}
+          {/* Brand & Project Selector */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <div
               className="flex items-center gap-2 cursor-pointer py-1 group"
-              onClick={onOpenMediaLibrary}
+              onClick={onOpenProjectsModal}
             >
               <span className="font-editorial text-lg lg:text-xl tracking-[0.2em] font-bold text-[#2A2723] group-hover:text-black transition-colors">
                 LUMENLAB
@@ -99,14 +115,45 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               </span>
             </div>
 
-            {currentMedia && (
+            {/* Current Project Pill Button */}
+            {currentProject && onOpenProjectsModal && (
               <button
-                onClick={onOpenMediaLibrary}
-                className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-xs text-[#4A453E] transition-colors max-w-[170px]"
-                title="Switch or browse media library"
+                onClick={() => {
+                  soundFx.playHapticTick();
+                  onOpenProjectsModal();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-xs text-[#2A2723] font-semibold transition-all cursor-pointer max-w-[210px] shadow-xs group"
+                title="Manage projects or pick LumenLabs templates"
               >
-                <ImageIcon className="w-3.5 h-3.5 text-[#2A2723] flex-shrink-0" />
-                <span className="truncate">{currentMedia.name}</span>
+                <FolderOpen className="w-3.5 h-3.5 text-[#7E7365] group-hover:text-[#2A2723] flex-shrink-0" />
+                <span className="truncate">{currentProject.name}</span>
+                {currentTagInfo && (
+                  <span
+                    className="text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase flex-shrink-0"
+                    style={{
+                      backgroundColor: currentTagInfo.bgColor,
+                      color: currentTagInfo.color,
+                    }}
+                  >
+                    {currentTagInfo.label}
+                  </span>
+                )}
+                <ChevronDown className="w-3 h-3 text-[#7E7365] flex-shrink-0" />
+              </button>
+            )}
+
+            {/* Quick LumenLabs Templates Explore Button */}
+            {onOpenTemplatesGallery && (
+              <button
+                onClick={() => {
+                  soundFx.playHapticTick();
+                  onOpenTemplatesGallery();
+                }}
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-semibold text-amber-900 transition-colors cursor-pointer shadow-xs"
+                title="Browse LumenLabs Templates by tag"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>Templates</span>
               </button>
             )}
           </div>
@@ -195,6 +242,40 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 
           {/* Right Primary Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Collages & Templates Button */}
+            {onOpenCollages && (
+              <button
+                onClick={() => {
+                  onOpenCollages();
+                  soundFx.playHapticTick();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-xs font-semibold text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer"
+                title="Browse & customize multi-picture & multi-video collage formats"
+              >
+                <LayoutGrid className="w-3.5 h-3.5 text-[#2A2723]" />
+                <span>Collages</span>
+                <span className="text-[9px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.2 rounded-full">
+                  Multi
+                </span>
+              </button>
+            )}
+
+            {/* Record Video Button */}
+            {onOpenRecordVideo && (
+              <button
+                onClick={() => {
+                  onOpenRecordVideo();
+                  soundFx.playHapticTick();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-semibold text-rose-900 shadow-xs active:scale-95 transition-all cursor-pointer"
+                title="Start live camera video recording with analog film effects"
+              >
+                <div className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                <Video className="w-3.5 h-3.5 text-rose-700" />
+                <span>Record Video</span>
+              </button>
+            )}
+
             {/* Import Media */}
             <button
               onClick={() => {
@@ -203,7 +284,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   soundFx.playHapticTick();
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#2A2723]/30 text-xs font-semibold text-[#2A2723] shadow-xs active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#2A2723]/30 text-xs font-semibold text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer"
               title="Import Photo or Video from device"
             >
               <Upload className="w-3.5 h-3.5 text-[#2A2723]" />
@@ -213,7 +294,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             {/* Camera */}
             <button
               onClick={() => { onOpenCamera(); soundFx.playHapticTick(); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer"
               title="Open Live WebGL Camera"
             >
               <Camera className="w-3.5 h-3.5 text-[#2A2723]" />
@@ -223,7 +304,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             {/* Library */}
             <button
               onClick={() => { onOpenMediaLibrary(); soundFx.playHapticTick(); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer"
               title="Open Curated Media Library"
             >
               <ImageIcon className="w-3.5 h-3.5 text-[#2A2723]" />
@@ -246,11 +327,15 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         {/* 2. COLLAPSED MOBILE TOP BAR WITH HAMBURGER MENU (md:hidden) */}
         {/* ========================================================= */}
         <div className="flex md:hidden items-center justify-between gap-2">
-          {/* Left: Compact Brand + Media badge */}
+          {/* Left: Compact Brand + Project / Media badge */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                setIsHamburgerOpen(true);
+                if (onOpenProjectsModal) {
+                  onOpenProjectsModal();
+                } else {
+                  setIsHamburgerOpen(true);
+                }
                 soundFx.playHapticTick();
               }}
               className="flex items-center gap-1.5 text-left focus:outline-none"
@@ -263,17 +348,17 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               </span>
             </button>
 
-            {currentMedia && (
+            {currentProject && (
               <button
                 onClick={() => {
-                  onOpenMediaLibrary();
+                  if (onOpenProjectsModal) onOpenProjectsModal();
                   soundFx.playHapticTick();
                 }}
-                className="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3] text-[10px] text-[#4A453E] max-w-[100px] truncate"
-                title="Current Media"
+                className="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3] text-[10px] text-[#4A453E] max-w-[110px] truncate"
+                title="Current Project"
               >
-                <ImageIcon className="w-2.5 h-2.5 flex-shrink-0 text-[#7E7365]" />
-                <span className="truncate">{currentMedia.name}</span>
+                <FolderOpen className="w-2.5 h-2.5 flex-shrink-0 text-[#7E7365]" />
+                <span className="truncate">{currentProject.name}</span>
               </button>
             )}
           </div>
@@ -347,7 +432,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           />
 
           {/* Drawer Container (Top-Down Slide) */}
-          <div className="relative bg-white border-b border-[#E6E2D3] shadow-2xl w-full max-h-[85vh] overflow-y-auto z-10 animate-in slide-in-from-top-4 duration-200 flex flex-col p-4 gap-4">
+          <div className="relative bg-white border-b border-[#E6E2D3] shadow-2xl w-full max-h-[88vh] overflow-y-auto z-10 animate-in slide-in-from-top-4 duration-200 flex flex-col p-4 gap-4">
             {/* Drawer Header */}
             <div className="flex items-center justify-between pb-3 border-b border-[#F0EEE6]">
               <div className="flex items-center gap-2">
@@ -355,7 +440,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   LUMENLAB
                 </span>
                 <span className="text-[9px] tracking-wider text-[#7E7365] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3]">
-                  PRO MENU
+                  STUDIO MENU
                 </span>
               </div>
 
@@ -369,6 +454,48 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            {/* Section 0: Active Project & LumenLabs Templates */}
+            <div>
+              <div className="text-[10px] font-bold tracking-wider text-[#7E7365] uppercase mb-2">
+                Project & Templates
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Manage Projects */}
+                <button
+                  onClick={() => {
+                    if (onOpenProjectsModal) onOpenProjectsModal();
+                    closeHamburger();
+                    soundFx.playHapticTick();
+                  }}
+                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#FAF9F6] hover:bg-white border border-[#E6E2D3] active:scale-95 transition-all text-center gap-1.5"
+                >
+                  <div className="w-7 h-7 rounded-full bg-white border border-[#E6E2D3] flex items-center justify-center">
+                    <FolderOpen className="w-3.5 h-3.5 text-[#2A2723]" />
+                  </div>
+                  <span className="text-xs font-semibold text-[#2A2723]">My Projects</span>
+                  <span className="text-[9px] text-[#7E7365] truncate max-w-[110px]">
+                    {currentProject ? currentProject.name : 'Switch / Create'}
+                  </span>
+                </button>
+
+                {/* LumenLabs Templates */}
+                <button
+                  onClick={() => {
+                    if (onOpenTemplatesGallery) onOpenTemplatesGallery();
+                    closeHamburger();
+                    soundFx.playHapticTick();
+                  }}
+                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 active:scale-95 transition-all text-center gap-1.5"
+                >
+                  <div className="w-7 h-7 rounded-full bg-white border border-amber-200 flex items-center justify-center">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  </div>
+                  <span className="text-xs font-semibold text-amber-950">LumenLabs Templates</span>
+                  <span className="text-[9px] text-amber-800">Clean, Sunbath, etc.</span>
+                </button>
+              </div>
             </div>
 
             {/* Active Media Card */}
@@ -403,9 +530,61 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             {/* Section 1: Media Inputs & Camera */}
             <div>
               <div className="text-[10px] font-bold tracking-wider text-[#7E7365] uppercase mb-2">
-                Media & Import
+                Create, Record & Import
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                {/* Collages & Multi-Media */}
+                {onOpenCollages && (
+                  <button
+                    onClick={() => {
+                      onOpenCollages();
+                      closeHamburger();
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#FAF9F6] hover:bg-white border border-[#E6E2D3] active:scale-95 transition-all text-center gap-1.5"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-white border border-[#E6E2D3] flex items-center justify-center">
+                      <LayoutGrid className="w-3.5 h-3.5 text-[#2A2723]" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#2A2723]">Collages</span>
+                    <span className="text-[9px] text-[#7E7365]">Multi-Photo & Video</span>
+                  </button>
+                )}
+
+                {/* Record Video */}
+                {onOpenRecordVideo && (
+                  <button
+                    onClick={() => {
+                      onOpenRecordVideo();
+                      closeHamburger();
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex flex-col items-center justify-center p-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 active:scale-95 transition-all text-center gap-1.5"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-white border border-rose-200 flex items-center justify-center">
+                      <Video className="w-3.5 h-3.5 text-rose-700" />
+                    </div>
+                    <span className="text-xs font-semibold text-rose-950">Record Video</span>
+                    <span className="text-[9px] text-rose-700">Live Analog Capture</span>
+                  </button>
+                )}
+
+                {/* Open WebGL Camera */}
+                <button
+                  onClick={() => {
+                    onOpenCamera();
+                    closeHamburger();
+                    soundFx.playHapticTick();
+                  }}
+                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#FAF9F6] hover:bg-white border border-[#E6E2D3] active:scale-95 transition-all text-center gap-1.5"
+                >
+                  <div className="w-7 h-7 rounded-full bg-white border border-[#E6E2D3] flex items-center justify-center">
+                    <Camera className="w-3.5 h-3.5 text-[#2A2723]" />
+                  </div>
+                  <span className="text-xs font-semibold text-[#2A2723]">Live Photo</span>
+                  <span className="text-[9px] text-[#7E7365]">WebGL Filters</span>
+                </button>
+
                 {/* Import File */}
                 <button
                   onClick={() => {
@@ -420,39 +599,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                     <Upload className="w-3.5 h-3.5 text-[#2A2723]" />
                   </div>
                   <span className="text-xs font-semibold text-[#2A2723]">Import File</span>
-                  <span className="text-[9px] text-[#7E7365]">From Device</span>
-                </button>
-
-                {/* Open WebGL Camera */}
-                <button
-                  onClick={() => {
-                    onOpenCamera();
-                    closeHamburger();
-                    soundFx.playHapticTick();
-                  }}
-                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#FAF9F6] hover:bg-white border border-[#E6E2D3] active:scale-95 transition-all text-center gap-1.5"
-                >
-                  <div className="w-7 h-7 rounded-full bg-white border border-[#E6E2D3] flex items-center justify-center">
-                    <Camera className="w-3.5 h-3.5 text-[#2A2723]" />
-                  </div>
-                  <span className="text-xs font-semibold text-[#2A2723]">Live Camera</span>
-                  <span className="text-[9px] text-[#7E7365]">WebGL View</span>
-                </button>
-
-                {/* Media Library */}
-                <button
-                  onClick={() => {
-                    onOpenMediaLibrary();
-                    closeHamburger();
-                    soundFx.playHapticTick();
-                  }}
-                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#FAF9F6] hover:bg-white border border-[#E6E2D3] active:scale-95 transition-all text-center gap-1.5"
-                >
-                  <div className="w-7 h-7 rounded-full bg-white border border-[#E6E2D3] flex items-center justify-center">
-                    <ImageIcon className="w-3.5 h-3.5 text-[#2A2723]" />
-                  </div>
-                  <span className="text-xs font-semibold text-[#2A2723]">Media Library</span>
-                  <span className="text-[9px] text-[#7E7365]">Curated Gallery</span>
+                  <span className="text-[9px] text-[#7E7365]">Photo / Video</span>
                 </button>
               </div>
             </div>

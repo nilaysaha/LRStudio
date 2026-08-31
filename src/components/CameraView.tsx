@@ -16,14 +16,18 @@ import { defaultDateStamp } from '../constants/defaultAdjustments';
 interface CameraViewProps {
   isOpen: boolean;
   onClose: () => void;
-  onCapture: (capturedUrl: string, capturedAdjustments?: Adjustments, mediaType?: 'image' | 'video') => void;
+  onCapture: (capturedUrl: string, capturedAdjustments?: Adjustments, mediaType?: 'image' | 'video', targetSlotId?: string | null) => void;
   presets: Preset[];
+  initialMode?: 'photo' | 'video';
+  targetSlotId?: string | null;
 }
 
 export const CameraView: React.FC<CameraViewProps> = ({
   isOpen,
   onClose,
   onCapture,
+  initialMode = 'photo',
+  targetSlotId = null,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -72,6 +76,13 @@ export const CameraView: React.FC<CameraViewProps> = ({
   useEffect(() => {
     selectedCameraRef.current = selectedCameraType;
   }, [selectedCameraType]);
+
+  // Sync captureMode when camera is opened with a specific initialMode
+  useEffect(() => {
+    if (isOpen) {
+      setCaptureMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   // Enumerate cameras
   const refreshDevices = useCallback(async () => {
@@ -184,6 +195,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   // Handle open/close lifecycle
   useEffect(() => {
     if (isOpen) {
+      setCaptureMode(initialMode);
       startCamera(facingMode);
     } else {
       if (isRecording) {
@@ -201,7 +213,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         clearInterval(recordingTimerRef.current);
       }
     };
-  }, [isOpen]);
+  }, [isOpen, initialMode]);
 
   // Continuous WebGL Viewfinder Animation Loop
   useEffect(() => {
@@ -340,10 +352,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
         const finalAdj: Adjustments = profile
           ? { ...profile.adjustments, dateStamp: { ...dateStamp } }
           : { ...CAMERA_PROFILES[0].adjustments, dateStamp: { ...dateStamp } };
-        onCapture(dataUrl, finalAdj, 'image');
+        onCapture(dataUrl, finalAdj, 'image', targetSlotId);
       } else {
         const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-        onCapture(dataUrl, profile ? profile.adjustments : undefined, 'image');
+        onCapture(dataUrl, profile ? profile.adjustments : undefined, 'image', targetSlotId);
       }
 
       onClose();
@@ -359,10 +371,22 @@ export const CameraView: React.FC<CameraViewProps> = ({
     recordedChunksRef.current = [];
 
     try {
-      // 1. Get 30fps canvas stream with WebGL film filters
-      const canvasStream = (canvas as any).captureStream ? (canvas as any).captureStream(30) : null;
-      if (!canvasStream) {
-        throw new Error('Canvas captureStream is not supported in this browser.');
+      // 1. Get 30fps canvas stream with WebGL film filters, or fallback to video element stream
+      let mediaStreamToRecord: MediaStream | null = null;
+      try {
+        if ((canvas as any).captureStream) {
+          mediaStreamToRecord = (canvas as any).captureStream(30);
+        }
+      } catch (e) {
+        console.warn('Canvas captureStream failed, using raw video stream', e);
+      }
+
+      if (!mediaStreamToRecord && streamRef.current) {
+        mediaStreamToRecord = streamRef.current;
+      }
+
+      if (!mediaStreamToRecord) {
+        throw new Error('Video stream is not available for recording.');
       }
 
       // 2. Try to capture microphone audio
@@ -374,7 +398,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       }
 
       // 3. Combine audio and video tracks into one stream
-      const tracks = [...canvasStream.getVideoTracks()];
+      const tracks = [...mediaStreamToRecord.getVideoTracks()];
       if (audioStream) {
         tracks.push(...audioStream.getAudioTracks());
       }
@@ -424,7 +448,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
           ? { ...profile.adjustments, dateStamp: { ...dateStamp } }
           : { ...CAMERA_PROFILES[0].adjustments, dateStamp: { ...dateStamp } };
 
-        onCapture(videoUrl, finalAdj, 'video');
+        onCapture(videoUrl, finalAdj, 'video', targetSlotId);
         onClose();
       };
 
