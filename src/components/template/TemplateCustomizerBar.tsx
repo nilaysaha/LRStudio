@@ -20,6 +20,7 @@ interface TemplateCustomizerBarProps {
   selectedTextId: string | null;
   onSelectText: (textId: string | null) => void;
   onTriggerSlotUpload: (slotId: string) => void;
+  onChooseFromLibraryForSlot?: (slotId: string) => void;
   onRecordVideoForSlot?: (slotId: string) => void;
   onTakePhotoForSlot?: (slotId: string) => void;
   onBatchUploadMultipleMedia?: () => void;
@@ -38,6 +39,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
   selectedTextId,
   onSelectText,
   onTriggerSlotUpload,
+  onChooseFromLibraryForSlot,
   onRecordVideoForSlot,
   onTakePhotoForSlot,
   onBatchUploadMultipleMedia,
@@ -231,18 +233,35 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     <span className="text-xs font-semibold text-[#2A2723] truncate">
                       {slot.label || `Slot ${index + 1}`}
                     </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onTriggerSlotUpload(slot.id);
-                        soundFx.playHapticTick();
-                      }}
-                      className="mt-1 text-[10px] font-medium text-[#0A84FF] hover:underline flex items-center gap-1"
-                    >
-                      <Upload className="w-2.5 h-2.5" />
-                      <span>Replace</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {onChooseFromLibraryForSlot && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onChooseFromLibraryForSlot(slot.id);
+                            soundFx.playHapticTick();
+                          }}
+                          className="text-[10px] font-medium text-amber-700 hover:underline flex items-center gap-0.5"
+                          title="Choose from Media Library"
+                        >
+                          <Camera className="w-2.5 h-2.5" />
+                          <span>Library</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTriggerSlotUpload(slot.id);
+                          soundFx.playHapticTick();
+                        }}
+                        className="text-[10px] font-medium text-[#0A84FF] hover:underline flex items-center gap-0.5"
+                      >
+                        <Upload className="w-2.5 h-2.5" />
+                        <span>Upload</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -257,6 +276,20 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                   {selectedSlot.label}:
                 </span>
                 
+                {onChooseFromLibraryForSlot && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChooseFromLibraryForSlot(selectedSlot.id);
+                      soundFx.playHapticTick();
+                    }}
+                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <Camera className="w-3 h-3" />
+                    <span>My Library</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => onTriggerSlotUpload(selectedSlot.id)}

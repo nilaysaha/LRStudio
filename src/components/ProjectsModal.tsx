@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   X, Plus, Sparkles, FolderOpen, Trash2, Copy, Edit2, Check,
-  Search, ArrowRight, Upload, Calendar, Clock, Film, Camera,
+  Search, ArrowRight, Upload, Calendar, Clock, Film, Camera, Video,
   Layers, Heart, Sun, Eye, Zap, Compass, PenTool, Flame, RefreshCw
 } from 'lucide-react';
 import { Project, ProjectTemplate, ProjectTemplateTag, MediaItem, Adjustments } from '../types';
@@ -15,6 +15,7 @@ interface ProjectsModalProps {
   projects: Project[];
   currentProjectId: string | null;
   initialTab?: 'my-projects' | 'templates';
+  userMediaLibrary?: MediaItem[];
   onSelectProject: (project: Project) => void;
   onCreateProject: (
     name: string,
@@ -26,6 +27,8 @@ interface ProjectsModalProps {
   onDeleteProject: (projectId: string) => void;
   onRenameProject: (projectId: string, newName: string) => void;
   onImportFileToProject?: (file: File) => Promise<MediaItem | null>;
+  onOpenCamera?: () => void;
+  onRecordVideo?: () => void;
 }
 
 export const ProjectsModal: React.FC<ProjectsModalProps> = ({
@@ -34,12 +37,15 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   projects,
   currentProjectId,
   initialTab,
+  userMediaLibrary = [],
   onSelectProject,
   onCreateProject,
   onDuplicateProject,
   onDeleteProject,
   onRenameProject,
   onImportFileToProject,
+  onOpenCamera,
+  onRecordVideo,
 }) => {
   // Modal active tab: 'my-projects' | 'templates'
   const [activeTab, setActiveTab] = useState<'my-projects' | 'templates'>(
@@ -66,6 +72,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   // Blank project creation modal step
   const [isBlankProjectMode, setIsBlankProjectMode] = useState<boolean>(false);
   const [blankProjectName, setBlankProjectName] = useState<string>('Untitled Project');
+  const [blankProjectMedia, setBlankProjectMedia] = useState<MediaItem | null>(null);
 
   // Inline rename state in My Projects
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -116,8 +123,9 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   const handleCreateBlankProject = () => {
     soundFx.playShutter();
     const nameToUse = blankProjectName.trim() || 'Untitled Project';
-    onCreateProject(nameToUse, undefined, undefined, createAdjustmentsCopy(defaultAdjustments));
+    onCreateProject(nameToUse, undefined, blankProjectMedia || undefined, createAdjustmentsCopy(defaultAdjustments));
     setIsBlankProjectMode(false);
+    setBlankProjectMedia(null);
     onClose();
   };
 
@@ -762,18 +770,50 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 </div>
 
                 {/* Media Source Selector */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider">
-                    Initial Media Source
-                  </label>
-                  <div className="grid grid-cols-2 gap-2.5">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider">
+                      Initial Media Source
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      {onRecordVideo && (
+                        <button
+                          onClick={() => {
+                            soundFx.playHapticTick();
+                            onClose();
+                            onRecordVideo();
+                          }}
+                          className="flex items-center gap-1 text-[10px] font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-red-200"
+                        >
+                          <Video className="w-3 h-3" />
+                          <span>Record Video</span>
+                        </button>
+                      )}
+                      {onOpenCamera && (
+                        <button
+                          onClick={() => {
+                            soundFx.playHapticTick();
+                            onClose();
+                            onOpenCamera();
+                          }}
+                          className="flex items-center gap-1 text-[10px] font-semibold text-[#2A2723] hover:text-black bg-[#FAF9F6] hover:bg-[#F0EEE6] px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-[#E6E2D3]"
+                        >
+                          <Camera className="w-3 h-3 text-amber-500" />
+                          <span>Take Photo</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Option Cards */}
+                  <div className="grid grid-cols-2 gap-2">
                     {/* Option A: Use Template Sample */}
                     <button
                       onClick={() => {
                         soundFx.playHapticTick();
                         setUploadedMedia(null);
                       }}
-                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                      className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
                         !uploadedMedia
                           ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
                           : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
@@ -784,7 +824,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         {!uploadedMedia && <Check className="w-3.5 h-3.5 text-[#2A2723]" />}
                       </div>
                       <p className="text-[10px] text-[#7E7365]">
-                        Start instantly with curated LumenLabs aesthetic photography
+                        Curated editorial photography
                       </p>
                     </button>
 
@@ -794,27 +834,100 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         soundFx.playHapticTick();
                         fileInputRef.current?.click();
                       }}
-                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                        uploadedMedia
+                      className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                        uploadedMedia && !userMediaLibrary.some((m) => m.id === uploadedMedia.id)
                           ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
                           : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-[#2A2723]">
-                          {uploadedMedia ? 'Media Uploaded' : 'Upload My Photo/Video'}
+                          Upload From Device
                         </span>
-                        {uploadedMedia ? (
-                          <Check className="w-3.5 h-3.5 text-green-600" />
-                        ) : (
-                          <Upload className="w-3.5 h-3.5 text-[#7E7365]" />
-                        )}
+                        <Upload className="w-3.5 h-3.5 text-[#7E7365]" />
                       </div>
                       <p className="text-[10px] text-[#7E7365] truncate">
-                        {uploadedMedia ? uploadedMedia.name : 'Import from your device'}
+                        Select file from computer
                       </p>
                     </button>
                   </div>
+
+                  {/* Option C: User Library Items (Recorded Videos & Captures) */}
+                  {userMediaLibrary.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-[#2A2723] flex items-center gap-1.5">
+                          <Camera className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Choose from My Library ({userMediaLibrary.length} Captures & Videos):</span>
+                        </span>
+                        {uploadedMedia && userMediaLibrary.some((m) => m.id === uploadedMedia.id) && (
+                          <span className="text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                            Selected: {uploadedMedia.name}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 overflow-x-auto p-1.5 bg-white rounded-xl border border-[#E6E2D3] no-scrollbar">
+                        {userMediaLibrary.map((media) => {
+                          const isSelected = uploadedMedia?.id === media.id;
+                          const isVideo = media.type === 'video';
+                          return (
+                            <div
+                              key={media.id}
+                              onClick={() => {
+                                soundFx.playHapticTick();
+                                setUploadedMedia(media);
+                              }}
+                              className={`relative flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden cursor-pointer border transition-all ${
+                                isSelected
+                                  ? 'border-[#2A2723] ring-2 ring-[#2A2723] scale-105 shadow-sm'
+                                  : 'border-[#E6E2D3] hover:border-[#2A2723] opacity-85 hover:opacity-100'
+                              }`}
+                              title={media.name}
+                            >
+                              {isVideo ? (
+                                <video
+                                  src={media.url}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                />
+                              ) : (
+                                <img
+                                  src={media.url}
+                                  alt={media.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+
+                              {/* Badge */}
+                              <div className="absolute top-1 left-1 pointer-events-none">
+                                {isVideo ? (
+                                  <span className="p-0.5 rounded bg-red-600 text-white flex items-center justify-center">
+                                    <Video className="w-2.5 h-2.5" />
+                                  </span>
+                                ) : (
+                                  <span className="p-0.5 rounded bg-amber-500 text-white flex items-center justify-center">
+                                    <Camera className="w-2.5 h-2.5" />
+                                  </span>
+                                )}
+                              </div>
+
+                              {isSelected && (
+                                <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+
+                              <div className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-[8px] text-white truncate">
+                                {media.name}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Pre-configured Adjustments Highlight */}
@@ -903,6 +1016,66 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                     className="w-full bg-white border border-[#E6E2D3] rounded-xl px-3.5 py-2 text-xs font-medium text-[#2A2723] focus:outline-none focus:border-[#2A2723]"
                   />
                 </div>
+
+                {userMediaLibrary.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider flex items-center justify-between">
+                      <span>Start with Library Media (Optional)</span>
+                      {blankProjectMedia && (
+                        <button
+                          onClick={() => setBlankProjectMedia(null)}
+                          className="text-[10px] text-[#7E7365] hover:text-[#2A2723] underline"
+                        >
+                          Clear selection
+                        </button>
+                      )}
+                    </label>
+                    <div className="flex items-center gap-2 overflow-x-auto p-1.5 bg-white rounded-xl border border-[#E6E2D3] no-scrollbar">
+                      {userMediaLibrary.map((media) => {
+                        const isSelected = blankProjectMedia?.id === media.id;
+                        const isVideo = media.type === 'video';
+                        return (
+                          <div
+                            key={media.id}
+                            onClick={() => {
+                              soundFx.playHapticTick();
+                              setBlankProjectMedia(isSelected ? null : media);
+                            }}
+                            className={`relative flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden cursor-pointer border transition-all ${
+                              isSelected
+                                ? 'border-[#2A2723] ring-2 ring-[#2A2723] scale-105 shadow-sm'
+                                : 'border-[#E6E2D3] hover:border-[#2A2723] opacity-80 hover:opacity-100'
+                            }`}
+                            title={media.name}
+                          >
+                            {isVideo ? (
+                              <video src={media.url} className="w-full h-full object-cover" muted playsInline />
+                            ) : (
+                              <img src={media.url} alt={media.name} className="w-full h-full object-cover" />
+                            )}
+                            <div className="absolute top-1 left-1 pointer-events-none">
+                              {isVideo ? (
+                                <span className="p-0.5 rounded bg-red-600 text-white flex items-center justify-center">
+                                  <Video className="w-2 h-2" />
+                                </span>
+                              ) : (
+                                <span className="p-0.5 rounded bg-amber-500 text-white flex items-center justify-center">
+                                  <Camera className="w-2 h-2" />
+                                </span>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center">
+                                <Check className="w-3.5 h-3.5 text-white" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <p className="text-[11px] text-[#7E7365]">
                   Initializes a clean project canvas with raw capturing defaults ready for custom adjustments.
                 </p>

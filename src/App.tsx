@@ -26,6 +26,7 @@ const STORAGE_KEY_CUSTOM_PRESETS = 'lumenlab_custom_presets_v1';
 const STORAGE_KEY_FAVORITES = 'lumenlab_favorite_presets_v1';
 const STORAGE_KEY_PROJECTS = 'lumenlab_user_projects_v2';
 const STORAGE_KEY_CURRENT_PROJECT_ID = 'lumenlab_current_project_id_v2';
+const STORAGE_KEY_USER_MEDIA = 'lumenlab_user_media_library_v2';
 
 // Seed initial default projects from LumenLabs templates if storage is empty
 const INITIAL_SEEDED_PROJECTS: Project[] = [
@@ -142,6 +143,7 @@ export default function App() {
 
   // Modals
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+  const [libraryTargetSlotId, setLibraryTargetSlotId] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraInitialMode, setCameraInitialMode] = useState<'photo' | 'video'>('photo');
   const [cameraTargetSlotId, setCameraTargetSlotId] = useState<string | null>(null);
@@ -149,6 +151,19 @@ export default function App() {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [projectsModalTab, setProjectsModalTab] = useState<'my-projects' | 'templates'>('my-projects');
+
+  // User Media Library (recorded videos, camera captures, and uploaded items)
+  const [userMediaLibrary, setUserMediaLibrary] = useState<MediaItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_USER_MEDIA);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // Storage unavailable
+    }
+    return [];
+  });
 
   // Current active project object
   const currentProject = projects.find((p) => p.id === currentProjectId) || null;
@@ -170,6 +185,15 @@ export default function App() {
   // -------------------------------------------------------------
   // 4. Auto-save & LocalStorage Sync
   // -------------------------------------------------------------
+  // Save user media library to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_USER_MEDIA, JSON.stringify(userMediaLibrary));
+    } catch {
+      // Storage quota or disabled
+    }
+  }, [userMediaLibrary]);
+
   // Save projects and active project id to localStorage
   useEffect(() => {
     try {
@@ -368,6 +392,13 @@ export default function App() {
     if (slotUploadInputRef.current) slotUploadInputRef.current.value = '';
   };
 
+  // Choose media from user library specifically for a collage slot
+  const handleChooseFromLibraryForSlot = (slotId: string) => {
+    setLibraryTargetSlotId(slotId);
+    setIsMediaLibraryOpen(true);
+    soundFx.playHapticTick();
+  };
+
   // Record live video specifically for a collage slot
   const handleRecordVideoForSlot = (slotId: string) => {
     setCameraInitialMode('video');
@@ -407,27 +438,36 @@ export default function App() {
       targetCollage = { ...match };
     }
 
+    const batchMediaItems: MediaItem[] = [];
     const updatedSlots = targetCollage.slots.map((slot, index) => {
       if (index < fileArray.length) {
         const file = fileArray[index];
         const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
         const url = URL.createObjectURL(file);
+        const item: MediaItem = {
+          id: `media-batch-${Date.now()}-${index}`,
+          name: file.name,
+          type: isVideo ? ('video' as const) : ('image' as const),
+          url,
+          file,
+          aspectRatio: isVideo ? 16 / 9 : 4 / 5,
+          width: 1080,
+          height: 1920,
+          createdAt: Date.now(),
+          source: 'upload',
+        };
+        batchMediaItems.push(item);
         return {
           ...slot,
-          media: {
-            id: `media-batch-${Date.now()}-${index}`,
-            name: file.name,
-            type: isVideo ? ('video' as const) : ('image' as const),
-            url,
-            file,
-            aspectRatio: isVideo ? 16 / 9 : 4 / 5,
-            width: 1080,
-            height: 1920,
-          },
+          media: item,
         };
       }
       return slot;
     });
+
+    if (batchMediaItems.length > 0) {
+      setUserMediaLibrary((prev) => [...batchMediaItems, ...prev]);
+    }
 
     setActiveCollage({ ...targetCollage, slots: updatedSlots });
     if (appBatchFileInputRef.current) appBatchFileInputRef.current.value = '';
@@ -573,8 +613,11 @@ export default function App() {
         aspectRatio: 16 / 9,
         width: 1920,
         height: 1080,
+        createdAt: Date.now(),
+        source: 'upload',
       };
       setCurrentMedia(newMedia);
+      setUserMediaLibrary((prev) => [newMedia, ...prev]);
       soundFx.playHapticTick();
     } else {
       const img = new Image();
@@ -590,8 +633,11 @@ export default function App() {
           aspectRatio: w / h,
           width: w,
           height: h,
+          createdAt: Date.now(),
+          source: 'upload',
         };
         setCurrentMedia(newMedia);
+        setUserMediaLibrary((prev) => [newMedia, ...prev]);
         soundFx.playHapticTick();
       };
       img.onerror = () => {
@@ -604,8 +650,11 @@ export default function App() {
           aspectRatio: 4 / 5,
           width: 1200,
           height: 1200,
+          createdAt: Date.now(),
+          source: 'upload',
         };
         setCurrentMedia(newMedia);
+        setUserMediaLibrary((prev) => [newMedia, ...prev]);
         soundFx.playHapticTick();
       };
       img.src = url;
@@ -620,15 +669,22 @@ export default function App() {
     targetSlotId?: string | null
   ) => {
     const isVideo = mediaType === 'video';
+    const now = Date.now();
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const capturedMedia: MediaItem = {
-      id: `capture-${Date.now()}`,
-      name: `${isVideo ? 'Analog Video' : 'Photo Capture'} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      id: `capture-${now}`,
+      name: `${isVideo ? 'Recorded Video' : 'Camera Photo'} ${timeStr}`,
       type: mediaType,
       url: capturedUrl,
       aspectRatio: isVideo ? 16 / 9 : 4 / 5,
       width: isVideo ? 1920 : 1920,
       height: isVideo ? 1080 : 1440,
+      createdAt: now,
+      source: 'camera',
     };
+
+    // Store in persistent user media library
+    setUserMediaLibrary((prev) => [capturedMedia, ...prev]);
 
     if (targetSlotId && activeCollage) {
       // Direct insertion into specific collage frame
@@ -821,6 +877,7 @@ export default function App() {
               onSelectText={setSelectedTextId}
               isPlayingMaster={isPlayingMaster}
               onTogglePlayMaster={() => setIsPlayingMaster((prev) => !prev)}
+              onChooseFromLibraryForSlot={handleChooseFromLibraryForSlot}
               onRecordVideoForSlot={handleRecordVideoForSlot}
               onTakePhotoForSlot={handleTakePhotoForSlot}
               onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
@@ -836,7 +893,10 @@ export default function App() {
                   aspectRatio: isVideo ? 16 / 9 : 4 / 5,
                   width: 1080,
                   height: 1920,
+                  createdAt: Date.now(),
+                  source: 'upload',
                 };
+                setUserMediaLibrary((prev) => [newMedia, ...prev]);
                 const updatedSlots = activeCollage.slots.map((s) =>
                   s.id === slotId ? { ...s, media: newMedia } : s
                 );
@@ -857,6 +917,7 @@ export default function App() {
           selectedTextId={selectedTextId}
           onSelectText={setSelectedTextId}
           onTriggerSlotUpload={handleTriggerSlotUpload}
+          onChooseFromLibraryForSlot={handleChooseFromLibraryForSlot}
           onRecordVideoForSlot={handleRecordVideoForSlot}
           onTakePhotoForSlot={handleTakePhotoForSlot}
           onBatchUploadMultipleMedia={handleBatchUploadMultipleMedia}
@@ -897,11 +958,22 @@ export default function App() {
         projects={projects}
         currentProjectId={currentProjectId}
         initialTab={projectsModalTab}
+        userMediaLibrary={userMediaLibrary}
         onSelectProject={handleSelectProject}
         onCreateProject={handleCreateProject}
         onDuplicateProject={handleDuplicateProject}
         onDeleteProject={handleDeleteProject}
         onRenameProject={handleRenameProject}
+        onOpenCamera={() => {
+          setCameraInitialMode('photo');
+          setCameraTargetSlotId(null);
+          setIsCameraOpen(true);
+        }}
+        onRecordVideo={() => {
+          setCameraInitialMode('video');
+          setCameraTargetSlotId(null);
+          setIsCameraOpen(true);
+        }}
       />
 
       {/* Live Camera Viewfinder Modal */}
@@ -920,10 +992,47 @@ export default function App() {
       {/* Media Library Import Modal */}
       <MediaLibraryModal
         isOpen={isMediaLibraryOpen}
-        onClose={() => setIsMediaLibraryOpen(false)}
+        onClose={() => {
+          setIsMediaLibraryOpen(false);
+          setLibraryTargetSlotId(null);
+        }}
+        userMediaLibrary={userMediaLibrary}
+        title={libraryTargetSlotId ? 'SELECT FOR COLLAGE FRAME' : 'MEDIA LIBRARY'}
+        subtitle={
+          libraryTargetSlotId
+            ? 'Choose recorded video or camera photo to place in selected frame'
+            : 'Captures, Videos & Editorial Gallery'
+        }
         onSelectMedia={(media) => {
-          setCurrentMedia(media);
+          if (libraryTargetSlotId && activeCollage) {
+            const updatedSlots = activeCollage.slots.map((s) =>
+              s.id === libraryTargetSlotId ? { ...s, media } : s
+            );
+            setActiveCollage({ ...activeCollage, slots: updatedSlots });
+            setSelectedSlotId(libraryTargetSlotId);
+            setLibraryTargetSlotId(null);
+            setIsMediaLibraryOpen(false);
+          } else {
+            setCurrentMedia(media);
+            setIsMediaLibraryOpen(false);
+          }
           soundFx.playHapticTick();
+        }}
+        onDeleteMedia={(mediaId) => {
+          setUserMediaLibrary((prev) => prev.filter((m) => m.id !== mediaId));
+        }}
+        onAddMedia={(newMedia) => {
+          setUserMediaLibrary((prev) => [newMedia, ...prev]);
+        }}
+        onOpenCamera={() => {
+          setCameraInitialMode('photo');
+          setCameraTargetSlotId(libraryTargetSlotId);
+          setIsCameraOpen(true);
+        }}
+        onRecordVideo={() => {
+          setCameraInitialMode('video');
+          setCameraTargetSlotId(libraryTargetSlotId);
+          setIsCameraOpen(true);
         }}
         currentMediaId={currentMedia?.id}
       />

@@ -14,6 +14,10 @@ export interface MediaItem {
   width: number;
   height: number;
   duration?: number; // for video
+  createdAt?: number;
+  source?: 'camera' | 'upload' | 'sample' | 'web';
+  cameraProfile?: string;
+  thumbnailUrl?: string;
 }
 
 export interface HSLChannel {

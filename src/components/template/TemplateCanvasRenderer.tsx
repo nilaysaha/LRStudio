@@ -17,6 +17,7 @@ interface TemplateCanvasRendererProps {
   isPlayingMaster?: boolean;
   onTogglePlayMaster?: () => void;
   onImportFileForSlot?: (slotId: string, file: File) => Promise<void>;
+  onChooseFromLibraryForSlot?: (slotId: string) => void;
   onRecordVideoForSlot?: (slotId: string) => void;
   onTakePhotoForSlot?: (slotId: string) => void;
   onOpenTemplateSelector?: () => void;
@@ -33,6 +34,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
   isPlayingMaster = true,
   onTogglePlayMaster,
   onImportFileForSlot,
+  onChooseFromLibraryForSlot,
   onRecordVideoForSlot,
   onTakePhotoForSlot,
   onOpenTemplateSelector,
@@ -590,6 +592,22 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                 isSelected ? 'opacity-100 z-30' : 'opacity-0 group-hover:opacity-100'
               }`}
             >
+              {onChooseFromLibraryForSlot && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChooseFromLibraryForSlot(slot.id);
+                    soundFx.playHapticTick();
+                  }}
+                  className="px-2 py-1 bg-amber-400 hover:bg-amber-300 text-[#2A2723] rounded-full text-[11px] font-bold shadow flex items-center gap-1 transition-transform transform active:scale-95 whitespace-nowrap"
+                  title="Choose recorded video or camera photo from Media Library"
+                >
+                  <Camera className="w-3 h-3 text-[#2A2723]" />
+                  <span>Library</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={(e) => {
@@ -599,7 +617,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                   soundFx.playHapticTick();
                 }}
                 className="px-2 py-1 bg-white text-[#2A2723] rounded-full text-[11px] font-semibold shadow hover:bg-[#FAF9F6] flex items-center gap-1 transition-transform transform active:scale-95 whitespace-nowrap"
-                title="Upload Photo or Video"
+                title="Upload Photo or Video from device"
               >
                 <Upload className="w-3 h-3 text-[#2A2723]" />
                 <span>Upload</span>
