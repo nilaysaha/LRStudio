@@ -675,6 +675,44 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                   )}
                 </button>
               )}
+
+              {/* Delete / Remove Frame Media Item Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  soundFx.playHapticTick();
+                  if (template.slots.length > 1) {
+                    const updated = template.slots.filter((s) => s.id !== slot.id);
+                    onChangeTemplate({ ...template, slots: updated });
+                    if (selectedSlotId === slot.id) {
+                      onSelectSlot(updated[0]?.id || null);
+                    }
+                  } else {
+                    const updated = template.slots.map((s) =>
+                      s.id === slot.id
+                        ? {
+                            ...s,
+                            media: {
+                              id: `empty-slot-${Date.now()}`,
+                              name: 'Empty Frame',
+                              type: 'image' as const,
+                              url: 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=1000&auto=format&fit=crop&q=80',
+                              width: 1000,
+                              height: 1000,
+                              aspectRatio: 1,
+                            },
+                          }
+                        : s
+                    );
+                    onChangeTemplate({ ...template, slots: updated });
+                  }
+                }}
+                className="p-1 bg-red-600/90 hover:bg-red-700 text-white rounded-full shadow transition-transform transform active:scale-95 cursor-pointer"
+                title={template.slots.length > 1 ? 'Delete this frame from project' : 'Remove media from frame'}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
             </div>
           </div>
         );

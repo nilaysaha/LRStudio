@@ -26,6 +26,7 @@ interface ProjectsModalProps {
   onDuplicateProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
   onRenameProject: (projectId: string, newName: string) => void;
+  onDeleteUserMedia?: (mediaId: string) => void;
   onImportFileToProject?: (file: File) => Promise<MediaItem | null>;
   onOpenCamera?: () => void;
   onRecordVideo?: () => void;
@@ -43,6 +44,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   onDuplicateProject,
   onDeleteProject,
   onRenameProject,
+  onDeleteUserMedia,
   onImportFileToProject,
   onOpenCamera,
   onRecordVideo,
@@ -744,15 +746,30 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
               {/* Body */}
               <div className="p-5 overflow-y-auto flex flex-col gap-4">
                 {/* Preview Image with template grading */}
-                <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-neutral-900 border border-[#E6E2D3]">
+                <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-neutral-900 border border-[#E6E2D3] group">
                   <img
                     src={uploadedMedia ? uploadedMedia.url : selectedTemplate.previewThumbnail}
                     alt={selectedTemplate.name}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute bottom-2.5 left-2.5 bg-black/70 text-white text-[10px] font-mono px-2 py-0.5 rounded backdrop-blur-xs">
-                    {uploadedMedia ? `Custom Media: ${uploadedMedia.name}` : 'Template Sample Media'}
+                  <div className="absolute bottom-2.5 left-2.5 bg-black/70 text-white text-[10px] font-mono px-2 py-0.5 rounded backdrop-blur-xs flex items-center gap-1.5">
+                    <span>{uploadedMedia ? `Custom Media: ${uploadedMedia.name}` : 'Template Sample Media'}</span>
                   </div>
+                  {uploadedMedia && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUploadedMedia(null);
+                        soundFx.playHapticTick();
+                      }}
+                      className="absolute top-2.5 right-2.5 px-2 py-1 bg-red-600/90 hover:bg-red-700 text-white rounded-lg text-[10px] font-semibold flex items-center gap-1 shadow-md transition-all cursor-pointer"
+                      title="Remove custom media item and revert to template default"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove Item</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Project Name Input */}
@@ -878,7 +895,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                                 soundFx.playHapticTick();
                                 setUploadedMedia(media);
                               }}
-                              className={`relative flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden cursor-pointer border transition-all ${
+                              className={`group/item relative flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden cursor-pointer border transition-all ${
                                 isSelected
                                   ? 'border-[#2A2723] ring-2 ring-[#2A2723] scale-105 shadow-sm'
                                   : 'border-[#E6E2D3] hover:border-[#2A2723] opacity-85 hover:opacity-100'
@@ -913,13 +930,32 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                                 )}
                               </div>
 
+                              {/* Delete Item Button */}
+                              {onDeleteUserMedia && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    soundFx.playHapticTick();
+                                    if (uploadedMedia?.id === media.id) {
+                                      setUploadedMedia(null);
+                                    }
+                                    onDeleteUserMedia(media.id);
+                                  }}
+                                  className="absolute top-1 right-1 p-1 bg-black/75 hover:bg-red-600 text-white rounded-full transition-all shadow cursor-pointer opacity-90 group-hover/item:opacity-100"
+                                  title="Delete this item"
+                                >
+                                  <Trash2 className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+
                               {isSelected && (
-                                <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center">
+                                <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center pointer-events-none">
                                   <Check className="w-4 h-4 text-white" />
                                 </div>
                               )}
 
-                              <div className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-[8px] text-white truncate">
+                              <div className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-[8px] text-white truncate pointer-events-none">
                                 {media.name}
                               </div>
                             </div>
@@ -1041,7 +1077,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                               soundFx.playHapticTick();
                               setBlankProjectMedia(isSelected ? null : media);
                             }}
-                            className={`relative flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden cursor-pointer border transition-all ${
+                            className={`group/blankitem relative flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden cursor-pointer border transition-all ${
                               isSelected
                                 ? 'border-[#2A2723] ring-2 ring-[#2A2723] scale-105 shadow-sm'
                                 : 'border-[#E6E2D3] hover:border-[#2A2723] opacity-80 hover:opacity-100'
@@ -1064,8 +1100,28 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                                 </span>
                               )}
                             </div>
+
+                            {/* Delete Item Button */}
+                            {onDeleteUserMedia && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  soundFx.playHapticTick();
+                                  if (blankProjectMedia?.id === media.id) {
+                                    setBlankProjectMedia(null);
+                                  }
+                                  onDeleteUserMedia(media.id);
+                                }}
+                                className="absolute top-1 right-1 p-0.5 bg-black/75 hover:bg-red-600 text-white rounded-full transition-all shadow cursor-pointer opacity-90 group-hover/blankitem:opacity-100"
+                                title="Delete item"
+                              >
+                                <Trash2 className="w-2 h-2" />
+                              </button>
+                            )}
+
                             {isSelected && (
-                              <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center">
+                              <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center pointer-events-none">
                                 <Check className="w-3.5 h-3.5 text-white" />
                               </div>
                             )}

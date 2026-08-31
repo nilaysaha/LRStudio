@@ -964,6 +964,9 @@ export default function App() {
         onDuplicateProject={handleDuplicateProject}
         onDeleteProject={handleDeleteProject}
         onRenameProject={handleRenameProject}
+        onDeleteUserMedia={(mediaId) => {
+          setUserMediaLibrary((prev) => prev.filter((m) => m.id !== mediaId));
+        }}
         onOpenCamera={() => {
           setCameraInitialMode('photo');
           setCameraTargetSlotId(null);

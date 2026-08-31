@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   Undo2, Redo2, Copy, Check, Camera, Image as ImageIcon,
   Download, Eye, SplitSquareVertical, Sparkles, Upload,
-  RotateCcw, Menu, X, ChevronRight, Sliders, Info, FolderOpen,
+  RotateCcw, Menu, X, ChevronLeft, ChevronRight, Sliders, Info, FolderOpen,
   Plus, ChevronDown, Video, LayoutGrid
 } from 'lucide-react';
 import { MediaItem, Project } from '../types';
@@ -62,6 +62,84 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Desktop horizontal scroll management
+  const desktopScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeftState, setScrollLeftState] = useState(0);
+
+  // Check scroll position and boundaries
+  const updateScrollState = useCallback(() => {
+    const el = desktopScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 4);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = desktopScrollRef.current;
+    if (!el) return;
+
+    updateScrollState();
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+    window.addEventListener('resize', updateScrollState);
+
+    const observer = new ResizeObserver(() => {
+      updateScrollState();
+    });
+    observer.observe(el);
+
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      window.removeEventListener('resize', updateScrollState);
+      observer.disconnect();
+    };
+  }, [updateScrollState]);
+
+  // Seamless horizontal mouse wheel handler
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = desktopScrollRef.current;
+    if (!el) return;
+    if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY;
+    }
+  };
+
+  // Scroll left/right button handlers
+  const scrollByAmount = (amount: number) => {
+    const el = desktopScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: amount, behavior: 'smooth' });
+    soundFx.playHapticTick();
+  };
+
+  // Mouse drag-to-scroll support
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, a, select')) return;
+    const el = desktopScrollRef.current;
+    if (!el) return;
+    setIsDragging(true);
+    setStartX(e.pageX - el.offsetLeft);
+    setScrollLeftState(el.scrollLeft);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const el = desktopScrollRef.current;
+    if (!el) return;
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - startX) * 1.5;
+    el.scrollLeft = scrollLeftState - walk;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    setIsDragging(false);
+  };
+
   const handleCopy = () => {
     onCopyRecipe();
     soundFx.playHapticTick();
@@ -96,237 +174,282 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         className="hidden"
       />
 
-      <header className="w-full bg-white/95 backdrop-blur-md border-b border-[#E6E2D3] px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 z-30 select-none relative shadow-xs">
+      <header className="w-full bg-white/95 backdrop-blur-md border-b border-[#E6E2D3] z-30 select-none relative shadow-xs">
         {/* ========================================================= */}
         {/* 1. DESKTOP & TABLET TOP BAR (md:flex, hidden on mobile) */}
         {/* ========================================================= */}
-        <div className="hidden md:flex items-center justify-between gap-3">
-          {/* Brand & Project Selector */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div
-              className="flex items-center gap-2 cursor-pointer py-1 group"
-              onClick={onOpenProjectsModal}
-            >
-              <span className="font-editorial text-lg lg:text-xl tracking-[0.2em] font-bold text-[#2A2723] group-hover:text-black transition-colors">
-                LUMENLAB
-              </span>
-              <span className="text-[9px] tracking-wider text-[#7E7365] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3]">
-                PRO
-              </span>
+        <div className="hidden md:block relative w-full group/header">
+          {/* Left Scroll Chevron & Gradient Fade */}
+          {canScrollLeft && (
+            <div className="absolute left-0 top-0 bottom-0 z-20 flex items-center pr-6 bg-gradient-to-r from-white via-white/90 to-transparent pointer-events-none pl-1">
+              <button
+                type="button"
+                onClick={() => scrollByAmount(-240)}
+                className="w-7 h-7 rounded-full bg-white/95 hover:bg-[#FAF9F6] border border-[#E6E2D3] text-[#2A2723] shadow-md flex items-center justify-center pointer-events-auto active:scale-95 transition-all cursor-pointer"
+                title="Scroll menu left"
+                aria-label="Scroll menu left"
+              >
+                <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
+              </button>
             </div>
+          )}
 
-            {/* Current Project Pill Button */}
-            {currentProject && onOpenProjectsModal && (
+          {/* Right Scroll Chevron & Gradient Fade */}
+          {canScrollRight && (
+            <div className="absolute right-0 top-0 bottom-0 z-20 flex items-center pl-6 bg-gradient-to-l from-white via-white/90 to-transparent pointer-events-none pr-1">
               <button
-                onClick={() => {
-                  soundFx.playHapticTick();
-                  onOpenProjectsModal();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-xs text-[#2A2723] font-semibold transition-all cursor-pointer max-w-[210px] shadow-xs group"
-                title="Manage projects or pick LumenLabs templates"
+                type="button"
+                onClick={() => scrollByAmount(240)}
+                className="w-7 h-7 rounded-full bg-white/95 hover:bg-[#FAF9F6] border border-[#E6E2D3] text-[#2A2723] shadow-md flex items-center justify-center pointer-events-auto active:scale-95 transition-all cursor-pointer"
+                title="Scroll to see more menu items"
+                aria-label="Scroll menu right"
               >
-                <FolderOpen className="w-3.5 h-3.5 text-[#7E7365] group-hover:text-[#2A2723] flex-shrink-0" />
-                <span className="truncate">{currentProject.name}</span>
-                {currentTagInfo && (
-                  <span
-                    className="text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase flex-shrink-0"
-                    style={{
-                      backgroundColor: currentTagInfo.bgColor,
-                      color: currentTagInfo.color,
-                    }}
-                  >
-                    {currentTagInfo.label}
+                <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+              </button>
+            </div>
+          )}
+
+          {/* Main Scrollable Track */}
+          <div
+            ref={desktopScrollRef}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUpOrLeave}
+            onMouseLeave={handleMouseUpOrLeave}
+            className={`w-full overflow-x-auto no-scrollbar scroll-smooth px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 ${
+              isDragging ? 'cursor-grabbing' : 'cursor-default'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-4 min-w-max w-full">
+              {/* Brand & Project Selector */}
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div
+                  className="flex items-center gap-2 cursor-pointer py-1 group"
+                  onClick={onOpenProjectsModal}
+                >
+                  <span className="font-editorial text-lg lg:text-xl tracking-[0.2em] font-bold text-[#2A2723] group-hover:text-black transition-colors whitespace-nowrap">
+                    LUMENLAB
                   </span>
+                  <span className="text-[9px] tracking-wider text-[#7E7365] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3] whitespace-nowrap">
+                    PRO
+                  </span>
+                </div>
+
+                {/* Current Project Pill Button */}
+                {currentProject && onOpenProjectsModal && (
+                  <button
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      onOpenProjectsModal();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-xs text-[#2A2723] font-semibold transition-all cursor-pointer max-w-[210px] shadow-xs group flex-shrink-0 whitespace-nowrap"
+                    title="Manage projects or pick LumenLabs templates"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-[#7E7365] group-hover:text-[#2A2723] flex-shrink-0" />
+                    <span className="truncate">{currentProject.name}</span>
+                    {currentTagInfo && (
+                      <span
+                        className="text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase flex-shrink-0 whitespace-nowrap"
+                        style={{
+                          backgroundColor: currentTagInfo.bgColor,
+                          color: currentTagInfo.color,
+                        }}
+                      >
+                        {currentTagInfo.label}
+                      </span>
+                    )}
+                    <ChevronDown className="w-3 h-3 text-[#7E7365] flex-shrink-0" />
+                  </button>
                 )}
-                <ChevronDown className="w-3 h-3 text-[#7E7365] flex-shrink-0" />
-              </button>
-            )}
 
-            {/* Quick LumenLabs Templates Explore Button */}
-            {onOpenTemplatesGallery && (
-              <button
-                onClick={() => {
-                  soundFx.playHapticTick();
-                  onOpenTemplatesGallery();
-                }}
-                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-semibold text-amber-900 transition-colors cursor-pointer shadow-xs"
-                title="Browse LumenLabs Templates by tag"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>Templates</span>
-              </button>
-            )}
-          </div>
+                {/* Quick LumenLabs Templates Explore Button */}
+                {onOpenTemplatesGallery && (
+                  <button
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      onOpenTemplatesGallery();
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-semibold text-amber-900 transition-colors cursor-pointer shadow-xs flex-shrink-0 whitespace-nowrap"
+                    title="Browse LumenLabs Templates by tag"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Templates</span>
+                  </button>
+                )}
+              </div>
 
-          {/* Center Quick Tool Actions (Undo, Redo, Compare, Recipe) */}
-          <div className="flex items-center gap-1.5">
-            {/* Undo */}
-            <button
-              onClick={() => { onUndo(); soundFx.playHapticTick(); }}
-              disabled={!canUndo}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                canUndo ? 'text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95' : 'text-[#C5BDB2] opacity-40 cursor-not-allowed'
-              }`}
-              title="Undo"
-            >
-              <Undo2 className="w-4 h-4" />
-            </button>
+              {/* Center Quick Tool Actions (Undo, Redo, Compare, Recipe) */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {/* Undo */}
+                <button
+                  onClick={() => { onUndo(); soundFx.playHapticTick(); }}
+                  disabled={!canUndo}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                    canUndo ? 'text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95' : 'text-[#C5BDB2] opacity-40 cursor-not-allowed'
+                  }`}
+                  title="Undo"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </button>
 
-            {/* Redo */}
-            <button
-              onClick={() => { onRedo(); soundFx.playHapticTick(); }}
-              disabled={!canRedo}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                canRedo ? 'text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95' : 'text-[#C5BDB2] opacity-40 cursor-not-allowed'
-              }`}
-              title="Redo"
-            >
-              <Redo2 className="w-4 h-4" />
-            </button>
+                {/* Redo */}
+                <button
+                  onClick={() => { onRedo(); soundFx.playHapticTick(); }}
+                  disabled={!canRedo}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                    canRedo ? 'text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95' : 'text-[#C5BDB2] opacity-40 cursor-not-allowed'
+                  }`}
+                  title="Redo"
+                >
+                  <Redo2 className="w-4 h-4" />
+                </button>
 
-            <div className="h-4 w-[1px] bg-[#E6E2D3] mx-1" />
+                <div className="h-4 w-[1px] bg-[#E6E2D3] mx-1" />
 
-            {/* Split Screen Compare */}
-            <button
-              onClick={() => { onToggleCompareSplit(); soundFx.playHapticTick(); }}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                compareMode === 'split'
-                  ? 'bg-[#2A2723] text-white shadow-xs'
-                  : 'text-[#4A453E] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
-              }`}
-              title="Toggle Split Compare"
-            >
-              <SplitSquareVertical className="w-3.5 h-3.5" />
-              <span>Split</span>
-            </button>
+                {/* Split Screen Compare */}
+                <button
+                  onClick={() => { onToggleCompareSplit(); soundFx.playHapticTick(); }}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+                    compareMode === 'split'
+                      ? 'bg-[#2A2723] text-white shadow-xs'
+                      : 'text-[#4A453E] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
+                  }`}
+                  title="Toggle Split Compare"
+                >
+                  <SplitSquareVertical className="w-3.5 h-3.5" />
+                  <span>Split</span>
+                </button>
 
-            {/* Hold Compare */}
-            <button
-              onMouseDown={onHoldCompareStart}
-              onMouseUp={onHoldCompareEnd}
-              onMouseLeave={onHoldCompareEnd}
-              onTouchStart={onHoldCompareStart}
-              onTouchEnd={onHoldCompareEnd}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-[#E6E2D3] transition-all select-none ${
-                compareMode === 'hold'
-                  ? 'bg-[#2A2723] text-white ring-2 ring-[#2A2723]'
-                  : 'text-[#4A453E] hover:bg-[#F0EEE6]'
-              }`}
-              title="Hold to see original unedited image"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Hold</span>
-            </button>
+                {/* Hold Compare */}
+                <button
+                  onMouseDown={onHoldCompareStart}
+                  onMouseUp={onHoldCompareEnd}
+                  onMouseLeave={onHoldCompareEnd}
+                  onTouchStart={onHoldCompareStart}
+                  onTouchEnd={onHoldCompareEnd}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-[#E6E2D3] transition-all select-none whitespace-nowrap ${
+                    compareMode === 'hold'
+                      ? 'bg-[#2A2723] text-white ring-2 ring-[#2A2723]'
+                      : 'text-[#4A453E] hover:bg-[#F0EEE6]'
+                  }`}
+                  title="Hold to see original unedited image"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Hold</span>
+                </button>
 
-            {/* Copy Recipe */}
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1 p-2 rounded-full text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors"
-              title="Copy Recipe"
-            >
-              {copiedNotification ? <Check className="w-4 h-4 text-[#437A47]" /> : <Copy className="w-4 h-4" />}
-            </button>
+                {/* Copy Recipe */}
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 p-2 rounded-full text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors"
+                  title="Copy Recipe"
+                >
+                  {copiedNotification ? <Check className="w-4 h-4 text-[#437A47]" /> : <Copy className="w-4 h-4" />}
+                </button>
 
-            {/* Paste Recipe */}
-            {hasCopiedRecipe && (
-              <button
-                onClick={() => { onPasteRecipe(); soundFx.playHapticTick(); }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] text-xs text-[#2A2723] border border-[#E6E2D3] transition-colors"
-                title="Paste Copied Recipe"
-              >
-                <Sparkles className="w-3 h-3 text-[#2A2723]" />
-                <span className="text-[11px] font-medium">Paste</span>
-              </button>
-            )}
-          </div>
+                {/* Paste Recipe */}
+                {hasCopiedRecipe && (
+                  <button
+                    onClick={() => { onPasteRecipe(); soundFx.playHapticTick(); }}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] text-xs text-[#2A2723] border border-[#E6E2D3] transition-colors whitespace-nowrap"
+                    title="Paste Copied Recipe"
+                  >
+                    <Sparkles className="w-3 h-3 text-[#2A2723]" />
+                    <span className="text-[11px] font-medium">Paste</span>
+                  </button>
+                )}
+              </div>
 
-          {/* Right Primary Actions */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Collages & Templates Button */}
-            {onOpenCollages && (
-              <button
-                onClick={() => {
-                  onOpenCollages();
-                  soundFx.playHapticTick();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-xs font-semibold text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer"
-                title="Browse & customize multi-picture & multi-video collage formats"
-              >
-                <LayoutGrid className="w-3.5 h-3.5 text-[#2A2723]" />
-                <span>Collages</span>
-                <span className="text-[9px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.2 rounded-full">
-                  Multi
-                </span>
-              </button>
-            )}
+              {/* Right Primary Actions */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Collages & Templates Button */}
+                {onOpenCollages && (
+                  <button
+                    onClick={() => {
+                      onOpenCollages();
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-xs font-semibold text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                    title="Browse & customize multi-picture & multi-video collage formats"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5 text-[#2A2723]" />
+                    <span>Collages</span>
+                    <span className="text-[9px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.2 rounded-full">
+                      Multi
+                    </span>
+                  </button>
+                )}
 
-            {/* Record Video Button */}
-            {onOpenRecordVideo && (
-              <button
-                onClick={() => {
-                  onOpenRecordVideo();
-                  soundFx.playHapticTick();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-semibold text-rose-900 shadow-xs active:scale-95 transition-all cursor-pointer"
-                title="Start live camera video recording with analog film effects"
-              >
-                <div className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
-                <Video className="w-3.5 h-3.5 text-rose-700" />
-                <span>Record Video</span>
-              </button>
-            )}
+                {/* Record Video Button */}
+                {onOpenRecordVideo && (
+                  <button
+                    onClick={() => {
+                      onOpenRecordVideo();
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-semibold text-rose-900 shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                    title="Start live camera video recording with analog film effects"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                    <Video className="w-3.5 h-3.5 text-rose-700" />
+                    <span>Record Video</span>
+                  </button>
+                )}
 
-            {/* Import Media */}
-            <button
-              onClick={() => {
-                if (mediaFileInputRef.current) {
-                  mediaFileInputRef.current.click();
-                  soundFx.playHapticTick();
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#2A2723]/30 text-xs font-semibold text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer"
-              title="Import Photo or Video from device"
-            >
-              <Upload className="w-3.5 h-3.5 text-[#2A2723]" />
-              <span>Import</span>
-            </button>
+                {/* Import Media */}
+                <button
+                  onClick={() => {
+                    if (mediaFileInputRef.current) {
+                      mediaFileInputRef.current.click();
+                      soundFx.playHapticTick();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#2A2723]/30 text-xs font-semibold text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                  title="Import Photo or Video from device"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#2A2723]" />
+                  <span>Import</span>
+                </button>
 
-            {/* Camera */}
-            <button
-              onClick={() => { onOpenCamera(); soundFx.playHapticTick(); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer"
-              title="Open Live WebGL Camera"
-            >
-              <Camera className="w-3.5 h-3.5 text-[#2A2723]" />
-              <span>Camera</span>
-            </button>
+                {/* Camera */}
+                <button
+                  onClick={() => { onOpenCamera(); soundFx.playHapticTick(); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                  title="Open Live WebGL Camera"
+                >
+                  <Camera className="w-3.5 h-3.5 text-[#2A2723]" />
+                  <span>Camera</span>
+                </button>
 
-            {/* Library */}
-            <button
-              onClick={() => { onOpenMediaLibrary(); soundFx.playHapticTick(); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer"
-              title="Open Curated Media Library"
-            >
-              <ImageIcon className="w-3.5 h-3.5 text-[#2A2723]" />
-              <span>Library</span>
-            </button>
+                {/* Library */}
+                <button
+                  onClick={() => { onOpenMediaLibrary(); soundFx.playHapticTick(); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-medium text-[#2A2723] shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                  title="Open Curated Media Library"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-[#2A2723]" />
+                  <span>Library</span>
+                </button>
 
-            {/* Save / Export */}
-            <button
-              onClick={() => { onOpenExport(); soundFx.playHapticTick(); }}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#2A2723] hover:bg-black text-white font-semibold text-xs tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
-              title="Save and Export Image/Video"
-            >
-              <Download className="w-3.5 h-3.5 stroke-[2.4]" />
-              <span>Save</span>
-            </button>
+                {/* Save / Export */}
+                <button
+                  onClick={() => { onOpenExport(); soundFx.playHapticTick(); }}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#2A2723] hover:bg-black text-white font-semibold text-xs tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                  title="Save and Export Image/Video"
+                >
+                  <Download className="w-3.5 h-3.5 stroke-[2.4]" />
+                  <span>Save</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* ========================================================= */}
         {/* 2. COLLAPSED MOBILE TOP BAR WITH HAMBURGER MENU (md:hidden) */}
         {/* ========================================================= */}
-        <div className="flex md:hidden items-center justify-between gap-2">
+        <div className="flex md:hidden items-center justify-between gap-2 px-3 sm:px-4 py-2 sm:py-2.5">
           {/* Left: Compact Brand + Project / Media badge */}
           <div className="flex items-center gap-2">
             <button
