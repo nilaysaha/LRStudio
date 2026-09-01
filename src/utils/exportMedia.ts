@@ -1,4 +1,4 @@
-import { Adjustments, MediaItem } from '../types';
+import { Adjustments, MediaItem, CollageTemplate, TemplateSlot } from '../types';
 import { WebGLFilterEngine } from '../webgl/webglEngine';
 import { renderCameraOverlayOnCanvas, renderDateStampOnCanvas } from './cameraOverlayRenderer';
 
@@ -377,6 +377,421 @@ export async function exportVideo(
 }
 
 /**
+ * Render high-resolution collage template with all slots, textures, text, and analog overlays
+ */
+export async function exportTemplate(
+  template: CollageTemplate,
+  globalAdjustments: Adjustments,
+  options: ExportOptions
+): Promise<string> {
+  const baseWidth = 1080;
+  const baseHeight = Math.round(baseWidth / (template.aspectRatio || 1));
+  const targetW = Math.round(baseWidth * options.scale);
+  const targetH = Math.round(baseHeight * options.scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get 2d context for template export');
+
+  // 1. Draw Background Color & Paper Texture
+  ctx.fillStyle = template.overlays.backgroundColor || '#FAF9F6';
+  ctx.fillRect(0, 0, targetW, targetH);
+
+  const texture = template.overlays.paperTexture;
+  if (texture === 'warm-ivory') {
+    ctx.fillStyle = 'rgba(247, 244, 236, 0.9)';
+    ctx.fillRect(0, 0, targetW, targetH);
+  } else if (texture === 'kraft-paper') {
+    ctx.fillStyle = '#D9C7AC';
+    ctx.fillRect(0, 0, targetW, targetH);
+  } else if (texture === 'charcoal-dark') {
+    ctx.fillStyle = '#1E1D1B';
+    ctx.fillRect(0, 0, targetW, targetH);
+  } else if (texture === 'split-duotone') {
+    const grad = ctx.createLinearGradient(0, 0, 0, targetH);
+    grad.addColorStop(0, '#F2EDE4');
+    grad.addColorStop(1, '#E5DEC9');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, targetW, targetH);
+  }
+
+  // 2. Pre-load all slot images
+  const loadedImages: { [slotId: string]: HTMLImageElement } = {};
+  const imagePromises = template.slots.map((slot) => {
+    return new Promise<void>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        loadedImages[slot.id] = img;
+        resolve();
+      };
+      img.onerror = () => {
+        resolve(); // Continue even if one image fails to load
+      };
+      img.src = slot.media.url;
+    });
+  });
+
+  await Promise.all(imagePromises);
+
+  // 3. Render Binder Rings if any
+  if (template.overlays.binderRings === 'left-spiral') {
+    const numSpirals = 14;
+    const holeRadius = Math.round(targetW * 0.015);
+    const spiralW = Math.round(targetW * 0.05);
+    const spiralH = Math.round(targetH * 0.012);
+
+    for (let i = 0; i < numSpirals; i++) {
+      const cy = Math.round((targetH / (numSpirals + 1)) * (i + 1));
+      const cx = Math.round(targetW * 0.03);
+
+      // Hole Punch
+      ctx.fillStyle = '#22201D';
+      ctx.beginPath();
+      ctx.arc(cx, cy, holeRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Metallic Loop
+      ctx.save();
+      ctx.translate(cx + spiralW / 2, cy);
+      ctx.rotate(-0.2);
+      const loopGrad = ctx.createLinearGradient(-spiralW / 2, 0, spiralW / 2, 0);
+      loopGrad.addColorStop(0, '#A0A0A0');
+      loopGrad.addColorStop(0.5, '#FFFFFF');
+      loopGrad.addColorStop(1, '#707070');
+      ctx.fillStyle = loopGrad;
+      ctx.beginPath();
+      ctx.roundRect(-spiralW / 2, -spiralH / 2, spiralW, spiralH, spiralH / 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  } else if (template.overlays.binderRings === 'middle-spiral') {
+    const numSpirals = 12;
+    const holeRadius = Math.round(targetW * 0.014);
+    const spiralW = Math.round(targetW * 0.015);
+    const spiralH = Math.round(targetH * 0.035);
+    const cy = Math.round(targetH / 2);
+
+    for (let i = 0; i < numSpirals; i++) {
+      const cx = Math.round((targetW / (numSpirals + 1)) * (i + 1));
+
+      // Hole Punch
+      ctx.fillStyle = '#22201D';
+      ctx.beginPath();
+      ctx.arc(cx, cy, holeRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Spiral Ring
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.fillStyle = '#C0C0C0';
+      ctx.beginPath();
+      ctx.roundRect(-spiralW / 2, -spiralH / 2, spiralW, spiralH, spiralW / 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // 4. Render Slots sorted by zIndex
+  const sortedSlots = [...template.slots].sort((a, b) => (a.zIndex || 1) - (b.zIndex || 1));
+
+  for (const slot of sortedSlots) {
+    const slotX = (slot.x / 100) * targetW;
+    const slotY = (slot.y / 100) * targetH;
+    const slotW = (slot.width / 100) * targetW;
+    const slotH = (slot.height / 100) * targetH;
+    const rot = ((slot.rotation || 0) * Math.PI) / 180;
+    const bRad = (slot.borderRadius || 8) * (targetW / 440);
+
+    ctx.save();
+    ctx.translate(slotX + slotW / 2, slotY + slotH / 2);
+    ctx.rotate(rot);
+
+    // Apply Drop Shadow
+    if (slot.shadow === 'card' || slot.shadow === 'deep' || slot.shadow === 'polaroid' || slot.shadow === 'polaroid-deep' || slot.shadow === 'subtle') {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.22)';
+      ctx.shadowBlur = slot.shadow === 'deep' || slot.shadow === 'polaroid-deep' ? 24 : 14;
+      ctx.shadowOffsetY = slot.shadow === 'deep' || slot.shadow === 'polaroid-deep' ? 10 : 5;
+    }
+
+    const img = loadedImages[slot.id];
+
+    if (slot.borderStyle === 'polaroid') {
+      // Polaroid Border Frame
+      const pSide = slotW * 0.06;
+      const pTop = slotW * 0.06;
+      const pBottom = slotH * 0.22;
+      const outerW = slotW + pSide * 2;
+      const outerH = slotH + pTop + pBottom;
+
+      ctx.fillStyle = '#FAF7F2';
+      ctx.beginPath();
+      ctx.roundRect(-outerW / 2, -outerH / 2, outerW, outerH, Math.max(4, bRad));
+      ctx.fill();
+
+      // Reset shadow for content
+      ctx.shadowColor = 'transparent';
+
+      if (img) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-slotW / 2, -outerH / 2 + pTop, slotW, slotH);
+        ctx.clip();
+        drawCoverImage(ctx, img, -slotW / 2, -outerH / 2 + pTop, slotW, slotH);
+        ctx.restore();
+      }
+
+      // Polaroid handwritten slot text if provided
+      if (slot.label && slot.label !== 'Photo' && !slot.label.startsWith('Media Slot')) {
+        ctx.font = `600 ${Math.round(slotW * 0.08)}px 'Caveat', 'Playfair Display', cursive, serif`;
+        ctx.fillStyle = '#2A2723';
+        ctx.textAlign = 'center';
+        ctx.fillText(slot.label, 0, outerH / 2 - pBottom * 0.35);
+      }
+    } else if (slot.borderStyle === 'film-35mm') {
+      // 35mm Film Border
+      const fSide = slotW * 0.05;
+      const fTopBottom = slotH * 0.16;
+      const outerW = slotW + fSide * 2;
+      const outerH = slotH + fTopBottom * 2;
+
+      ctx.fillStyle = '#0D0D0D';
+      ctx.beginPath();
+      ctx.roundRect(-outerW / 2, -outerH / 2, outerW, outerH, 4);
+      ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+
+      // Draw sprocket holes
+      const holeW = fSide * 1.5;
+      const holeH = fTopBottom * 0.38;
+      const numHoles = Math.floor(outerW / (holeW * 2));
+      ctx.fillStyle = '#E5E5E5';
+      for (let i = 0; i < numHoles; i++) {
+        const hx = -outerW / 2 + (i + 0.5) * (outerW / numHoles);
+        ctx.beginPath();
+        ctx.roundRect(hx - holeW / 2, -outerH / 2 + fTopBottom * 0.25, holeW, holeH, 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(hx - holeW / 2, outerH / 2 - fTopBottom * 0.65, holeW, holeH, 2);
+        ctx.fill();
+      }
+
+      if (img) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-slotW / 2, -slotH / 2, slotW, slotH);
+        ctx.clip();
+        drawCoverImage(ctx, img, -slotW / 2, -slotH / 2, slotW, slotH);
+        ctx.restore();
+      }
+    } else {
+      // Standard / Clean Frame
+      ctx.fillStyle = '#FAF9F6';
+      ctx.beginPath();
+      ctx.roundRect(-slotW / 2, -slotH / 2, slotW, slotH, bRad);
+      ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+
+      if (img) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(-slotW / 2, -slotH / 2, slotW, slotH, bRad);
+        ctx.clip();
+        drawCoverImage(ctx, img, -slotW / 2, -slotH / 2, slotW, slotH);
+        ctx.restore();
+      }
+
+      // Subtle border line
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(-slotW / 2, -slotH / 2, slotW, slotH, bRad);
+      ctx.stroke();
+    }
+
+    // Tape decoration on top of slot
+    if (slot.tape && slot.tape !== 'none') {
+      const tapeW = slotW * 0.35;
+      const tapeH = slotH * 0.08;
+      ctx.save();
+      ctx.translate(0, -slotH / 2);
+      ctx.fillStyle = 'rgba(235, 225, 205, 0.75)';
+      ctx.fillRect(-tapeW / 2, -tapeH / 2, tapeW, tapeH);
+      ctx.strokeStyle = 'rgba(210, 195, 170, 0.6)';
+      ctx.strokeRect(-tapeW / 2, -tapeH / 2, tapeW, tapeH);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  // 5. Draw AirDrop Card Overlay if enabled
+  if (template.overlays.airdropCard && template.overlays.airdropCard.enabled) {
+    const cardW = targetW * 0.75;
+    const cardH = targetH * 0.16;
+    const cardX = (targetW - cardW) / 2;
+    const cardY = targetH * 0.42;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 30;
+    ctx.shadowOffsetY = 12;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, 20);
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+
+    // AirDrop Header Icon & Title
+    ctx.fillStyle = '#007AFF';
+    ctx.beginPath();
+    ctx.arc(cardX + cardW * 0.12, cardY + cardH * 0.38, cardH * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#1D1D1F';
+    ctx.font = `bold ${Math.round(cardH * 0.18)}px -apple-system, BlinkMacSystemFont, 'Inter', sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('AirDrop', cardX + cardW * 0.24, cardY + cardH * 0.32);
+
+    ctx.fillStyle = '#86868B';
+    ctx.font = `500 ${Math.round(cardH * 0.13)}px -apple-system, BlinkMacSystemFont, 'Inter', sans-serif`;
+    ctx.fillText(`${template.overlays.airdropCard.senderName || 'iPhone User'} wants to share`, cardX + cardW * 0.24, cardY + cardH * 0.48);
+
+    // Accept / Decline Buttons
+    const btnW = cardW * 0.42;
+    const btnH = cardH * 0.28;
+    const btnY = cardY + cardH * 0.62;
+
+    // Decline button
+    ctx.fillStyle = '#F2F2F7';
+    ctx.beginPath();
+    ctx.roundRect(cardX + cardW * 0.05, btnY, btnW, btnH, 12);
+    ctx.fill();
+    ctx.fillStyle = '#007AFF';
+    ctx.font = `600 ${Math.round(btnH * 0.45)}px -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('Decline', cardX + cardW * 0.05 + btnW / 2, btnY + btnH * 0.68);
+
+    // Accept button
+    ctx.fillStyle = '#007AFF';
+    ctx.beginPath();
+    ctx.roundRect(cardX + cardW * 0.53, btnY, btnW, btnH, 12);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText('Accept', cardX + cardW * 0.53 + btnW / 2, btnY + btnH * 0.68);
+
+    ctx.restore();
+  }
+
+  // 6. Draw Text & Quote Elements
+  for (const txt of template.textElements) {
+    if (!txt.text) continue;
+
+    const tx = (txt.x / 100) * targetW;
+    const ty = (txt.y / 100) * targetH;
+    const rot = ((txt.rotation || 0) * Math.PI) / 180;
+    const fSize = Math.round((txt.fontSize || 1.2) * (targetW / 440) * 16);
+
+    let fontFam = "'Playfair Display', Georgia, serif";
+    if (txt.fontFamily === 'typewriter' || txt.fontFamily === 'monospaced') fontFam = "'Courier New', monospace";
+    else if (txt.fontFamily === 'modern-sans') fontFam = "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif";
+    else if (txt.fontFamily === 'handwritten') fontFam = "'Caveat', 'Dancing Script', cursive";
+    else if (txt.fontFamily === 'display-syne') fontFam = "'Syne', sans-serif";
+
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(rot);
+
+    ctx.font = `600 ${fSize}px ${fontFam}`;
+    ctx.textAlign = txt.align || 'left';
+    ctx.textBaseline = 'top';
+
+    const textMetrics = ctx.measureText(txt.text);
+    const tWidth = textMetrics.width;
+    const tHeight = fSize * 1.3;
+
+    // Draw background style if specified
+    if (txt.style === 'callout-box' || txt.style === 'modern-box') {
+      ctx.fillStyle = 'rgba(20, 20, 20, 0.9)';
+      ctx.fillRect(-6, -4, tWidth + 12, tHeight);
+    } else if (txt.style === 'memo-card') {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.fillRect(-6, -4, tWidth + 12, tHeight);
+    } else if (txt.style === 'typewriter-strip') {
+      ctx.fillStyle = '#FDE047';
+      ctx.fillRect(-6, -4, tWidth + 12, tHeight);
+    }
+
+    ctx.fillStyle = txt.color || '#2A2723';
+    ctx.fillText(txt.text, 0, 0);
+
+    ctx.restore();
+  }
+
+  // 7. Subtle Analog Film Grain / Texture on Top
+  if (globalAdjustments.grainAmount > 0 || globalAdjustments.dustAmount > 0) {
+    const grainCanvas = document.createElement('canvas');
+    grainCanvas.width = 256;
+    grainCanvas.height = 256;
+    const gCtx = grainCanvas.getContext('2d');
+    if (gCtx) {
+      const gImg = gCtx.createImageData(256, 256);
+      for (let i = 0; i < gImg.data.length; i += 4) {
+        const val = Math.random() * 255;
+        gImg.data[i] = val;
+        gImg.data[i + 1] = val;
+        gImg.data[i + 2] = val;
+        gImg.data[i + 3] = Math.round(globalAdjustments.grainAmount * 35);
+      }
+      gCtx.putImageData(gImg, 0, 0);
+      const pattern = ctx.createPattern(grainCanvas, 'repeat');
+      if (pattern) {
+        ctx.fillStyle = pattern;
+        ctx.fillRect(0, 0, targetW, targetH);
+      }
+    }
+  }
+
+  return canvas.toDataURL(options.format, options.quality);
+}
+
+/**
+ * Helper to draw image using object-fit: cover inside bounding box
+ */
+function drawCoverImage(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+) {
+  const imgRatio = img.naturalWidth / (img.naturalHeight || 1);
+  const targetRatio = w / h;
+
+  let sx = 0;
+  let sy = 0;
+  let sWidth = img.naturalWidth;
+  let sHeight = img.naturalHeight;
+
+  if (imgRatio > targetRatio) {
+    sWidth = Math.round(img.naturalHeight * targetRatio);
+    sx = Math.round((img.naturalWidth - sWidth) / 2);
+  } else {
+    sHeight = Math.round(img.naturalWidth / targetRatio);
+    sy = Math.round((img.naturalHeight - sHeight) / 2);
+  }
+
+  ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, w, h);
+}
+
+/**
  * Trigger file download helper
  */
 export function downloadDataUrl(url: string, filename: string) {
@@ -393,3 +808,4 @@ export function downloadBlob(blob: Blob, filename: string) {
   downloadDataUrl(url, filename);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+

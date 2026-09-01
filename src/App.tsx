@@ -20,7 +20,7 @@ import { TemplateCanvasRenderer } from './components/template/TemplateCanvasRend
 import { TemplateCustomizerBar } from './components/template/TemplateCustomizerBar';
 import { TemplateSelectorDrawer } from './components/template/TemplateSelectorDrawer';
 import { soundFx } from './utils/audio';
-import { Sparkles, Grid, Eye, RefreshCw, LayoutTemplate } from 'lucide-react';
+import { Sparkles, Grid, Eye, RefreshCw, LayoutTemplate, Sliders, ChevronUp } from 'lucide-react';
 
 const STORAGE_KEY_CUSTOM_PRESETS = 'lumenlab_custom_presets_v1';
 const STORAGE_KEY_FAVORITES = 'lumenlab_favorite_presets_v1';
@@ -178,6 +178,7 @@ export default function App() {
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
   const [isTemplateDrawerOpen, setIsTemplateDrawerOpen] = useState(false);
   const [isPlayingMaster, setIsPlayingMaster] = useState(true);
+  const [isBottomDrawerCollapsed, setIsBottomDrawerCollapsed] = useState(false);
   const slotUploadInputRef = useRef<HTMLInputElement>(null);
   const appBatchFileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadSlotId, setActiveUploadSlotId] = useState<string | null>(null);
@@ -739,6 +740,9 @@ export default function App() {
         setIsCameraOpen(true);
       } else if (e.key.toLowerCase() === 'l' && !e.ctrlKey && !e.metaKey) {
         setIsMediaLibraryOpen(true);
+      } else if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.metaKey) {
+        setIsBottomDrawerCollapsed((prev) => !prev);
+        soundFx.playHapticTick();
       } else if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         setIsExportOpen(true);
@@ -881,6 +885,7 @@ export default function App() {
               onRecordVideoForSlot={handleRecordVideoForSlot}
               onTakePhotoForSlot={handleTakePhotoForSlot}
               onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
+              onOpenExport={() => setIsExportOpen(true)}
               onImportFileForSlot={async (slotId, file) => {
                 const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
                 const url = URL.createObjectURL(file);
@@ -907,7 +912,7 @@ export default function App() {
         )}
       </section>
 
-      {/* Bottom Toolbars & Presets Shelf */}
+      {/* Bottom Toolbars & Presets Shelf (Collapsible Drawer) */}
       {activeCollage ? (
         <TemplateCustomizerBar
           template={activeCollage}
@@ -926,6 +931,9 @@ export default function App() {
             updateAdjustments(createAdjustmentsCopy(preset.adjustments));
           }}
           onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
+          onOpenExport={() => setIsExportOpen(true)}
+          isCollapsed={isBottomDrawerCollapsed}
+          onToggleCollapse={() => setIsBottomDrawerCollapsed((prev) => !prev)}
         />
       ) : (
         <AdjustmentsBar
@@ -940,6 +948,8 @@ export default function App() {
           onDeleteCustomPreset={handleDeleteCustomPreset}
           onImportPresetJSON={handleImportPresetJSON}
           onExportPresetJSON={handleExportPresetJSON}
+          isCollapsed={isBottomDrawerCollapsed}
+          onToggleCollapse={() => setIsBottomDrawerCollapsed((prev) => !prev)}
         />
       )}
 
@@ -1048,12 +1058,13 @@ export default function App() {
         onSavePreset={handleSaveCustomPreset}
       />
 
-      {/* High-Resolution Export Modal */}
+      {/* High-Resolution Export Modal (Supports both Single Media and Collage Templates) */}
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
         media={currentMedia}
         adjustments={adjustments}
+        template={activeCollage}
       />
     </main>
   );

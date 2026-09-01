@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
   Layers, Type, Sliders, Palette, Sparkles, Upload,
   Volume2, VolumeX, RotateCw, Trash2, Eye, Check, Frame,
-  Plus, Edit3, Grid, Paperclip, BookOpen, Sun, Flame, Video, Camera, FolderPlus
+  Plus, Edit3, Grid, Paperclip, BookOpen, Sun, Flame, Video, Camera, FolderPlus,
+  ChevronDown, ChevronUp, Share2, Download
 } from 'lucide-react';
 import {
   CollageTemplate, TemplateSlot, TemplateTextElement,
@@ -27,6 +28,9 @@ interface TemplateCustomizerBarProps {
   presets: Preset[];
   onApplyPresetToTemplate?: (preset: Preset) => void;
   onOpenTemplateSelector?: () => void;
+  onOpenExport?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 type CustomizerTab = 'slots' | 'text' | 'decorations' | 'paper' | 'presets';
@@ -46,6 +50,9 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
   presets,
   onApplyPresetToTemplate,
   onOpenTemplateSelector,
+  onOpenExport,
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
   const [activeTab, setActiveTab] = useState<CustomizerTab>('slots');
 
@@ -99,10 +106,32 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
   };
 
   return (
-    <div className="w-full bg-white/95 backdrop-blur-xl border-t border-[#E6E2D3] p-3 sm:p-4 flex flex-col gap-3 shadow-lg z-20">
+    <div
+      className={`w-full bg-white/95 backdrop-blur-xl border-t border-[#E6E2D3] transition-all duration-300 ease-in-out shadow-lg z-20 flex flex-col ${
+        isCollapsed
+          ? 'p-2 sm:py-2.5 sm:px-4'
+          : 'p-3 sm:p-4 gap-2.5 sm:gap-3 max-h-[52vh] sm:max-h-[46vh] md:max-h-none overflow-y-auto'
+      }`}
+    >
+      {/* Mobile Drawer Pull Notch */}
+      {onToggleCollapse && (
+        <button
+          type="button"
+          onClick={() => {
+            onToggleCollapse();
+            soundFx.playHapticTick();
+          }}
+          className="w-full flex items-center justify-center -mt-1 pb-1 cursor-pointer focus:outline-hidden group"
+          title={isCollapsed ? 'Expand Controls Drawer' : 'Collapse Drawer to maximize collage canvas'}
+          aria-label={isCollapsed ? 'Expand Controls' : 'Collapse Controls'}
+        >
+          <div className="w-12 h-1 rounded-full bg-[#D6D0C2] group-hover:bg-[#2A2723] transition-colors" />
+        </button>
+      )}
+
       {/* Top Header Navigation Tabs */}
-      <div className="flex items-center justify-between pb-2 border-b border-[#F0EEE6] overflow-x-auto no-scrollbar gap-2">
-        <div className="flex items-center gap-1.5 flex-nowrap">
+      <div className="flex items-center justify-between pb-1.5 border-b border-[#F0EEE6]/80 overflow-x-auto no-scrollbar gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
           {[
             { id: 'slots', label: 'Media Slots', icon: <Layers className="w-3.5 h-3.5" /> },
             { id: 'text', label: 'Text & Quotes', icon: <Type className="w-3.5 h-3.5" /> },
@@ -117,9 +146,12 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                 type="button"
                 onClick={() => {
                   setActiveTab(tab.id as CustomizerTab);
+                  if (isCollapsed && onToggleCollapse) {
+                    onToggleCollapse();
+                  }
                   soundFx.playHapticTick();
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide whitespace-nowrap transition-all ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium tracking-wide whitespace-nowrap transition-all cursor-pointer min-h-[36px] sm:min-h-[32px] ${
                   isActive
                     ? 'bg-[#2A2723] text-white shadow-xs'
                     : 'text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6]'
@@ -132,20 +164,66 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
           })}
         </div>
 
-        {onOpenTemplateSelector && (
-          <button
-            type="button"
-            onClick={() => {
-              onOpenTemplateSelector();
-              soundFx.playHapticTick();
-            }}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-semibold text-[#2A2723] hover:bg-[#F0EEE6] transition-colors whitespace-nowrap"
-          >
-            <Grid className="w-3.5 h-3.5 text-[#2A2723]" />
-            <span>Templates</span>
-          </button>
-        )}
+        {/* Action Buttons Right: Export / Template Gallery / Collapse Toggle */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {onOpenExport && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenExport();
+                soundFx.playHapticTick();
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#2A2723] text-white hover:bg-black text-xs font-semibold shadow-xs active:scale-95 transition-all cursor-pointer min-h-[36px] sm:min-h-[32px]"
+              title="Export & Share Collage to Instagram, TikTok or Download"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Export & Share</span>
+            </button>
+          )}
+
+          {onOpenTemplateSelector && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenTemplateSelector();
+                soundFx.playHapticTick();
+              }}
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#FAF9F6] border border-[#E6E2D3] text-xs font-semibold text-[#2A2723] hover:bg-[#F0EEE6] transition-colors whitespace-nowrap min-h-[36px] sm:min-h-[32px]"
+            >
+              <Grid className="w-3.5 h-3.5 text-[#2A2723]" />
+              <span className="hidden sm:inline">Templates</span>
+            </button>
+          )}
+
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={() => {
+                onToggleCollapse();
+                soundFx.playHapticTick();
+              }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#F5F2EB] hover:bg-[#EBE6DC] text-[#2A2723] text-xs font-semibold border border-[#E6E2D3] transition-all active:scale-95 cursor-pointer min-h-[36px] sm:min-h-[32px]"
+              title={isCollapsed ? 'Expand Controls Drawer' : 'Collapse Controls'}
+            >
+              {isCollapsed ? (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5 stroke-[2.2]" />
+                  <span className="hidden md:inline text-[11px]">Expand</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5 stroke-[2.2]" />
+                  <span className="hidden md:inline text-[11px]">Hide</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Content (Visible when NOT collapsed) */}
+      {!isCollapsed && (
+        <div className="w-full transition-opacity duration-200 animate-in fade-in-50">
 
       {/* ---------------------------------------------------- */}
       {/* 1. MEDIA SLOTS TAB                                  */}
@@ -675,6 +753,8 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
               </span>
             </button>
           ))}
+        </div>
+      )}
         </div>
       )}
     </div>

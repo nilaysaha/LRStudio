@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import {
   X, Download, Share2, Sparkles, CheckCircle2, Film, Image as ImageIcon,
   Loader2, Copy, Check, ExternalLink, Send, Instagram, Smartphone, MessageCircle,
-  Video, Eye, Heart
+  Video, Eye, Heart, Layers, LayoutTemplate
 } from 'lucide-react';
-import { Adjustments, MediaItem } from '../types';
-import { exportPhoto, exportVideo, downloadDataUrl, downloadBlob } from '../utils/exportMedia';
+import { Adjustments, MediaItem, CollageTemplate } from '../types';
+import { exportPhoto, exportVideo, exportTemplate, downloadDataUrl, downloadBlob } from '../utils/exportMedia';
 import { soundFx } from '../utils/audio';
 
 interface ExportModalProps {
@@ -13,6 +13,7 @@ interface ExportModalProps {
   onClose: () => void;
   media: MediaItem | null;
   adjustments: Adjustments;
+  template?: CollageTemplate | null;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -20,6 +21,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onClose,
   media,
   adjustments,
+  template,
 }) => {
   const [photoFormat, setPhotoFormat] = useState<'image/jpeg' | 'image/png' | 'image/webp'>('image/jpeg');
   const [quality, setQuality] = useState(0.95);
@@ -37,24 +39,29 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [imageCopied, setImageCopied] = useState(false);
   const [showCaptionEditor, setShowCaptionEditor] = useState(false);
 
-  // Default smart caption generated from film recipe
+  // Default smart caption generated from film recipe or template
   const presetLabel = (adjustments?.presetId && adjustments.presetId !== 'none' && adjustments.presetId !== 'default')
     ? String(adjustments.presetId).replace(/^(film-|cam-|preset-)?/i, '').toUpperCase()
     : 'CUSTOM ANALOG';
 
-  const defaultCaption = `Captured & graded on LumenLab Pro 🎞️ Preset: ${presetLabel} ${media?.type === 'video' ? '🎬' : '📸'} #lumenlab #analogphotography #35mmfilm #cinematic #filmwave #kodakportra #aesthetic`;
+  const isVideo = !template && media?.type === 'video';
+
+  const defaultCaption = template
+    ? `Created with LumenLab 🎞️ "${template.name}" Collage (${template.slots.length} frames) • ${template.subtitle || 'Film Aesthetic'} 📸 #lumenlab #filmlayout #photocollage #aesthetic #polaroid #editorial #filmwave`
+    : `Captured & graded on LumenLab Pro 🎞️ Preset: ${presetLabel} ${isVideo ? '🎬' : '📸'} #lumenlab #analogphotography #35mmfilm #cinematic #filmwave #kodakportra #aesthetic`;
 
   const [customCaption, setCustomCaption] = useState(defaultCaption);
 
   React.useEffect(() => {
     if (isOpen) {
       setCustomCaption(defaultCaption);
+      setExportedUrl(null);
+      setExportedBlob(null);
+      setExportComplete(false);
     }
-  }, [isOpen, adjustments?.presetId, media?.type]);
+  }, [isOpen, adjustments?.presetId, media?.type, template?.id]);
 
-  if (!isOpen || !media) return null;
-
-  const isVideo = media.type === 'video';
+  if (!isOpen || (!media && !template)) return null;
 
   const showToast = (msg: string, type: 'success' | 'info' = 'success') => {
     setShareToast({ msg, type });
@@ -64,7 +71,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   /**
-   * Helper to ensure media is rendered to high-res blob before sharing
+   * Helper to ensure media or template is rendered to high-res blob before sharing
    */
   const prepareExportedFile = async (): Promise<{ blob: Blob; file: File; dataUrl?: string } | null> => {
     if (exportedBlob) {
@@ -78,7 +85,25 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     setProgress(0);
 
     try {
-      if (!isVideo) {
+      if (template) {
+        // Export Full Collage Template
+        const dataUrl = await exportTemplate(template, adjustments, {
+          format: photoFormat,
+          quality: quality,
+          scale: scale,
+        });
+
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        setExportedUrl(dataUrl);
+        setExportedBlob(blob);
+        setExportComplete(true);
+        setIsExporting(false);
+
+        const ext = photoFormat === 'image/png' ? 'png' : photoFormat === 'image/webp' ? 'webp' : 'jpg';
+        const file = new File([blob], `lumenlab_collage_${Date.now()}.${ext}`, { type: photoFormat });
+        return { blob, file, dataUrl };
+      } else if (!isVideo && media) {
         const dataUrl = await exportPhoto(media, adjustments, {
           format: photoFormat,
           quality: quality,
@@ -132,7 +157,28 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     setExportComplete(false);
 
     try {
-      if (!isVideo) {
+      if (template) {
+        // Export filled template collage
+        const dataUrl = await exportTemplate(template, adjustments, {
+          format: photoFormat,
+          quality: quality,
+          scale: scale,
+        });
+
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+
+        setExportedUrl(dataUrl);
+        setExportedBlob(blob);
+        setIsExporting(false);
+        setExportComplete(true);
+        soundFx.playHapticTick();
+
+        const ext = photoFormat === 'image/png' ? 'png' : photoFormat === 'image/webp' ? 'webp' : 'jpg';
+        const filename = `lumenlab_collage_${template.id || 'template'}_${Date.now()}.${ext}`;
+        downloadDataUrl(dataUrl, filename);
+        showToast('Collage exported and downloaded successfully!');
+      } else if (!isVideo && media) {
         const dataUrl = await exportPhoto(media, adjustments, {
           format: photoFormat,
           quality: quality,
@@ -152,6 +198,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         const ext = photoFormat === 'image/png' ? 'png' : photoFormat === 'image/webp' ? 'webp' : 'jpg';
         const filename = `lumenlab_${Date.now()}.${ext}`;
         downloadDataUrl(dataUrl, filename);
+        showToast('Photo exported and downloaded successfully!');
       } else {
         const videoElement = document.querySelector('video') as HTMLVideoElement | null;
         if (!videoElement) {
@@ -172,6 +219,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
         const filename = `lumenlab_video_${Date.now()}.webm`;
         downloadBlob(blob, filename);
+        showToast('Video exported and downloaded successfully!');
       }
     } catch (err) {
       console.error('Export failed:', err);
@@ -430,9 +478,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-[#F0EEE6] flex items-center justify-between flex-shrink-0 bg-[#FAF9F6]">
           <div className="flex items-center gap-2">
-            <Download className="w-4 h-4 text-[#2A2723]" />
+            {template ? (
+              <LayoutTemplate className="w-4 h-4 text-[#2A2723]" />
+            ) : (
+              <Download className="w-4 h-4 text-[#2A2723]" />
+            )}
             <span className="font-editorial text-base font-bold tracking-wider text-[#2A2723]">
-              EXPORT & SHARE {isVideo ? 'VIDEO' : 'IMAGE'}
+              {template ? `EXPORT COLLAGE: ${template.name.toUpperCase()}` : `EXPORT & SHARE ${isVideo ? 'VIDEO' : 'IMAGE'}`}
             </span>
           </div>
           <button
@@ -483,7 +535,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </div>
 
             <p className="text-[11px] text-[#7E7365] leading-relaxed">
-              Instantly export and send your {isVideo ? 'analog video' : 'film photograph'} directly to Instagram, TikTok, or your mobile share sheet.
+              Instantly export and send your {template ? 'multi-frame film collage' : isVideo ? 'analog video' : 'film photograph'} directly to Instagram, TikTok, or your mobile share sheet.
             </p>
 
             {/* Social Share Action Grid */}

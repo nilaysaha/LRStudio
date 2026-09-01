@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Upload, Sparkles, Volume2, VolumeX, Move, ZoomIn, ZoomOut,
   Trash2, RotateCw, Heart, Check, X, Eye, Play, Pause, Plus, RefreshCw,
-  Video, Camera, Layers, FolderPlus
+  Video, Camera, Layers, FolderPlus, Download, Share2
 } from 'lucide-react';
 import { CollageTemplate, TemplateSlot, TemplateTextElement, MediaItem, Adjustments } from '../../types';
 import { soundFx } from '../../utils/audio';
@@ -21,6 +21,7 @@ interface TemplateCanvasRendererProps {
   onRecordVideoForSlot?: (slotId: string) => void;
   onTakePhotoForSlot?: (slotId: string) => void;
   onOpenTemplateSelector?: () => void;
+  onOpenExport?: () => void;
   globalAdjustments?: Adjustments;
 }
 
@@ -38,6 +39,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
   onRecordVideoForSlot,
   onTakePhotoForSlot,
   onOpenTemplateSelector,
+  onOpenExport,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -320,6 +322,22 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
           >
             <Layers className="w-3 h-3" />
             <span>Templates</span>
+          </button>
+        )}
+
+        {onOpenExport && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenExport();
+              soundFx.playHapticTick();
+            }}
+            className="flex items-center gap-1 px-3 py-1 bg-[#D97706] hover:bg-[#B45309] text-white rounded-full text-[11px] font-bold shadow transition-transform active:scale-95 whitespace-nowrap"
+            title="Export & Share Collage"
+          >
+            <Share2 className="w-3 h-3" />
+            <span>Export</span>
           </button>
         )}
       </div>
