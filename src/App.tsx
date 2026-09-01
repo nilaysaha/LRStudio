@@ -1136,20 +1136,6 @@ export default function App() {
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
 
-                  {/* Preview Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSlidePreviewOpen(true);
-                      soundFx.playHapticTick();
-                    }}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-[10px] font-bold transition-colors cursor-pointer shadow-xs"
-                    title="Preview Slide Carousel Presentation"
-                  >
-                    <Eye className="w-2.5 h-2.5" />
-                    <span>Preview</span>
-                  </button>
-
                   {/* Add Slide Quick Action */}
                   <button
                     type="button"
@@ -1199,37 +1185,12 @@ export default function App() {
                   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]">
                     {activeCollage.aspectLabel}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSlidePreviewOpen(true);
-                      soundFx.playHapticTick();
-                    }}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-[10px] font-bold transition-colors cursor-pointer shadow-xs"
-                    title="Preview Presentation"
-                  >
-                    <Eye className="w-2.5 h-2.5" />
-                    <span>Preview</span>
-                  </button>
                 </div>
               )}
             </div>
 
             {/* Right: Quick Action Controls */}
             <div className="flex items-center gap-1.5 pointer-events-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSlidePreviewOpen(true);
-                  soundFx.playHapticTick();
-                }}
-                className="px-3 py-1.5 rounded-full bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-950 text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                title="Open Slide Presentation Preview"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Preview</span>
-              </button>
-
               <button
                 type="button"
                 onClick={() => {
