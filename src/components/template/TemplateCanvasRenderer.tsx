@@ -24,6 +24,7 @@ interface TemplateCanvasRendererProps {
   onOpenTemplateSelector?: () => void;
   onOpenExport?: () => void;
   globalAdjustments?: Adjustments;
+  isPreview?: boolean;
 }
 
 type TransformMode =
@@ -66,6 +67,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
   onTakePhotoForSlot,
   onOpenTemplateSelector,
   onOpenExport,
+  isPreview = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -587,67 +589,69 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         onChange={handleBatchFilesChange}
       />
 
-      {/* Floating Canvas Quick Collage Toolbar (Top Right) */}
-      <div className="absolute top-3 right-3 z-40 flex items-center gap-1.5 bg-black/65 backdrop-blur-md p-1 rounded-full border border-white/15 shadow-xl">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (batchFileInputRef.current) batchFileInputRef.current.click();
-            soundFx.playHapticTick();
-          }}
-          className="flex items-center gap-1.5 px-3 py-1 bg-white text-[#2A2723] rounded-full text-[11px] font-bold shadow hover:bg-[#FAF9F6] transition-transform active:scale-95 whitespace-nowrap"
-          title="Select multiple photos and videos at once to fill all collage frames"
-        >
-          <FolderPlus className="w-3.5 h-3.5 text-[#2A2723]" />
-          <span>Batch Fill ({template.slots.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleAddNewSlot();
-          }}
-          className="flex items-center gap-1 px-2.5 py-1 bg-white/20 text-white hover:bg-white/30 rounded-full text-[11px] font-medium transition-colors whitespace-nowrap"
-          title="Add another photo/video frame to this collage"
-        >
-          <Plus className="w-3 h-3" />
-          <span>Add Slot</span>
-        </button>
-
-        {onOpenTemplateSelector && (
+      {/* Floating Canvas Quick Collage Toolbar (Top Right) - Hidden in Preview Mode */}
+      {!isPreview && (
+        <div className="absolute top-3 right-3 z-40 flex items-center gap-1.5 bg-black/65 backdrop-blur-md p-1 rounded-full border border-white/15 shadow-xl">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onOpenTemplateSelector();
+              if (batchFileInputRef.current) batchFileInputRef.current.click();
               soundFx.playHapticTick();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1 bg-white text-[#2A2723] rounded-full text-[11px] font-bold shadow hover:bg-[#FAF9F6] transition-transform active:scale-95 whitespace-nowrap"
+            title="Select multiple photos and videos at once to fill all collage frames"
+          >
+            <FolderPlus className="w-3.5 h-3.5 text-[#2A2723]" />
+            <span>Batch Fill ({template.slots.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddNewSlot();
             }}
             className="flex items-center gap-1 px-2.5 py-1 bg-white/20 text-white hover:bg-white/30 rounded-full text-[11px] font-medium transition-colors whitespace-nowrap"
-            title="Choose a different collage format"
+            title="Add another photo/video frame to this collage"
           >
-            <Layers className="w-3 h-3" />
-            <span>Templates</span>
+            <Plus className="w-3 h-3" />
+            <span>Add Slot</span>
           </button>
-        )}
 
-        {onOpenExport && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenExport();
-              soundFx.playHapticTick();
-            }}
-            className="flex items-center gap-1 px-3 py-1 bg-[#D97706] hover:bg-[#B45309] text-white rounded-full text-[11px] font-bold shadow transition-transform active:scale-95 whitespace-nowrap"
-            title="Export & Share Collage"
-          >
-            <Share2 className="w-3 h-3" />
-            <span>Export</span>
-          </button>
-        )}
-      </div>
+          {onOpenTemplateSelector && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenTemplateSelector();
+                soundFx.playHapticTick();
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 bg-white/20 text-white hover:bg-white/30 rounded-full text-[11px] font-medium transition-colors whitespace-nowrap"
+              title="Choose a different collage format"
+            >
+              <Layers className="w-3 h-3" />
+              <span>Templates</span>
+            </button>
+          )}
+
+          {onOpenExport && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenExport();
+                soundFx.playHapticTick();
+              }}
+              className="flex items-center gap-1 px-3 py-1 bg-[#D97706] hover:bg-[#B45309] text-white rounded-full text-[11px] font-bold shadow transition-transform active:scale-95 whitespace-nowrap"
+              title="Export & Share Collage"
+            >
+              <Share2 className="w-3 h-3" />
+              <span>Export</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Paper Texture Backdrop */}
       <div className={`absolute inset-0 pointer-events-none ${getTextureClass()}`} />
