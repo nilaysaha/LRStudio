@@ -352,7 +352,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${adjustments.rotation}deg)`,
           transition: isPanning ? 'none' : 'transform 0.15s ease-out',
         }}
-        className={`relative max-w-[92%] max-h-[86%] flex items-center justify-center shadow-xl transition-all ${getAspectRatioStyle()} ${
+        className={`relative max-w-[96%] sm:max-w-[92%] max-h-[92%] sm:max-h-[86%] flex items-center justify-center shadow-xl transition-all ${getAspectRatioStyle()} ${
           adjustments.frameType === 'film-35mm'
             ? 'p-6 bg-black rounded-sm ring-1 ring-black/20'
             : adjustments.frameType === 'polaroid'

@@ -3,7 +3,8 @@ import {
   Undo2, Redo2, Copy, Check, Camera, Image as ImageIcon,
   Download, Eye, SplitSquareVertical, Sparkles, Upload,
   RotateCcw, Menu, X, ChevronLeft, ChevronRight, Sliders, Info, FolderOpen,
-  Plus, ChevronDown, Video, LayoutGrid, FileText, Package, Layers, Share2
+  Plus, ChevronDown, Video, LayoutGrid, FileText, Package, Layers, Share2,
+  Maximize2, Minimize2
 } from 'lucide-react';
 import { MediaItem, Project } from '../types';
 import { PROJECT_TEMPLATE_TAGS } from '../constants/projectTemplates';

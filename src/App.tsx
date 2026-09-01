@@ -1003,7 +1003,7 @@ export default function App() {
   }, [historyIndex, history, copiedRecipe]);
 
   return (
-    <main className="w-screen h-screen flex flex-col bg-[#FAF9F6] text-[#2A2723] overflow-hidden select-none font-sans">
+    <main className="w-full h-full h-[100dvh] w-screen h-screen flex flex-col bg-[#FAF9F6] text-[#2A2723] overflow-hidden select-none font-sans">
       {/* Top Header Bar */}
       <EditorHeader
         currentMedia={currentMedia}
@@ -1213,7 +1213,7 @@ export default function App() {
               onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, false)}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center p-2 pt-14 sm:pt-14 overflow-y-auto">
+            <div className="w-full h-full flex items-center justify-center p-1 sm:p-4 pt-12 sm:pt-14 overflow-y-auto">
               <TemplateCanvasRenderer
                 template={activeCollage}
                 onChangeTemplate={handleUpdateActiveCollage}

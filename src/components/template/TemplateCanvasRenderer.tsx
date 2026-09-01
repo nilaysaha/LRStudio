@@ -249,7 +249,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-[440px] mx-auto select-none rounded-xl overflow-hidden shadow-2xl transition-all"
+      className="relative w-full max-w-[540px] max-h-full mx-auto select-none rounded-xl overflow-hidden shadow-2xl transition-all my-auto"
       style={{
         aspectRatio: `${template.aspectRatio}`,
         backgroundColor: template.overlays.backgroundColor || '#FAF9F6',
