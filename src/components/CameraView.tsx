@@ -135,15 +135,16 @@ export const CameraView: React.FC<CameraViewProps> = ({
           audio: false,
         });
       } catch (err) {
-        console.warn('Device ID constraint failed, falling back...', err);
+        console.warn('Device ID constraint failed, falling back to facingMode...', err);
       }
     }
 
     if (!stream) {
       try {
+        // Preferred modern constraint: ideal facingMode
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { exact: targetFacing },
+            facingMode: { ideal: targetFacing },
             width: { ideal: 1920, min: 640 },
             height: { ideal: 1080, min: 480 },
           },
@@ -151,6 +152,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         });
       } catch {
         try {
+          // Direct facingMode string
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: targetFacing,
@@ -161,19 +163,29 @@ export const CameraView: React.FC<CameraViewProps> = ({
           });
         } catch {
           try {
+            // Exact constraint fallback
             stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
+              video: {
+                facingMode: { exact: targetFacing },
+              },
               audio: false,
             });
-          } catch (err: any) {
-            console.error('All camera initialization attempts failed:', err);
-            setCameraError(
-              err.name === 'NotAllowedError'
-                ? 'Camera access was denied. Please allow camera permissions in your browser.'
-                : 'Unable to access camera. Please check your webcam connections.'
-            );
-            setIsStartingCamera(false);
-            return;
+          } catch {
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: false,
+              });
+            } catch (err: any) {
+              console.error('All camera initialization attempts failed:', err);
+              setCameraError(
+                err.name === 'NotAllowedError'
+                  ? 'Camera access was denied. Please allow camera permissions in your browser.'
+                  : 'Unable to access camera. Please check your webcam connections.'
+              );
+              setIsStartingCamera(false);
+              return;
+            }
           }
         }
       }
@@ -494,15 +506,21 @@ export const CameraView: React.FC<CameraViewProps> = ({
   };
 
   // Camera switch & adjustments
-  const handleToggleFacing = () => {
+  const handleToggleFacing = async () => {
     soundFx.playHapticTick();
     const nextMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(nextMode);
     setIsMirrored(nextMode === 'user');
 
+    let targetDeviceId: string | undefined = undefined;
     if (videoDevices.length > 1) {
-      setDeviceIndex((prev) => (prev + 1) % videoDevices.length);
+      const nextIndex = (deviceIndex + 1) % videoDevices.length;
+      setDeviceIndex(nextIndex);
+      targetDeviceId = videoDevices[nextIndex]?.deviceId;
     }
+
+    // Actually re-initialize the media stream with the new camera facing direction / sensor
+    await startCamera(nextMode, targetDeviceId);
   };
 
   const handleToggleMirror = () => {

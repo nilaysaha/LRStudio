@@ -1188,34 +1188,6 @@ export default function App() {
                 </div>
               )}
             </div>
-
-            {/* Right: Quick Action Controls */}
-            <div className="flex items-center gap-1.5 pointer-events-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setProjectsModalTab('templates');
-                  setIsProjectsModalOpen(true);
-                  soundFx.playHapticTick();
-                }}
-                className="px-3 py-1.5 rounded-full bg-[#2A2723] text-white text-xs font-semibold shadow-sm hover:bg-black flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <Grid className="w-3.5 h-3.5" />
-                <span>Templates</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCollage(null);
-                  soundFx.playHapticTick();
-                }}
-                className="px-2.5 py-1.5 rounded-full bg-white/90 backdrop-blur-md text-[#7E7365] hover:text-[#2A2723] border border-[#E6E2D3] text-xs font-medium shadow-xs transition-colors cursor-pointer"
-                title="Edit Single Photo/Video"
-              >
-                Single Media
-              </button>
-            </div>
           </div>
         )}
 
