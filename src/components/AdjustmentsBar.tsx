@@ -56,10 +56,10 @@ export const AdjustmentsBar: React.FC<AdjustmentsBarProps> = ({
 }) => {
   return (
     <div
-      className={`w-full bg-white/95 backdrop-blur-xl border-t border-[#E6E2D3] transition-all duration-300 ease-in-out shadow-lg z-20 flex flex-col ${
+      className={`w-full bg-white/95 backdrop-blur-xl border-t border-[#E6E2D3] transition-all duration-300 ease-in-out shadow-lg z-20 flex flex-col flex-shrink-0 ${
         isCollapsed
-          ? 'p-2 sm:py-2.5 sm:px-4'
-          : 'p-3 sm:p-4 gap-2.5 sm:gap-3 max-h-[52vh] sm:max-h-[46vh] md:max-h-none overflow-y-auto'
+          ? 'h-14 p-2 sm:py-2.5 sm:px-4'
+          : 'h-[270px] sm:h-[300px] p-3 sm:p-4 gap-2.5 overflow-hidden'
       }`}
     >
       {/* Mobile Drawer Pull Notch */}
@@ -70,7 +70,7 @@ export const AdjustmentsBar: React.FC<AdjustmentsBarProps> = ({
             onToggleCollapse();
             soundFx.playHapticTick();
           }}
-          className="w-full flex items-center justify-center -mt-1 pb-1 cursor-pointer focus:outline-hidden group"
+          className="w-full flex items-center justify-center -mt-1 pb-1 cursor-pointer focus:outline-hidden group flex-shrink-0"
           title={isCollapsed ? 'Expand Controls Drawer' : 'Collapse Drawer to maximize canvas'}
           aria-label={isCollapsed ? 'Expand Controls' : 'Collapse Controls'}
         >
@@ -135,7 +135,7 @@ export const AdjustmentsBar: React.FC<AdjustmentsBarProps> = ({
 
       {/* Tab Panels Content (Visible when NOT collapsed) */}
       {!isCollapsed && (
-        <div className="w-full transition-opacity duration-200 animate-in fade-in-50">
+        <div className="w-full flex-1 overflow-y-auto no-scrollbar transition-opacity duration-200 animate-in fade-in-50">
           {activeTab === 'presets' && (
             <PresetsBar
               presets={presets}

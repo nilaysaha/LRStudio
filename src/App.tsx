@@ -20,6 +20,7 @@ import { TemplateCanvasRenderer } from './components/template/TemplateCanvasRend
 import { TemplateCustomizerBar } from './components/template/TemplateCustomizerBar';
 import { TemplateSelectorDrawer } from './components/template/TemplateSelectorDrawer';
 import { SlidePresentationPreviewModal } from './components/template/SlidePresentationPreviewModal';
+import { DesktopSidebar } from './components/DesktopSidebar';
 import { soundFx } from './utils/audio';
 import {
   Sparkles, Grid, Eye, RefreshCw, LayoutTemplate, Sliders, ChevronUp,
@@ -194,6 +195,7 @@ export default function App() {
   const [isTemplateDrawerOpen, setIsTemplateDrawerOpen] = useState(false);
   const [isPlayingMaster, setIsPlayingMaster] = useState(true);
   const [isBottomDrawerCollapsed, setIsBottomDrawerCollapsed] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const slotUploadInputRef = useRef<HTMLInputElement>(null);
   const appBatchFileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadSlotId, setActiveUploadSlotId] = useState<string | null>(null);
@@ -1067,259 +1069,229 @@ export default function App() {
         className="hidden"
       />
 
-      {/* Main Canvas Viewport Area */}
-      <section className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 bg-[#F5F2EB]">
-        {/* Template & Project Mode Controls Header Bar */}
-        {activeCollage && (
-          <div className="absolute top-2 left-3 right-3 sm:top-3 sm:left-4 sm:right-4 z-20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pointer-events-none">
-            {/* Left: Project Badge & Active Template Info / Slide Switcher */}
-            <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-2xl border border-[#E6E2D3] shadow-md max-w-full overflow-x-auto no-scrollbar">
-              {/* Project Title Tag */}
-              {currentProject && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProjectsModalTab('my-projects');
-                    setIsProjectsModalOpen(true);
-                    soundFx.playHapticTick();
-                  }}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] text-[11px] font-semibold transition-colors"
-                  title="Open Project Studio"
-                >
-                  <FolderOpen className="w-3 h-3 text-[#A69480]" />
-                  <span className="max-w-[120px] truncate">{currentProject.name}</span>
-                </button>
-              )}
-
-              {/* Multi-Slide Chips with < > Arrows (if project has collages list) */}
-              {currentProject?.collages && currentProject.collages.length > 0 ? (
-                <div className="flex items-center gap-1">
-                  {/* Previous Slide Arrow < */}
+      {/* Center Workspace (Canvas + Desktop Sidebar) */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0 w-full overflow-hidden relative">
+        {/* Main Canvas Viewport Area */}
+        <section className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 bg-[#F5F2EB]">
+          {/* Template & Project Mode Controls Header Bar */}
+          {activeCollage && (
+            <div className="absolute top-2 left-3 right-3 sm:top-3 sm:left-4 sm:right-4 z-20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pointer-events-none">
+              {/* Left: Project Badge & Active Template Info / Slide Switcher */}
+              <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-2xl border border-[#E6E2D3] shadow-md max-w-full overflow-x-auto no-scrollbar">
+                {/* Project Title Tag */}
+                {currentProject && (
                   <button
                     type="button"
                     onClick={() => {
-                      const total = currentProject.collages.length;
-                      const currentIdx = currentProject.activeCollageIndex ?? 0;
-                      const prevIdx = (currentIdx - 1 + total) % total;
-                      handleSelectProjectSlide(prevIdx);
-                    }}
-                    className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95 transition-all cursor-pointer"
-                    title="Previous Slide (<)"
-                    aria-label="Previous Slide"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-
-                  {currentProject.collages.map((col, idx) => {
-                    const isSlideActive = (currentProject.activeCollageIndex ?? 0) === idx;
-                    return (
-                      <button
-                        key={col.id || idx}
-                        type="button"
-                        onClick={() => handleSelectProjectSlide(idx)}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                          isSlideActive
-                            ? 'bg-[#2A2723] text-white shadow-xs'
-                            : 'bg-[#FAF9F6] text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
-                        }`}
-                      >
-                        <Layers className="w-2.5 h-2.5" />
-                        <span>Slide {idx + 1}</span>
-                      </button>
-                    );
-                  })}
-
-                  {/* Next Slide Arrow > */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const total = currentProject.collages.length;
-                      const currentIdx = currentProject.activeCollageIndex ?? 0;
-                      const nextIdx = (currentIdx + 1) % total;
-                      handleSelectProjectSlide(nextIdx);
-                    }}
-                    className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95 transition-all cursor-pointer"
-                    title="Next Slide (>)"
-                    aria-label="Next Slide"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Add Slide Quick Action */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProjectsModalTab('templates');
+                      setProjectsModalTab('my-projects');
                       setIsProjectsModalOpen(true);
                       soundFx.playHapticTick();
                     }}
-                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#EAE6DF] text-[#2A2723] border border-dashed border-[#A69480] text-[10px] font-semibold transition-colors cursor-pointer"
-                    title="Add Template as New Slide"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] text-[11px] font-semibold transition-colors"
+                    title="Open Project Studio"
                   >
-                    <Plus className="w-2.5 h-2.5" />
-                    <span className="hidden xs:inline">Slide</span>
+                    <FolderOpen className="w-3 h-3 text-[#A69480]" />
+                    <span className="max-w-[120px] truncate">{currentProject.name}</span>
                   </button>
+                )}
 
-                  {/* Slide actions: Duplicate / Delete */}
-                  <button
-                    type="button"
-                    onClick={() => handleDuplicateProjectSlide()}
-                    className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors cursor-pointer"
-                    title="Duplicate active slide"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </button>
-
-                  {currentProject.collages.length > 1 && (
+                {/* Multi-Slide Chips with < > Arrows (if project has collages list) */}
+                {currentProject?.collages && currentProject.collages.length > 0 ? (
+                  <div className="flex items-center gap-1">
+                    {/* Previous Slide Arrow < */}
                     <button
                       type="button"
-                      onClick={() =>
-                        handleDeleteProjectSlide(
-                          currentProject.activeCollageIndex ?? 0
-                        )
-                      }
-                      className="p-1 rounded-md text-[#7E7365] hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                      title="Delete active slide"
+                      onClick={() => {
+                        const total = currentProject.collages.length;
+                        const currentIdx = currentProject.activeCollageIndex ?? 0;
+                        const prevIdx = (currentIdx - 1 + total) % total;
+                        handleSelectProjectSlide(prevIdx);
+                      }}
+                      className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95 transition-all cursor-pointer"
+                      title="Previous Slide (<)"
+                      aria-label="Previous Slide"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <ChevronLeft className="w-3.5 h-3.5" />
                     </button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <LayoutTemplate className="w-3.5 h-3.5 text-[#2A2723]" />
-                  <span className="text-xs font-bold text-[#2A2723]">
-                    {activeCollage.name}
-                  </span>
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]">
-                    {activeCollage.aspectLabel}
-                  </span>
-                </div>
-              )}
+
+                    {currentProject.collages.map((col, idx) => {
+                      const isSlideActive = (currentProject.activeCollageIndex ?? 0) === idx;
+                      return (
+                        <button
+                          key={col.id || idx}
+                          type="button"
+                          onClick={() => handleSelectProjectSlide(idx)}
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                            isSlideActive
+                              ? 'bg-[#2A2723] text-white shadow-xs'
+                              : 'bg-[#FAF9F6] text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
+                          }`}
+                        >
+                          <Layers className="w-2.5 h-2.5" />
+                          <span>Slide {idx + 1}</span>
+                        </button>
+                      );
+                    })}
+
+                    {/* Next Slide Arrow > */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const total = currentProject.collages.length;
+                        const currentIdx = currentProject.activeCollageIndex ?? 0;
+                        const nextIdx = (currentIdx + 1) % total;
+                        handleSelectProjectSlide(nextIdx);
+                      }}
+                      className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95 transition-all cursor-pointer"
+                      title="Next Slide (>)"
+                      aria-label="Next Slide"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Add Slide Quick Action */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProjectsModalTab('templates');
+                        setIsProjectsModalOpen(true);
+                        soundFx.playHapticTick();
+                      }}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#EAE6DF] text-[#2A2723] border border-dashed border-[#A69480] text-[10px] font-semibold transition-colors cursor-pointer"
+                      title="Add Template as New Slide"
+                    >
+                      <Plus className="w-2.5 h-2.5" />
+                      <span className="hidden xs:inline">Slide</span>
+                    </button>
+
+                    {/* Slide actions: Duplicate / Delete */}
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicateProjectSlide()}
+                      className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors cursor-pointer"
+                      title="Duplicate active slide"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+
+                    {currentProject.collages.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDeleteProjectSlide(
+                            currentProject.activeCollageIndex ?? 0
+                          )
+                        }
+                        className="p-1 rounded-md text-[#7E7365] hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        title="Delete active slide"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <LayoutTemplate className="w-3.5 h-3.5 text-[#2A2723]" />
+                    <span className="text-xs font-bold text-[#2A2723]">
+                      {activeCollage.name}
+                    </span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]">
+                      {activeCollage.aspectLabel}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {!activeCollage ? (
-          <ViewportCanvas
-            media={currentMedia}
-            adjustments={adjustments}
-            compareMode={compareMode}
-            activeTab={activeTab}
-            onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, false)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center p-2 pt-14 sm:pt-14 overflow-y-auto">
-            <TemplateCanvasRenderer
-              template={activeCollage}
-              onChangeTemplate={handleUpdateActiveCollage}
-              selectedSlotId={selectedSlotId}
-              onSelectSlot={setSelectedSlotId}
-              selectedTextId={selectedTextId}
-              onSelectText={setSelectedTextId}
-              isPlayingMaster={isPlayingMaster}
-              onTogglePlayMaster={() => setIsPlayingMaster((prev) => !prev)}
-              onChooseFromLibraryForSlot={handleChooseFromLibraryForSlot}
-              onRecordVideoForSlot={handleRecordVideoForSlot}
-              onTakePhotoForSlot={handleTakePhotoForSlot}
-              onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
-              onOpenExport={() => setIsExportOpen(true)}
-              onImportFileForSlot={async (slotId, file) => {
-                const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
-                const url = URL.createObjectURL(file);
-                const newMedia: MediaItem = {
-                  id: `media-${Date.now()}`,
-                  name: file.name,
-                  type: isVideo ? 'video' : 'image',
-                  url,
-                  file,
-                  aspectRatio: isVideo ? 16 / 9 : 4 / 5,
-                  width: 1080,
-                  height: 1920,
-                  createdAt: Date.now(),
-                  source: 'upload',
-                };
-                setUserMediaLibrary((prev) => [newMedia, ...prev]);
-                const updatedSlots = activeCollage.slots.map((s) =>
-                  s.id === slotId ? { ...s, media: newMedia } : s
-                );
-                handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots });
-              }}
+          {!activeCollage ? (
+            <ViewportCanvas
+              media={currentMedia}
+              adjustments={adjustments}
+              compareMode={compareMode}
+              activeTab={activeTab}
+              onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, false)}
             />
-          </div>
-        )}
-        {/* Floating Slide Navigation Arrows on Canvas (< and >) */}
-        {currentProject?.collages && currentProject.collages.length > 1 && (
-          <>
-            {/* Left < (Previous Slide) Navigation Arrow */}
-            <button
-              type="button"
-              onClick={() => {
-                const total = currentProject.collages.length;
-                const currentIdx = currentProject.activeCollageIndex ?? 0;
-                const prevIdx = (currentIdx - 1 + total) % total;
-                handleSelectProjectSlide(prevIdx);
-              }}
-              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
-              title="Previous Slide (<)"
-              aria-label="Previous Slide"
-            >
-              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-[#2A2723] group-hover:-translate-x-0.5 transition-transform" />
-            </button>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center p-2 pt-14 sm:pt-14 overflow-y-auto">
+              <TemplateCanvasRenderer
+                template={activeCollage}
+                onChangeTemplate={handleUpdateActiveCollage}
+                selectedSlotId={selectedSlotId}
+                onSelectSlot={setSelectedSlotId}
+                selectedTextId={selectedTextId}
+                onSelectText={setSelectedTextId}
+                isPlayingMaster={isPlayingMaster}
+                onTogglePlayMaster={() => setIsPlayingMaster((prev) => !prev)}
+                onChooseFromLibraryForSlot={handleChooseFromLibraryForSlot}
+                onRecordVideoForSlot={handleRecordVideoForSlot}
+                onTakePhotoForSlot={handleTakePhotoForSlot}
+                onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
+                onOpenExport={() => setIsExportOpen(true)}
+                onImportFileForSlot={async (slotId, file) => {
+                  const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
+                  const url = URL.createObjectURL(file);
+                  const newMedia: MediaItem = {
+                    id: `media-${Date.now()}`,
+                    name: file.name,
+                    type: isVideo ? 'video' : 'image',
+                    url,
+                    file,
+                    aspectRatio: isVideo ? 16 / 9 : 4 / 5,
+                    width: 1080,
+                    height: 1920,
+                    createdAt: Date.now(),
+                    source: 'upload',
+                  };
+                  setUserMediaLibrary((prev) => [newMedia, ...prev]);
+                  const updatedSlots = activeCollage.slots.map((s) =>
+                    s.id === slotId ? { ...s, media: newMedia } : s
+                  );
+                  handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots });
+                }}
+              />
+            </div>
+          )}
+          {/* Floating Slide Navigation Arrows on Canvas (< and >) */}
+          {currentProject?.collages && currentProject.collages.length > 1 && (
+            <>
+              {/* Left < (Previous Slide) Navigation Arrow */}
+              <button
+                type="button"
+                onClick={() => {
+                  const total = currentProject.collages.length;
+                  const currentIdx = currentProject.activeCollageIndex ?? 0;
+                  const prevIdx = (currentIdx - 1 + total) % total;
+                  handleSelectProjectSlide(prevIdx);
+                }}
+                className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+                title="Previous Slide (<)"
+                aria-label="Previous Slide"
+              >
+                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-[#2A2723] group-hover:-translate-x-0.5 transition-transform" />
+              </button>
 
-            {/* Right > (Next Slide) Navigation Arrow */}
-            <button
-              type="button"
-              onClick={() => {
-                const total = currentProject.collages.length;
-                const currentIdx = currentProject.activeCollageIndex ?? 0;
-                const nextIdx = (currentIdx + 1) % total;
-                handleSelectProjectSlide(nextIdx);
-              }}
-              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
-              title="Next Slide (>)"
-              aria-label="Next Slide"
-            >
-              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-[#2A2723] group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          </>
-        )}
-      </section>
+              {/* Right > (Next Slide) Navigation Arrow */}
+              <button
+                type="button"
+                onClick={() => {
+                  const total = currentProject.collages.length;
+                  const currentIdx = currentProject.activeCollageIndex ?? 0;
+                  const nextIdx = (currentIdx + 1) % total;
+                  handleSelectProjectSlide(nextIdx);
+                }}
+                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+                title="Next Slide (>)"
+                aria-label="Next Slide"
+              >
+                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-[#2A2723] group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </>
+          )}
+        </section>
 
-      {/* Bottom Toolbars & Presets Shelf (Collapsible Drawer) */}
-      {activeCollage ? (
-        <TemplateCustomizerBar
-          template={activeCollage}
-          onChangeTemplate={handleUpdateActiveCollage}
-          selectedSlotId={selectedSlotId}
-          onSelectSlot={setSelectedSlotId}
-          selectedTextId={selectedTextId}
-          onSelectText={setSelectedTextId}
-          onTriggerSlotUpload={handleTriggerSlotUpload}
-          onChooseFromLibraryForSlot={handleChooseFromLibraryForSlot}
-          onRecordVideoForSlot={handleRecordVideoForSlot}
-          onTakePhotoForSlot={handleTakePhotoForSlot}
-          onBatchUploadMultipleMedia={handleBatchUploadMultipleMedia}
-          presets={presets}
-          onApplyPresetToTemplate={(preset) => {
-            updateAdjustments(createAdjustmentsCopy(preset.adjustments));
-          }}
-          onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
-          onOpenExport={() => setIsExportOpen(true)}
-          isCollapsed={isBottomDrawerCollapsed}
-          onToggleCollapse={() => setIsBottomDrawerCollapsed((prev) => !prev)}
-          project={currentProject}
-          onSelectProjectSlide={handleSelectProjectSlide}
-          onDuplicateProjectSlide={handleDuplicateProjectSlide}
-          onDeleteProjectSlide={handleDeleteProjectSlide}
-          onReorderProjectSlides={handleReorderProjectSlides}
-          onAddNewSlide={() => {
-            setProjectsModalTab('templates');
-            setIsProjectsModalOpen(true);
-          }}
-        />
-      ) : (
-        <AdjustmentsBar
+        {/* Desktop Pro Sidebar (Right side, wide screens) */}
+        <DesktopSidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           adjustments={adjustments}
@@ -1331,10 +1303,84 @@ export default function App() {
           onDeleteCustomPreset={handleDeleteCustomPreset}
           onImportPresetJSON={handleImportPresetJSON}
           onExportPresetJSON={handleExportPresetJSON}
-          isCollapsed={isBottomDrawerCollapsed}
-          onToggleCollapse={() => setIsBottomDrawerCollapsed((prev) => !prev)}
+          activeCollage={activeCollage}
+          onChangeTemplate={handleUpdateActiveCollage}
+          selectedSlotId={selectedSlotId}
+          onSelectSlot={setSelectedSlotId}
+          selectedTextId={selectedTextId}
+          onSelectText={setSelectedTextId}
+          onTriggerSlotUpload={handleTriggerSlotUpload}
+          onChooseFromLibraryForSlot={handleChooseFromLibraryForSlot}
+          onRecordVideoForSlot={handleRecordVideoForSlot}
+          onTakePhotoForSlot={handleTakePhotoForSlot}
+          onBatchUploadMultipleMedia={handleBatchUploadMultipleMedia}
+          onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
+          onOpenExport={() => setIsExportOpen(true)}
+          currentProject={currentProject}
+          onSelectProjectSlide={handleSelectProjectSlide}
+          onDuplicateProjectSlide={handleDuplicateProjectSlide}
+          onDeleteProjectSlide={handleDeleteProjectSlide}
+          onReorderProjectSlides={handleReorderProjectSlides}
+          onAddNewSlide={() => {
+            setProjectsModalTab('templates');
+            setIsProjectsModalOpen(true);
+          }}
+          isCollapsed={isDesktopSidebarCollapsed}
+          onToggleCollapse={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
         />
-      )}
+      </div>
+
+      {/* Mobile-Only Bottom Drawer (Hidden on md: breakpoint, fixed height to prevent CLS) */}
+      <div className="block md:hidden flex-shrink-0">
+        {activeCollage ? (
+          <TemplateCustomizerBar
+            template={activeCollage}
+            onChangeTemplate={handleUpdateActiveCollage}
+            selectedSlotId={selectedSlotId}
+            onSelectSlot={setSelectedSlotId}
+            selectedTextId={selectedTextId}
+            onSelectText={setSelectedTextId}
+            onTriggerSlotUpload={handleTriggerSlotUpload}
+            onChooseFromLibraryForSlot={handleChooseFromLibraryForSlot}
+            onRecordVideoForSlot={handleRecordVideoForSlot}
+            onTakePhotoForSlot={handleTakePhotoForSlot}
+            onBatchUploadMultipleMedia={handleBatchUploadMultipleMedia}
+            presets={presets}
+            onApplyPresetToTemplate={(preset) => {
+              updateAdjustments(createAdjustmentsCopy(preset.adjustments));
+            }}
+            onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
+            onOpenExport={() => setIsExportOpen(true)}
+            isCollapsed={isBottomDrawerCollapsed}
+            onToggleCollapse={() => setIsBottomDrawerCollapsed((prev) => !prev)}
+            project={currentProject}
+            onSelectProjectSlide={handleSelectProjectSlide}
+            onDuplicateProjectSlide={handleDuplicateProjectSlide}
+            onDeleteProjectSlide={handleDeleteProjectSlide}
+            onReorderProjectSlides={handleReorderProjectSlides}
+            onAddNewSlide={() => {
+              setProjectsModalTab('templates');
+              setIsProjectsModalOpen(true);
+            }}
+          />
+        ) : (
+          <AdjustmentsBar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            adjustments={adjustments}
+            onChangeAdjustments={(newAdj) => updateAdjustments(newAdj)}
+            presets={presets}
+            onSelectPreset={handleSelectPreset}
+            onOpenSavePresetModal={() => setIsSavePresetOpen(true)}
+            onToggleFavoritePreset={handleToggleFavoritePreset}
+            onDeleteCustomPreset={handleDeleteCustomPreset}
+            onImportPresetJSON={handleImportPresetJSON}
+            onExportPresetJSON={handleExportPresetJSON}
+            isCollapsed={isBottomDrawerCollapsed}
+            onToggleCollapse={() => setIsBottomDrawerCollapsed((prev) => !prev)}
+          />
+        )}
+      </div>
 
       {/* Template Selector Drawer */}
       <TemplateSelectorDrawer

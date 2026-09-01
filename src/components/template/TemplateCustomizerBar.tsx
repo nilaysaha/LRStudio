@@ -39,6 +39,7 @@ interface TemplateCustomizerBarProps {
   onDeleteProjectSlide?: (index: number) => void;
   onReorderProjectSlides?: (fromIndex: number, toIndex: number) => void;
   onAddNewSlide?: () => void;
+  isSidebarMode?: boolean;
 }
 
 type CustomizerTab = 'filmstrip' | 'slots' | 'text' | 'decorations' | 'paper' | 'presets';
@@ -67,6 +68,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
   onDeleteProjectSlide,
   onReorderProjectSlides,
   onAddNewSlide,
+  isSidebarMode = false,
 }) => {
   const slideCount = project?.collages?.length || 1;
   const [activeTab, setActiveTab] = useState<CustomizerTab>(
@@ -122,12 +124,500 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
     onSelectSlot(newSlot.id);
   };
 
+  if (isSidebarMode) {
+    return (
+      <div className="flex flex-col h-full bg-white">
+        {/* Sidebar Tab Header Grid */}
+        <div className="p-3 border-b border-[#F0EEE6] bg-[#FAF9F6]/60 flex-shrink-0">
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              {
+                id: 'filmstrip',
+                label: `Filmstrip (${slideCount})`,
+                icon: <Film className="w-3.5 h-3.5 text-amber-500" />,
+              },
+              { id: 'slots', label: 'Frames', icon: <Layers className="w-3.5 h-3.5" /> },
+              { id: 'text', label: 'Text', icon: <Type className="w-3.5 h-3.5" /> },
+              { id: 'decorations', label: 'Tape/Clips', icon: <Paperclip className="w-3.5 h-3.5" /> },
+              { id: 'paper', label: 'Paper', icon: <Palette className="w-3.5 h-3.5" /> },
+              { id: 'presets', label: 'Film Stock', icon: <Sparkles className="w-3.5 h-3.5" /> },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tab.id as CustomizerTab);
+                    soundFx.playHapticTick();
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[11px] font-medium transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-[#2A2723] text-white shadow-xs font-semibold'
+                      : 'bg-white text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  <span className="truncate max-w-[70px]">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Action row for templates */}
+          {onOpenTemplateSelector && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenTemplateSelector();
+                soundFx.playHapticTick();
+              }}
+              className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-white border border-[#E6E2D3] text-xs font-semibold text-[#2A2723] hover:bg-[#F0EEE6] transition-colors"
+            >
+              <Grid className="w-3.5 h-3.5 text-[#2A2723]" />
+              <span>Browse Template Layouts</span>
+            </button>
+          )}
+        </div>
+
+        {/* Sidebar Content Panel */}
+        <div className="flex-1 overflow-y-auto no-scrollbar p-3.5">
+          {activeTab === 'filmstrip' && (
+            <ProjectFilmstrip
+              project={project || null}
+              activeCollage={template}
+              onSelectSlide={(index) => {
+                if (onSelectProjectSlide) onSelectProjectSlide(index);
+              }}
+              onDuplicateSlide={(index) => {
+                if (onDuplicateProjectSlide) onDuplicateProjectSlide(index);
+              }}
+              onDeleteSlide={(index) => {
+                if (onDeleteProjectSlide) onDeleteProjectSlide(index);
+              }}
+              onReorderSlides={(fromIndex, toIndex) => {
+                if (onReorderProjectSlides) onReorderProjectSlides(fromIndex, toIndex);
+              }}
+              onAddNewSlide={() => {
+                if (onAddNewSlide) onAddNewSlide();
+              }}
+              onOpenTemplateSelector={onOpenTemplateSelector}
+            />
+          )}
+
+          {activeTab === 'slots' && (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onBatchUploadMultipleMedia) {
+                      onBatchUploadMultipleMedia();
+                    } else {
+                      onTriggerSlotUpload(template.slots[0]?.id || 'slot-1');
+                    }
+                    soundFx.playHapticTick();
+                  }}
+                  className="w-full px-3 py-2 bg-[#2A2723] text-white hover:bg-black rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  title="Select multiple photos & videos from your device to populate all slots"
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>Batch Fill Media ({template.slots.length} Frames)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAddNewSlot}
+                  className="w-full px-3 py-1.5 bg-[#FAF9F6] border border-[#E6E2D3] text-[#2A2723] hover:bg-[#F0EEE6] rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add New Media Frame</span>
+                </button>
+              </div>
+
+              {/* Slots List */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[11px] text-[#A69480] uppercase tracking-wider font-semibold">
+                  Frames ({template.slots.length})
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {template.slots.map((slot, index) => {
+                    const isSelected = selectedSlotId === slot.id;
+                    const isVideo = slot.media.type === 'video';
+
+                    return (
+                      <div
+                        key={slot.id}
+                        onClick={() => {
+                          onSelectSlot(slot.id);
+                          onSelectText(null);
+                          soundFx.playHapticTick();
+                        }}
+                        className={`flex flex-col gap-1.5 p-2 rounded-xl border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#FAF8F5] border-[#2A2723] shadow-xs'
+                            : 'bg-[#FAF9F6] border-[#E6E2D3] hover:border-[#A69480]'
+                        }`}
+                      >
+                        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-neutral-200 border border-black/10">
+                          {isVideo ? (
+                            <video
+                              src={slot.media.url}
+                              className="w-full h-full object-cover"
+                              muted
+                            />
+                          ) : (
+                            <img
+                              src={slot.media.url}
+                              alt={slot.label}
+                              className="w-full h-full object-cover"
+                              crossOrigin="anonymous"
+                            />
+                          )}
+                          {isVideo && (
+                            <span className="absolute bottom-1 right-1 bg-black/75 text-white text-[8px] px-1 rounded-xs font-mono">
+                              VID
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-[#2A2723] truncate text-[11px]">
+                            {slot.label || `Slot ${index + 1}`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTriggerSlotUpload(slot.id);
+                              soundFx.playHapticTick();
+                            }}
+                            className="text-[10px] text-[#0A84FF] hover:underline"
+                          >
+                            Upload
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Slot Controls */}
+              {selectedSlot && (
+                <div className="p-3 bg-[#FAF9F6] rounded-xl border border-[#E6E2D3] flex flex-col gap-2.5 mt-2 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#2A2723]">
+                      Edit: {selectedSlot.label}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const filtered = template.slots.filter((s) => s.id !== selectedSlot.id);
+                        onChangeTemplate({ ...template, slots: filtered });
+                        onSelectSlot(null);
+                        soundFx.playHapticTick();
+                      }}
+                      className="p-1 text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                      title="Delete Frame"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {onChooseFromLibraryForSlot && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onChooseFromLibraryForSlot(selectedSlot.id);
+                          soundFx.playHapticTick();
+                        }}
+                        className="py-1.5 px-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1"
+                      >
+                        <Camera className="w-3 h-3" />
+                        <span>Library</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => onTriggerSlotUpload(selectedSlot.id)}
+                      className="py-1.5 px-2 bg-[#2A2723] hover:bg-black text-white rounded-lg text-[11px] font-medium flex items-center justify-center gap-1"
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>Upload</span>
+                    </button>
+
+                    {onRecordVideoForSlot && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRecordVideoForSlot(selectedSlot.id);
+                          soundFx.playHapticTick();
+                        }}
+                        className="py-1.5 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-medium flex items-center justify-center gap-1"
+                      >
+                        <Video className="w-3 h-3" />
+                        <span>Record</span>
+                      </button>
+                    )}
+
+                    {onTakePhotoForSlot && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onTakePhotoForSlot(selectedSlot.id);
+                          soundFx.playHapticTick();
+                        }}
+                        className="py-1.5 px-2 bg-neutral-800 hover:bg-black text-white rounded-lg text-[11px] font-medium flex items-center justify-center gap-1"
+                      >
+                        <Camera className="w-3 h-3" />
+                        <span>Capture</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Border Style */}
+                  <div className="flex flex-col gap-1 mt-1">
+                    <span className="text-[10px] text-[#7E7365] uppercase font-semibold">
+                      Frame Style
+                    </span>
+                    <div className="grid grid-cols-4 gap-1">
+                      {(['polaroid', 'film-sprocket', 'clean', 'rounded'] as TemplateSlotBorderStyle[]).map(
+                        (bStyle) => (
+                          <button
+                            key={bStyle}
+                            type="button"
+                            onClick={() => {
+                              updateSlot(selectedSlot.id, { borderStyle: bStyle });
+                              soundFx.playHapticTick();
+                            }}
+                            className={`py-1 px-1 rounded-md text-[10px] capitalize font-medium transition-all ${
+                              selectedSlot.borderStyle === bStyle
+                                ? 'bg-[#2A2723] text-white shadow-xs'
+                                : 'bg-white text-[#7E7365] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
+                            }`}
+                          >
+                            {bStyle.replace('-', ' ')}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'text' && (
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  soundFx.playHapticTick();
+                  const newT: TemplateTextElement = {
+                    id: `text-${Date.now()}`,
+                    label: 'Caption',
+                    text: 'NEW CAPTION',
+                    x: 30,
+                    y: 75,
+                    fontFamily: 'editorial-serif',
+                    fontSize: 16,
+                    color: '#2A2723',
+                    align: 'center',
+                  };
+                  onChangeTemplate({ ...template, textElements: [...template.textElements, newT] });
+                  onSelectText(newT.id);
+                }}
+                className="w-full py-2 bg-[#2A2723] text-white hover:bg-black rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Text Box</span>
+              </button>
+
+              <div className="flex flex-col gap-2">
+                {template.textElements.map((t, idx) => (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      onSelectText(t.id);
+                      onSelectSlot(null);
+                      soundFx.playHapticTick();
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                      selectedTextId === t.id
+                        ? 'bg-[#FAF8F5] border-[#2A2723]'
+                        : 'bg-[#FAF9F6] border-[#E6E2D3]'
+                    }`}
+                  >
+                    <span className="text-xs font-medium text-[#2A2723] truncate max-w-[200px]">
+                      {t.text || `Text Element ${idx + 1}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const filtered = template.textElements.filter((item) => item.id !== t.id);
+                        onChangeTemplate({ ...template, textElements: filtered });
+                        if (selectedTextId === t.id) onSelectText(null);
+                        soundFx.playHapticTick();
+                      }}
+                      className="p-1 text-rose-600 hover:bg-rose-50 rounded-md"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {selectedText && (
+                <div className="p-3 bg-[#FAF9F6] rounded-xl border border-[#E6E2D3] flex flex-col gap-2.5">
+                  <span className="text-xs font-bold text-[#2A2723]">Edit Text</span>
+                  <input
+                    type="text"
+                    value={selectedText.text}
+                    onChange={(e) => updateText(selectedText.id, { text: e.target.value })}
+                    className="w-full px-2.5 py-1.5 bg-white border border-[#E6E2D3] rounded-lg text-xs"
+                    placeholder="Enter text..."
+                  />
+                  <div className="grid grid-cols-3 gap-1">
+                    {(
+                      [
+                        'editorial-serif',
+                        'modern-sans',
+                        'typewriter',
+                        'handwritten',
+                        'monospaced',
+                        'display-syne',
+                      ] as TextFontFamily[]
+                    ).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => {
+                          updateText(selectedText.id, { fontFamily: f });
+                          soundFx.playHapticTick();
+                        }}
+                        className={`py-1 px-1 text-[10px] rounded-md capitalize font-medium truncate ${
+                          selectedText.fontFamily === f
+                            ? 'bg-[#2A2723] text-white'
+                            : 'bg-white text-[#7E7365] border border-[#E6E2D3]'
+                        }`}
+                      >
+                        {f.replace('-', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'decorations' && (
+            <div className="flex flex-col gap-3">
+              <span className="text-xs font-bold text-[#2A2723]">Washi Tape & Clips</span>
+              <div className="grid grid-cols-2 gap-2">
+                {(['none', 'top-corners', 'all-corners', 'top-center', 'diagonal-strip'] as TemplateTapeStyle[]).map(
+                  (tape) => (
+                    <button
+                      key={tape}
+                      type="button"
+                      onClick={() => {
+                        if (selectedSlot) {
+                          updateSlot(selectedSlot.id, { tape });
+                        } else {
+                          const updatedSlots = template.slots.map((s) => ({ ...s, tape }));
+                          onChangeTemplate({ ...template, slots: updatedSlots });
+                        }
+                        soundFx.playHapticTick();
+                      }}
+                      className="p-2 bg-[#FAF9F6] border border-[#E6E2D3] hover:border-[#2A2723] rounded-xl text-xs capitalize text-[#2A2723] font-medium text-left"
+                    >
+                      {tape.replace('-', ' ')}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'paper' && (
+            <div className="flex flex-col gap-3">
+              <span className="text-xs font-bold text-[#2A2723]">Paper Canvas Texture</span>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    'linen-white',
+                    'warm-ivory',
+                    'kraft-paper',
+                    'clean-white',
+                    'charcoal-dark',
+                    'split-duotone',
+                  ] as PaperTextureType[]
+                ).map((tex) => (
+                  <button
+                    key={tex}
+                    type="button"
+                    onClick={() => {
+                      onChangeTemplate({
+                        ...template,
+                        overlays: { ...template.overlays, paperTexture: tex },
+                      });
+                      soundFx.playHapticTick();
+                    }}
+                    className={`p-2.5 rounded-xl border text-xs capitalize text-left transition-all ${
+                      template.overlays?.paperTexture === tex
+                        ? 'bg-[#2A2723] text-white shadow-xs'
+                        : 'bg-[#FAF9F6] text-[#2A2723] border-[#E6E2D3] hover:border-[#A69480]'
+                    }`}
+                  >
+                    {tex.replace('-', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'presets' && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-bold text-[#2A2723]">Film Recipes</span>
+              <div className="grid grid-cols-2 gap-2">
+                {presets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      if (onApplyPresetToTemplate) onApplyPresetToTemplate(preset);
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-xl border border-[#E6E2D3] bg-[#FAF9F6] hover:border-[#2A2723] transition-all text-left"
+                  >
+                    <div
+                      className="w-6 h-6 rounded-lg shadow-xs flex items-center justify-center text-[10px] font-serif text-white font-bold shrink-0"
+                      style={{ backgroundColor: preset.thumbnailColor || '#2A2723' }}
+                    >
+                      {preset.name.charAt(0)}
+                    </div>
+                    <span className="text-xs font-medium text-[#2A2723] truncate">
+                      {preset.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`w-full bg-white/95 backdrop-blur-xl border-t border-[#E6E2D3] transition-all duration-300 ease-in-out shadow-lg z-20 flex flex-col ${
+      className={`w-full bg-white/95 backdrop-blur-xl border-t border-[#E6E2D3] transition-all duration-300 ease-in-out shadow-lg z-20 flex flex-col flex-shrink-0 ${
         isCollapsed
-          ? 'p-2 sm:py-2.5 sm:px-4'
-          : 'p-3 sm:p-4 gap-2.5 sm:gap-3 max-h-[52vh] sm:max-h-[46vh] md:max-h-none overflow-y-auto'
+          ? 'h-14 p-2 sm:py-2.5 sm:px-4'
+          : 'h-[270px] sm:h-[300px] p-3 sm:p-4 gap-2.5 overflow-hidden'
       }`}
     >
       {/* Mobile Drawer Pull Notch */}
@@ -138,7 +628,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
             onToggleCollapse();
             soundFx.playHapticTick();
           }}
-          className="w-full flex items-center justify-center -mt-1 pb-1 cursor-pointer focus:outline-hidden group"
+          className="w-full flex items-center justify-center -mt-1 pb-1 cursor-pointer focus:outline-hidden group flex-shrink-0"
           title={isCollapsed ? 'Expand Controls Drawer' : 'Collapse Drawer to maximize collage canvas'}
           aria-label={isCollapsed ? 'Expand Controls' : 'Collapse Controls'}
         >
@@ -245,7 +735,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
 
       {/* Content (Visible when NOT collapsed) */}
       {!isCollapsed && (
-        <div className="w-full transition-opacity duration-200 animate-in fade-in-50">
+        <div className="w-full flex-1 overflow-y-auto no-scrollbar transition-opacity duration-200 animate-in fade-in-50">
 
       {/* ---------------------------------------------------- */}
       {/* 0. 35MM FILMSTRIP & PROJECT SLIDES TAB               */}

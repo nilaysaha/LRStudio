@@ -44,6 +44,17 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
 
+  const currentIndexRef = useRef(currentIndex);
+  const slidesRef = useRef(slides);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    slidesRef.current = slides;
+  }, [slides]);
+
   // Stop auto-play immediately when preview closes
   useEffect(() => {
     if (!isOpen) {
@@ -66,12 +77,12 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
   useEffect(() => {
     if (isOpen && isPlayingSlideshow && slides.length > 1) {
       timerRef.current = window.setInterval(() => {
-        setCurrentIndex((prev) => {
-          const next = (prev + 1) % slides.length;
-          onSelectSlide(next);
-          soundFx.playHapticTick();
-          return next;
-        });
+        const total = slidesRef.current.length;
+        if (total <= 1) return;
+        const next = (currentIndexRef.current + 1) % total;
+        setCurrentIndex(next);
+        onSelectSlide(next);
+        soundFx.playHapticTick();
       }, slideshowInterval * 1000);
     } else {
       if (timerRef.current) {
