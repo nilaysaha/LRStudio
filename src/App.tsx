@@ -154,9 +154,18 @@ export default function App() {
   const [cameraTargetSlotId, setCameraTargetSlotId] = useState<string | null>(null);
   const [isSavePresetOpen, setIsSavePresetOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [exportInitialScope, setExportInitialScope] = useState<'all-slides' | 'current' | undefined>(undefined);
+  const [exportInitialSingleFileType, setExportInitialSingleFileType] = useState<'pdf' | 'strip' | 'zip' | undefined>(undefined);
   const [isSlidePreviewOpen, setIsSlidePreviewOpen] = useState(false);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [projectsModalTab, setProjectsModalTab] = useState<'my-projects' | 'templates'>('my-projects');
+
+  const handleOpenExportWithOptions = (options?: { scope?: 'all-slides' | 'current'; singleFileType?: 'pdf' | 'strip' | 'zip' }) => {
+    setExportInitialScope(options?.scope);
+    setExportInitialSingleFileType(options?.singleFileType);
+    setIsExportOpen(true);
+    soundFx.playHapticTick();
+  };
 
   // User Media Library (recorded videos, camera captures, and uploaded items)
   const [userMediaLibrary, setUserMediaLibrary] = useState<MediaItem[]>(() => {
@@ -1027,7 +1036,7 @@ export default function App() {
           setIsSlidePreviewOpen(true);
           soundFx.playHapticTick();
         }}
-        onOpenExport={() => setIsExportOpen(true)}
+        onOpenExport={handleOpenExportWithOptions}
         onImportMediaFile={handleImportMediaFile}
         onOpenProjectsModal={() => {
           setProjectsModalTab('my-projects');
@@ -1441,6 +1450,8 @@ export default function App() {
         adjustments={adjustments}
         template={activeCollage}
         project={currentProject}
+        initialExportScope={exportInitialScope}
+        initialSingleFileType={exportInitialSingleFileType}
       />
 
       {/* Fullscreen Project Slideshow & Carousel Preview Modal */}
@@ -1451,7 +1462,7 @@ export default function App() {
         activeCollage={activeCollage}
         adjustments={adjustments}
         onSelectSlide={handleSelectProjectSlide}
-        onOpenExport={() => {
+        onOpenExportModal={() => {
           setIsSlidePreviewOpen(false);
           setIsExportOpen(true);
         }}

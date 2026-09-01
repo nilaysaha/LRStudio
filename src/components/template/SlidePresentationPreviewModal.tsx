@@ -15,8 +15,8 @@ interface SlidePresentationPreviewModalProps {
   activeCollage: CollageTemplate | null;
   adjustments: Adjustments;
   onSelectSlide: (index: number) => void;
-  onOpenExportModal: () => void;
-  onUpdateActiveCollage: (updated: CollageTemplate | null) => void;
+  onOpenExportModal?: () => void;
+  onUpdateActiveCollage?: (updated: CollageTemplate | null) => void;
 }
 
 export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewModalProps> = ({
@@ -44,6 +44,17 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
 
+  // Stop auto-play immediately when preview closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsPlayingSlideshow(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  }, [isOpen]);
+
   // Sync index when activeCollage or project changes
   useEffect(() => {
     if (project?.activeCollageIndex !== undefined) {
@@ -53,7 +64,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
 
   // Slideshow auto-advance timer
   useEffect(() => {
-    if (isPlayingSlideshow && slides.length > 1) {
+    if (isOpen && isPlayingSlideshow && slides.length > 1) {
       timerRef.current = window.setInterval(() => {
         setCurrentIndex((prev) => {
           const next = (prev + 1) % slides.length;
@@ -75,7 +86,17 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
         timerRef.current = null;
       }
     };
-  }, [isPlayingSlideshow, slides.length, slideshowInterval, onSelectSlide]);
+  }, [isOpen, isPlayingSlideshow, slides.length, slideshowInterval, onSelectSlide]);
+
+  const handleClose = () => {
+    setIsPlayingSlideshow(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    soundFx.playHapticTick();
+    onClose();
+  };
 
   // Keyboard navigation (Arrow keys, Spacebar for slideshow, Escape to close)
   useEffect(() => {
@@ -97,7 +118,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
         if (isFullscreen) {
           exitFullscreen();
         } else {
-          onClose();
+          handleClose();
         }
       }
     };
@@ -151,7 +172,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2A2723] hover:bg-[#3A3630] text-[#E6E2D3] text-xs font-semibold transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -172,7 +193,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
           </div>
         </div>
 
-        {/* Top Right Controls: Slideshow Play/Pause, Fullscreen, Single File Export */}
+        {/* Top Right Controls: Slideshow Play/Pause, Fullscreen, Close */}
         <div className="flex items-center gap-2">
           {slides.length > 1 && (
             <button
@@ -213,19 +234,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
 
           <button
             type="button"
-            onClick={() => {
-              onOpenExportModal();
-              soundFx.playHapticTick();
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black text-xs font-bold shadow-md transition-all cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Export Single File</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-full bg-[#2A2723] hover:bg-rose-950/60 text-[#A69480] hover:text-rose-300 transition-colors"
             title="Close Preview (Esc)"
           >
@@ -253,7 +262,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
           <div className="w-full h-full flex items-center justify-center animate-in fade-in-50 zoom-in-95 duration-200">
             <TemplateCanvasRenderer
               template={currentSlide}
-              onChangeTemplate={(updated) => onUpdateActiveCollage(updated)}
+              onChangeTemplate={(updated) => onUpdateActiveCollage?.(updated)}
               selectedSlotId={null}
               onSelectSlot={() => {}}
               selectedTextId={null}
@@ -264,7 +273,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
               onRecordVideoForSlot={() => {}}
               onTakePhotoForSlot={() => {}}
               onOpenTemplateSelector={() => {}}
-              onOpenExport={onOpenExportModal}
+              onOpenExport={onOpenExportModal || (() => {})}
               onImportFileForSlot={() => {}}
             />
           </div>

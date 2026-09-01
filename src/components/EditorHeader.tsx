@@ -3,7 +3,7 @@ import {
   Undo2, Redo2, Copy, Check, Camera, Image as ImageIcon,
   Download, Eye, SplitSquareVertical, Sparkles, Upload,
   RotateCcw, Menu, X, ChevronLeft, ChevronRight, Sliders, Info, FolderOpen,
-  Plus, ChevronDown, Video, LayoutGrid
+  Plus, ChevronDown, Video, LayoutGrid, FileText, Package, Layers, Share2
 } from 'lucide-react';
 import { MediaItem, Project } from '../types';
 import { PROJECT_TEMPLATE_TAGS } from '../constants/projectTemplates';
@@ -29,7 +29,7 @@ interface EditorHeaderProps {
   onOpenRecordVideo?: () => void;
   onOpenCollages?: () => void;
   onOpenPreview?: () => void;
-  onOpenExport: () => void;
+  onOpenExport: (options?: { scope?: 'all-slides' | 'current'; singleFileType?: 'pdf' | 'strip' | 'zip' }) => void;
   onImportMediaFile?: (file: File) => void;
   onOpenProjectsModal?: () => void;
   onOpenTemplatesGallery?: () => void;
@@ -62,7 +62,22 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 }) => {
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
+  const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Close save menu on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (saveMenuRef.current && !saveMenuRef.current.contains(e.target as Node)) {
+        setIsSaveMenuOpen(false);
+      }
+    };
+    if (isSaveMenuOpen) {
+      window.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, [isSaveMenuOpen]);
 
   // Desktop horizontal scroll management
   const desktopScrollRef = useRef<HTMLDivElement>(null);
@@ -449,15 +464,185 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   </button>
                 )}
 
-                {/* Save / Export */}
-                <button
-                  onClick={() => { onOpenExport(); soundFx.playHapticTick(); }}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#2A2723] hover:bg-black text-white font-semibold text-xs tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-                  title="Save and Export Image/Video"
-                >
-                  <Download className="w-3.5 h-3.5 stroke-[2.4]" />
-                  <span>Save</span>
-                </button>
+                {/* Save & Project Export Split Button */}
+                <div className="relative flex items-center" ref={saveMenuRef}>
+                  {/* Primary Save Button (Opens Export Modal directly) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSaveMenuOpen(false);
+                      onOpenExport();
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex items-center gap-1.5 pl-3.5 pr-2 py-1.5 rounded-l-full bg-[#2A2723] hover:bg-black text-white font-semibold text-xs tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                    title="Save and Export (Open Export Dialog)"
+                  >
+                    <Download className="w-3.5 h-3.5 stroke-[2.4]" />
+                    <span>Save</span>
+                  </button>
+
+                  {/* Dropdown Toggle for Quick Formats */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsSaveMenuOpen((prev) => !prev);
+                      soundFx.playHapticTick();
+                    }}
+                    className={`pl-1 pr-2.5 py-1.5 rounded-r-full border-l border-white/20 font-semibold text-xs shadow-sm transition-all cursor-pointer whitespace-nowrap flex items-center justify-center ${
+                      isSaveMenuOpen
+                        ? 'bg-black text-amber-400'
+                        : 'bg-[#2A2723] hover:bg-black text-white'
+                    }`}
+                    title="Quick Project Export Options (PDF, Carousel Strip, ZIP)"
+                    aria-expanded={isSaveMenuOpen}
+                  >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isSaveMenuOpen ? 'rotate-180 text-amber-400' : 'text-neutral-300'}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isSaveMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white border border-[#E6E2D3] rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 p-2 flex flex-col gap-1.5 select-none text-[#2A2723]">
+                      {/* Dropdown Header */}
+                      <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-[#F0EEE6]">
+                        <div className="flex items-center gap-1.5">
+                          <Download className="w-3.5 h-3.5 text-[#2A2723]" />
+                          <span className="text-[10px] font-bold tracking-wider text-[#7E7365] uppercase">
+                            Save & Export Options
+                          </span>
+                        </div>
+                        {currentProject?.collages && currentProject.collages.length > 1 && (
+                          <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-950 font-bold border border-amber-200">
+                            {currentProject.collages.length} Slides
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Option 1: Save Current Media / Slide */}
+                      <button
+                        onClick={() => {
+                          setIsSaveMenuOpen(false);
+                          onOpenExport({ scope: 'current' });
+                          soundFx.playHapticTick();
+                        }}
+                        className="w-full flex items-start gap-2.5 p-2 rounded-xl hover:bg-[#FAF9F6] active:bg-[#F0EEE6] transition-colors text-left group cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-[#FAF9F6] border border-[#E6E2D3] group-hover:border-[#2A2723] flex items-center justify-center flex-shrink-0 transition-colors">
+                          <ImageIcon className="w-4 h-4 text-[#2A2723]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-[#2A2723] flex items-center justify-between">
+                            <span>Save Current Frame / Image</span>
+                            <span className="text-[9px] text-[#7E7365] font-normal font-mono">JPG/PNG</span>
+                          </div>
+                          <p className="text-[10px] text-[#7E7365] leading-tight mt-0.5 truncate">
+                            {currentMedia?.type === 'video' ? 'Export graded video' : 'Export active slide or single photo'}
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Section 2: Project Export (Single File) */}
+                      <div className="pt-1.5 border-t border-[#F0EEE6] flex flex-col gap-1">
+                        <div className="px-2.5 py-0.5 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Layers className="w-3 h-3 text-amber-700" />
+                            <span className="text-[10px] font-bold tracking-wider text-amber-900 uppercase">
+                              Project Export (Single File)
+                            </span>
+                          </div>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400/30 text-amber-900 font-semibold">1 File</span>
+                        </div>
+
+                        {/* 1. Multi-Page PDF Document */}
+                        <button
+                          onClick={() => {
+                            setIsSaveMenuOpen(false);
+                            onOpenExport({ scope: 'all-slides', singleFileType: 'pdf' });
+                            soundFx.playHapticTick();
+                          }}
+                          className="w-full flex items-start gap-2.5 p-2 rounded-xl hover:bg-amber-50/70 active:bg-amber-100/70 transition-colors text-left group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-100/60 border border-amber-200 group-hover:border-amber-400 flex items-center justify-center flex-shrink-0 transition-colors">
+                            <FileText className="w-4 h-4 text-amber-800" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-[#2A2723] flex items-center justify-between">
+                              <span>Multi-Page PDF</span>
+                              <span className="text-[9px] font-mono text-amber-900 font-semibold">.pdf</span>
+                            </div>
+                            <p className="text-[10px] text-[#7E7365] leading-tight mt-0.5">
+                              All project slides compiled into a single document
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* 2. Seamless Panoramic Carousel Strip */}
+                        <button
+                          onClick={() => {
+                            setIsSaveMenuOpen(false);
+                            onOpenExport({ scope: 'all-slides', singleFileType: 'strip' });
+                            soundFx.playHapticTick();
+                          }}
+                          className="w-full flex items-start gap-2.5 p-2 rounded-xl hover:bg-amber-50/70 active:bg-amber-100/70 transition-colors text-left group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-100/60 border border-amber-200 group-hover:border-amber-400 flex items-center justify-center flex-shrink-0 transition-colors">
+                            <ImageIcon className="w-4 h-4 text-amber-800" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-[#2A2723] flex items-center justify-between">
+                              <span>Carousel Strip</span>
+                              <span className="text-[9px] font-mono text-amber-900 font-semibold">.jpg</span>
+                            </div>
+                            <p className="text-[10px] text-[#7E7365] leading-tight mt-0.5">
+                              Single continuous image for seamless swipe posts
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* 3. Project ZIP Archive */}
+                        <button
+                          onClick={() => {
+                            setIsSaveMenuOpen(false);
+                            onOpenExport({ scope: 'all-slides', singleFileType: 'zip' });
+                            soundFx.playHapticTick();
+                          }}
+                          className="w-full flex items-start gap-2.5 p-2 rounded-xl hover:bg-amber-50/70 active:bg-amber-100/70 transition-colors text-left group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-100/60 border border-amber-200 group-hover:border-amber-400 flex items-center justify-center flex-shrink-0 transition-colors">
+                            <Package className="w-4 h-4 text-amber-800" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-[#2A2723] flex items-center justify-between">
+                              <span>Project ZIP Archive</span>
+                              <span className="text-[9px] font-mono text-amber-900 font-semibold">.zip</span>
+                            </div>
+                            <p className="text-[10px] text-[#7E7365] leading-tight mt-0.5">
+                              All slide images bundled into one single ZIP file
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Section 3: Advanced Export & Social Share */}
+                      <div className="pt-1.5 border-t border-[#F0EEE6]">
+                        <button
+                          onClick={() => {
+                            setIsSaveMenuOpen(false);
+                            onOpenExport();
+                            soundFx.playHapticTick();
+                          }}
+                          className="w-full flex items-center justify-between p-2 rounded-xl bg-[#FAF9F6] hover:bg-[#F0EEE6] active:scale-98 transition-all text-xs font-semibold text-[#2A2723] cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Share2 className="w-3.5 h-3.5 text-[#7E7365]" />
+                            <span>All Export & Share Settings...</span>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-[#7E7365]" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -544,9 +729,12 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 
             {/* Quick Export/Save */}
             <button
-              onClick={() => { onOpenExport(); soundFx.playHapticTick(); }}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#2A2723] hover:bg-black text-white font-semibold text-xs shadow-xs active:scale-95 transition-transform"
-              title="Save Image"
+              onClick={() => {
+                onOpenExport();
+                soundFx.playHapticTick();
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#2A2723] hover:bg-black text-white font-semibold text-xs shadow-xs active:scale-95 transition-transform cursor-pointer"
+              title="Save & Export"
             >
               <Download className="w-3.5 h-3.5 stroke-[2.2]" />
               <span className="text-[11px]">Save</span>
@@ -854,6 +1042,63 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>Paste Recipe</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Section 4: Project Export (Single File Options) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-bold tracking-wider text-amber-900 uppercase flex items-center gap-1.5">
+                  <Layers className="w-3 h-3 text-amber-700" />
+                  <span>Project Export (Single File)</span>
+                </div>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-200 text-amber-950 font-bold">1 File</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => {
+                    onOpenExport({ scope: 'all-slides', singleFileType: 'pdf' });
+                    closeHamburger();
+                    soundFx.playHapticTick();
+                  }}
+                  className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-amber-50/80 hover:bg-amber-100 border border-amber-200 active:scale-95 transition-all text-center gap-1"
+                >
+                  <div className="w-7 h-7 rounded-full bg-white border border-amber-200 flex items-center justify-center">
+                    <FileText className="w-3.5 h-3.5 text-amber-800" />
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-950">PDF Doc</span>
+                  <span className="text-[8px] text-amber-800">All slides</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onOpenExport({ scope: 'all-slides', singleFileType: 'strip' });
+                    closeHamburger();
+                    soundFx.playHapticTick();
+                  }}
+                  className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-amber-50/80 hover:bg-amber-100 border border-amber-200 active:scale-95 transition-all text-center gap-1"
+                >
+                  <div className="w-7 h-7 rounded-full bg-white border border-amber-200 flex items-center justify-center">
+                    <ImageIcon className="w-3.5 h-3.5 text-amber-800" />
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-950">Strip</span>
+                  <span className="text-[8px] text-amber-800">Carousel</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onOpenExport({ scope: 'all-slides', singleFileType: 'zip' });
+                    closeHamburger();
+                    soundFx.playHapticTick();
+                  }}
+                  className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-amber-50/80 hover:bg-amber-100 border border-amber-200 active:scale-95 transition-all text-center gap-1"
+                >
+                  <div className="w-7 h-7 rounded-full bg-white border border-amber-200 flex items-center justify-center">
+                    <Package className="w-3.5 h-3.5 text-amber-800" />
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-950">ZIP Pack</span>
+                  <span className="text-[8px] text-amber-800">All images</span>
                 </button>
               </div>
             </div>
