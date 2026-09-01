@@ -1,11 +1,17 @@
 import React, { useState, useRef } from 'react';
 import {
   X, Plus, Sparkles, FolderOpen, Trash2, Copy, Edit2, Check,
-  Search, ArrowRight, Upload, Calendar, Clock, Film, Camera, Video,
-  Layers, Heart, Sun, Eye, Zap, Compass, PenTool, Flame, RefreshCw
+  Search, ArrowRight, Upload, Film, Camera, Video,
+  Layers, Heart, Sun, Eye, Zap, Compass, PenTool, Flame,
+  Smartphone, BookOpen, Paperclip, Grid, LayoutGrid, LayoutTemplate,
+  Sliders, Image as ImageIcon, CheckCircle2
 } from 'lucide-react';
-import { Project, ProjectTemplate, ProjectTemplateTag, MediaItem, Adjustments } from '../types';
+import {
+  Project, ProjectTemplate, ProjectTemplateTag, MediaItem, Adjustments,
+  CollageTemplate, TemplateSlot, TemplateTextElement
+} from '../types';
 import { PROJECT_TEMPLATE_TAGS, LUMENLAB_PROJECT_TEMPLATES } from '../constants/projectTemplates';
+import { COLLAGE_TEMPLATES } from '../constants/collageTemplates';
 import { soundFx } from '../utils/audio';
 import { defaultAdjustments, createAdjustmentsCopy } from '../constants/defaultAdjustments';
 
@@ -21,7 +27,8 @@ interface ProjectsModalProps {
     name: string,
     template?: ProjectTemplate,
     customMedia?: MediaItem,
-    customAdjustments?: Adjustments
+    customAdjustments?: Adjustments,
+    collageData?: CollageTemplate
   ) => void;
   onDuplicateProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
@@ -45,7 +52,6 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   onDeleteProject,
   onRenameProject,
   onDeleteUserMedia,
-  onImportFileToProject,
   onOpenCamera,
   onRecordVideo,
 }) => {
@@ -61,18 +67,29 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
     }
   }, [isOpen, initialTab]);
 
-  // Template filter states
+  // Scope filter inside templates: 'all' | 'collages' | 'film'
+  const [templateScope, setTemplateScope] = useState<'all' | 'collages' | 'film'>('all');
+
+  // Tag filter & search states
   const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [slotCountFilter, setSlotCountFilter] = useState<'all' | '2' | '3' | '4' | '6' | '9'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Selected template for detail / custom creation step
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [newProjectName, setNewProjectName] = useState<string>('');
+  
+  // Single Media template state
   const [uploadedMedia, setUploadedMedia] = useState<MediaItem | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
+  // Collage template custom state (for multi-slot configuration before project creation)
+  const [customCollage, setCustomCollage] = useState<CollageTemplate | null>(null);
+  const [activeSlotUploadId, setActiveSlotUploadId] = useState<string | null>(null);
+
   // Blank project creation modal step
   const [isBlankProjectMode, setIsBlankProjectMode] = useState<boolean>(false);
+  const [blankProjectType, setBlankProjectType] = useState<'single' | 'split-2' | 'strip-3' | 'bento-4' | 'grid-9'>('single');
   const [blankProjectName, setBlankProjectName] = useState<string>('Untitled Project');
   const [blankProjectMedia, setBlankProjectMedia] = useState<MediaItem | null>(null);
 
@@ -80,24 +97,42 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingProjectName, setEditingProjectName] = useState<string>('');
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const singleFileInputRef = useRef<HTMLInputElement>(null);
+  const slotFileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
   // Filter templates
   const filteredTemplates = LUMENLAB_PROJECT_TEMPLATES.filter((tpl) => {
-    const matchesTag = selectedTag === 'all' || tpl.tag === selectedTag;
+    const isCollage = Boolean(tpl.collageData);
+
+    // Filter by scope
+    if (templateScope === 'collages' && !isCollage) return false;
+    if (templateScope === 'film' && isCollage) return false;
+
+    // Filter by tag
+    if (selectedTag !== 'all' && tpl.tag !== selectedTag) return false;
+
+    // Filter by slot count if collage
+    if (slotCountFilter !== 'all' && isCollage && tpl.collageData) {
+      if (tpl.collageData.slots.length.toString() !== slotCountFilter) return false;
+    }
+
+    // Filter by search query
     const q = searchQuery.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
+    if (!q) return true;
+
+    return (
       tpl.name.toLowerCase().includes(q) ||
       tpl.subtitle.toLowerCase().includes(q) ||
       tpl.description.toLowerCase().includes(q) ||
       tpl.tagLabel.toLowerCase().includes(q) ||
-      tpl.moodKeywords.some((k) => k.toLowerCase().includes(q));
-
-    return matchesTag && matchesSearch;
+      tpl.moodKeywords.some((k) => k.toLowerCase().includes(q))
+    );
   });
+
+  const collageCount = LUMENLAB_PROJECT_TEMPLATES.filter((t) => Boolean(t.collageData)).length;
+  const filmCount = LUMENLAB_PROJECT_TEMPLATES.filter((t) => !t.collageData).length;
 
   // Handle open template preview drawer
   const handleOpenTemplatePreview = (tpl: ProjectTemplate) => {
@@ -105,6 +140,13 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
     setSelectedTemplate(tpl);
     setNewProjectName(`${tpl.name} Project`);
     setUploadedMedia(null);
+
+    if (tpl.collageData) {
+      // Clone collage data for custom editing
+      setCustomCollage(JSON.parse(JSON.stringify(tpl.collageData)));
+    } else {
+      setCustomCollage(null);
+    }
   };
 
   // Handle create project from template
@@ -112,12 +154,22 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
     if (!selectedTemplate) return;
     soundFx.playShutter();
 
-    const mediaToUse = uploadedMedia || selectedTemplate.sampleMedia;
     const nameToUse = newProjectName.trim() || selectedTemplate.name;
-    const adjustmentsToUse = createAdjustmentsCopy(selectedTemplate.adjustments);
 
-    onCreateProject(nameToUse, selectedTemplate, mediaToUse, adjustmentsToUse);
+    if (customCollage) {
+      // Multi-slot collage project creation
+      const primaryMedia = customCollage.slots[0]?.media || selectedTemplate.sampleMedia;
+      const adjustmentsToUse = createAdjustmentsCopy(customCollage.adjustments || selectedTemplate.adjustments);
+      onCreateProject(nameToUse, selectedTemplate, primaryMedia, adjustmentsToUse, customCollage);
+    } else {
+      // Single-media project creation
+      const mediaToUse = uploadedMedia || selectedTemplate.sampleMedia;
+      const adjustmentsToUse = createAdjustmentsCopy(selectedTemplate.adjustments);
+      onCreateProject(nameToUse, selectedTemplate, mediaToUse, adjustmentsToUse);
+    }
+
     setSelectedTemplate(null);
+    setCustomCollage(null);
     onClose();
   };
 
@@ -125,20 +177,53 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   const handleCreateBlankProject = () => {
     soundFx.playShutter();
     const nameToUse = blankProjectName.trim() || 'Untitled Project';
-    onCreateProject(nameToUse, undefined, blankProjectMedia || undefined, createAdjustmentsCopy(defaultAdjustments));
+
+    if (blankProjectType === 'single') {
+      onCreateProject(
+        nameToUse,
+        undefined,
+        blankProjectMedia || undefined,
+        createAdjustmentsCopy(defaultAdjustments)
+      );
+    } else {
+      // Pick matching blank collage format
+      let baseTemplate: CollageTemplate;
+      if (blankProjectType === 'split-2') {
+        baseTemplate = COLLAGE_TEMPLATES.find((t) => t.slots.length === 2) || COLLAGE_TEMPLATES[0];
+      } else if (blankProjectType === 'strip-3') {
+        baseTemplate = COLLAGE_TEMPLATES.find((t) => t.slots.length === 3) || COLLAGE_TEMPLATES[0];
+      } else if (blankProjectType === 'bento-4') {
+        baseTemplate = COLLAGE_TEMPLATES.find((t) => t.slots.length === 4) || COLLAGE_TEMPLATES[0];
+      } else {
+        baseTemplate = COLLAGE_TEMPLATES.find((t) => t.slots.length === 9) || COLLAGE_TEMPLATES[0];
+      }
+
+      const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(baseTemplate));
+      if (blankProjectMedia && clonedCollage.slots[0]) {
+        clonedCollage.slots[0].media = blankProjectMedia;
+      }
+      onCreateProject(
+        nameToUse,
+        undefined,
+        blankProjectMedia || clonedCollage.slots[0]?.media,
+        createAdjustmentsCopy(clonedCollage.adjustments),
+        clonedCollage
+      );
+    }
+
     setIsBlankProjectMode(false);
     setBlankProjectMedia(null);
     onClose();
   };
 
-  // File upload for template
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File upload for single media template
+  const handleSingleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
     try {
-      const isVideo = file.type.startsWith('video/');
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
       const url = URL.createObjectURL(file);
 
       if (isVideo) {
@@ -184,7 +269,51 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
     }
   };
 
-  // Save inline rename
+  // File upload for a specific slot in custom collage
+  const handleSlotFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeSlotUploadId || !customCollage) return;
+
+    try {
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
+      const url = URL.createObjectURL(file);
+
+      const newMedia: MediaItem = {
+        id: `media-${Date.now()}`,
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        type: isVideo ? 'video' : 'image',
+        url,
+        file,
+        aspectRatio: isVideo ? 16 / 9 : 4 / 5,
+        width: 1080,
+        height: 1920,
+      };
+
+      const updatedSlots = customCollage.slots.map((s) =>
+        s.id === activeSlotUploadId ? { ...s, media: newMedia } : s
+      );
+
+      setCustomCollage({ ...customCollage, slots: updatedSlots });
+      soundFx.playHapticTick();
+    } catch (err) {
+      console.error('Slot upload failed:', err);
+    } finally {
+      setActiveSlotUploadId(null);
+      e.target.value = '';
+    }
+  };
+
+  // Assign user library item to slot in custom collage
+  const handleAssignLibraryMediaToSlot = (slotId: string, media: MediaItem) => {
+    if (!customCollage) return;
+    const updatedSlots = customCollage.slots.map((s) =>
+      s.id === slotId ? { ...s, media } : s
+    );
+    setCustomCollage({ ...customCollage, slots: updatedSlots });
+    soundFx.playHapticTick();
+  };
+
+  // Save inline rename in My Projects
   const handleSaveRename = (projectId: string) => {
     if (editingProjectName.trim()) {
       onRenameProject(projectId, editingProjectName.trim());
@@ -195,6 +324,12 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
   const getTagIcon = (tagId: string) => {
     switch (tagId) {
+      case 'airdrop': return <Smartphone className="w-3.5 h-3.5" />;
+      case 'notebook': return <BookOpen className="w-3.5 h-3.5" />;
+      case 'scrapbook': return <Paperclip className="w-3.5 h-3.5" />;
+      case 'polaroid': return <Film className="w-3.5 h-3.5" />;
+      case 'bento': return <Grid className="w-3.5 h-3.5" />;
+      case 'handwritten': return <PenTool className="w-3.5 h-3.5" />;
       case 'clean': return <Sparkles className="w-3.5 h-3.5" />;
       case 'souveniers': return <Compass className="w-3.5 h-3.5" />;
       case 'sunbath': return <Sun className="w-3.5 h-3.5" />;
@@ -211,14 +346,22 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 select-none">
-      <div className="bg-[#FAF9F6] w-full max-w-5xl h-[92vh] max-h-[840px] rounded-2xl shadow-2xl border border-[#E6E2D3] flex flex-col overflow-hidden">
+      <div className="bg-[#FAF9F6] w-full max-w-5xl h-[92vh] max-h-[860px] rounded-2xl shadow-2xl border border-[#E6E2D3] flex flex-col overflow-hidden">
         
-        {/* Hidden File Input */}
+        {/* Hidden File Inputs */}
         <input
-          ref={fileInputRef}
+          ref={singleFileInputRef}
           type="file"
           accept="image/*,video/*,.jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.webm"
-          onChange={handleFileUpload}
+          onChange={handleSingleFileUpload}
+          className="hidden"
+        />
+
+        <input
+          ref={slotFileInputRef}
+          type="file"
+          accept="image/*,video/*,.jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.webm"
+          onChange={handleSlotFileUpload}
           className="hidden"
         />
 
@@ -234,11 +377,11 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                   PROJECTS STUDIO
                 </h2>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-                  LumenLabs Templates
+                  LumenLabs Studio
                 </span>
               </div>
               <p className="text-[11px] text-[#7E7365] hidden sm:block">
-                Create new photo & video projects initialized with LumenLabs standard aesthetic templates
+                Create & edit projects with single-media film recipes or multi-frame story & collage layouts
               </p>
             </div>
           </div>
@@ -292,7 +435,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>LumenLabs Templates</span>
+              <span>Templates Studio</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
                 activeTab === 'templates' ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
               }`}>
@@ -318,11 +461,12 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
               onClick={() => {
                 soundFx.playHapticTick();
                 setActiveTab('templates');
+                setTemplateScope('collages');
               }}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#2A2723] text-white text-xs font-semibold hover:bg-black transition-colors cursor-pointer shadow-xs"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Explore Templates</span>
+              <LayoutGrid className="w-3.5 h-3.5 text-amber-300" />
+              <span>Collage Templates</span>
             </button>
           </div>
         </div>
@@ -338,25 +482,37 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 </div>
                 <h3 className="text-base font-bold text-[#2A2723] mb-1">No Projects Created Yet</h3>
                 <p className="text-xs text-[#7E7365] mb-5 leading-relaxed">
-                  Start your creative journey by picking a LumenLabs project template with curated film grading, light leaks, and retro stamps.
+                  Start your creative journey with a multi-frame collage layout or a curated film grading recipe.
                 </p>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-center gap-3">
                   <button
                     onClick={() => {
                       soundFx.playHapticTick();
                       setActiveTab('templates');
+                      setTemplateScope('collages');
                     }}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2A2723] text-white text-xs font-semibold hover:bg-black transition-all cursor-pointer shadow-sm"
                   >
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Choose a LumenLabs Template</span>
+                    <LayoutGrid className="w-4 h-4 text-amber-300" />
+                    <span>Choose Collage Template</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      setActiveTab('templates');
+                      setTemplateScope('film');
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#E6E2D3] bg-white text-xs font-semibold text-[#2A2723] hover:bg-[#FAF9F6] transition-all cursor-pointer shadow-xs"
+                  >
+                    <Film className="w-4 h-4 text-amber-600" />
+                    <span>Film Recipes</span>
                   </button>
                   <button
                     onClick={() => {
                       soundFx.playHapticTick();
                       setIsBlankProjectMode(true);
                     }}
-                    className="px-4 py-2 rounded-xl border border-[#E6E2D3] bg-white text-xs font-semibold text-[#2A2723] hover:bg-[#FAF9F6] transition-all cursor-pointer"
+                    className="px-4 py-2 rounded-xl border border-[#E6E2D3] bg-white text-xs font-semibold text-[#7E7365] hover:text-[#2A2723] transition-all cursor-pointer"
                   >
                     Create Blank
                   </button>
@@ -368,6 +524,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 {projects.map((proj) => {
                   const isCurrent = proj.id === currentProjectId;
                   const isEditing = editingProjectId === proj.id;
+                  const isCollage = Boolean(proj.activeCollage);
                   const tagInfo = PROJECT_TEMPLATE_TAGS.find((t) => t.id === proj.templateTag);
 
                   return (
@@ -388,7 +545,13 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         }}
                         className="relative aspect-[4/3] bg-neutral-900 cursor-pointer overflow-hidden flex items-center justify-center"
                       >
-                        {proj.media.type === 'video' ? (
+                        {proj.activeCollage ? (
+                          <img
+                            src={proj.thumbnailUrl || proj.activeCollage.previewThumbnail || proj.media.url}
+                            alt={proj.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        ) : proj.media.type === 'video' ? (
                           <video
                             src={proj.media.url}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -405,8 +568,13 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
                         {/* Top Overlay Badges */}
                         <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none z-10">
-                          {/* Template Tag Badge */}
-                          {proj.templateTag && proj.templateTag !== 'custom' && tagInfo ? (
+                          {/* Template or Collage Badge */}
+                          {isCollage ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-600 text-white shadow-xs flex items-center gap-1 backdrop-blur-md">
+                              <LayoutGrid className="w-3 h-3" />
+                              <span>Collage ({proj.activeCollage?.slots.length} Frames)</span>
+                            </span>
+                          ) : proj.templateTag && proj.templateTag !== 'custom' && tagInfo ? (
                             <span
                               className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1 backdrop-blur-md"
                               style={{
@@ -491,7 +659,9 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                           <div className="flex items-center gap-2 text-[10px] text-[#7E7365]">
                             <span>{new Date(proj.updatedAt).toLocaleDateString()}</span>
                             <span>•</span>
-                            <span className="uppercase font-mono">{proj.media.type}</span>
+                            <span className="uppercase font-mono">
+                              {isCollage ? `${proj.activeCollage?.slots.length} Slots` : proj.media.type}
+                            </span>
                             {proj.adjustments.presetId && proj.adjustments.presetId !== 'none' && (
                               <>
                                 <span>•</span>
@@ -511,7 +681,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                             }}
                             className="text-xs font-semibold text-[#2A2723] hover:underline flex items-center gap-1 cursor-pointer"
                           >
-                            <span>Edit</span>
+                            <span>Edit Project</span>
                             <ArrowRight className="w-3 h-3" />
                           </button>
 
@@ -550,31 +720,109 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
           </div>
         )}
 
-        {/* 4. TAB 2: LUMENLABS STANDARD TEMPLATES EXPLORER */}
+        {/* 4. TAB 2: UNIFIED TEMPLATES STUDIO EXPLORER */}
         {activeTab === 'templates' && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Tag Filter Pills Bar & Search */}
+            {/* Scope Filter Segmented Switch + Search */}
             <div className="px-4 sm:px-6 py-3 bg-white border-b border-[#E6E2D3] flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-              {/* Tag Categories Horizontal Carousel */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {/* Main Scope Switcher (All / Collages / Film) */}
+              <div className="flex items-center bg-[#FAF9F6] p-1 rounded-xl border border-[#E6E2D3] self-start">
+                <button
+                  onClick={() => {
+                    soundFx.playHapticTick();
+                    setTemplateScope('all');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    templateScope === 'all'
+                      ? 'bg-[#2A2723] text-white shadow-xs'
+                      : 'text-[#7E7365] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3 text-amber-300" />
+                  <span>All Templates</span>
+                  <span className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
+                    templateScope === 'all' ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
+                  }`}>
+                    {LUMENLAB_PROJECT_TEMPLATES.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    soundFx.playHapticTick();
+                    setTemplateScope('collages');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    templateScope === 'collages'
+                      ? 'bg-[#2A2723] text-white shadow-xs'
+                      : 'text-[#7E7365] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <LayoutGrid className="w-3 h-3 text-rose-300" />
+                  <span>Collages & Layouts</span>
+                  <span className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
+                    templateScope === 'collages' ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
+                  }`}>
+                    {collageCount}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    soundFx.playHapticTick();
+                    setTemplateScope('film');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    templateScope === 'film'
+                      ? 'bg-[#2A2723] text-white shadow-xs'
+                      : 'text-[#7E7365] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <Film className="w-3 h-3 text-amber-500" />
+                  <span>Film & Photo Grades</span>
+                  <span className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
+                    templateScope === 'film' ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
+                  }`}>
+                    {filmCount}
+                  </span>
+                </button>
+              </div>
+
+              {/* Template Search Bar */}
+              <div className="relative w-full md:w-64 flex-shrink-0">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#7E7365]" />
+                <input
+                  type="text"
+                  placeholder="Search collages, AirDrop, film..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2D3] rounded-full pl-8 pr-3 py-1.5 text-xs text-[#2A2723] placeholder-[#7E7365] focus:outline-none focus:border-[#2A2723] focus:bg-white transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Tag Categories Horizontal Carousel */}
+            <div className="px-4 sm:px-6 py-2 bg-[#F9F8F5] border-b border-[#E6E2D3] flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1">
                 <button
                   onClick={() => {
                     soundFx.playHapticTick();
                     setSelectedTag('all');
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     selectedTag === 'all'
                       ? 'bg-[#2A2723] text-white shadow-xs'
-                      : 'bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3] hover:text-[#2A2723] hover:border-[#C5BDB2]'
+                      : 'bg-white text-[#7E7365] border border-[#E6E2D3] hover:text-[#2A2723]'
                   }`}
                 >
                   <Sparkles className="w-3 h-3 text-amber-300" />
-                  <span>All Tags ({LUMENLAB_PROJECT_TEMPLATES.length})</span>
+                  <span>All Tags</span>
                 </button>
 
                 {PROJECT_TEMPLATE_TAGS.map((tag) => {
                   const isSelected = selectedTag === tag.id;
                   const count = LUMENLAB_PROJECT_TEMPLATES.filter((t) => t.tag === tag.id).length;
+                  if (count === 0) return null;
 
                   return (
                     <button
@@ -583,15 +831,15 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         soundFx.playHapticTick();
                         setSelectedTag(tag.id);
                       }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-[#2A2723] text-white shadow-xs'
-                          : 'bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3] hover:text-[#2A2723] hover:border-[#C5BDB2]'
+                          : 'bg-white text-[#7E7365] border border-[#E6E2D3] hover:text-[#2A2723]'
                       }`}
                     >
                       {getTagIcon(tag.id)}
                       <span>{tag.label}</span>
-                      <span className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono ${
                         isSelected ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
                       }`}>
                         {count}
@@ -601,124 +849,165 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 })}
               </div>
 
-              {/* Template Search Bar */}
-              <div className="relative w-full md:w-64 flex-shrink-0">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#7E7365]" />
-                <input
-                  type="text"
-                  placeholder="Search LumenLabs templates..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#FAF9F6] border border-[#E6E2D3] rounded-full pl-8 pr-3 py-1.5 text-xs text-[#2A2723] placeholder-[#7E7365] focus:outline-none focus:border-[#2A2723] focus:bg-white transition-colors"
-                />
-              </div>
+              {/* Slot count filter (for collages) */}
+              {(templateScope === 'all' || templateScope === 'collages') && (
+                <div className="hidden lg:flex items-center gap-1 text-[11px] text-[#7E7365] flex-shrink-0">
+                  <span className="font-semibold text-[#2A2723]">Frames:</span>
+                  {(['all', '2', '3', '4', '6', '9'] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        soundFx.playHapticTick();
+                        setSlotCountFilter(s);
+                      }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold cursor-pointer ${
+                        slotCountFilter === s
+                          ? 'bg-[#2A2723] text-white'
+                          : 'bg-white text-[#7E7365] border border-[#E6E2D3] hover:text-[#2A2723]'
+                      }`}
+                    >
+                      {s === 'all' ? 'All' : `${s}F`}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Template Cards Grid */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredTemplates.map((tpl) => {
-                  const tagInfo = PROJECT_TEMPLATE_TAGS.find((t) => t.id === tpl.tag);
+              {filteredTemplates.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                  <Sparkles className="w-8 h-8 text-[#C5BDB2] mb-2" />
+                  <p className="text-xs text-[#7E7365]">No templates match the selected criteria.</p>
+                  <button
+                    onClick={() => {
+                      setSelectedTag('all');
+                      setTemplateScope('all');
+                      setSearchQuery('');
+                      setSlotCountFilter('all');
+                    }}
+                    className="mt-3 px-3 py-1.5 rounded-lg bg-white border border-[#E6E2D3] text-xs font-semibold text-[#2A2723]"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredTemplates.map((tpl) => {
+                    const tagInfo = PROJECT_TEMPLATE_TAGS.find((t) => t.id === tpl.tag);
+                    const isCollage = Boolean(tpl.collageData);
 
-                  return (
-                    <div
-                      key={tpl.id}
-                      onClick={() => handleOpenTemplatePreview(tpl)}
-                      className="group bg-white rounded-2xl border border-[#E6E2D3] hover:border-[#2A2723] hover:shadow-md transition-all flex flex-col overflow-hidden cursor-pointer shadow-xs"
-                    >
-                      {/* Image Preview with Tag Badge */}
-                      <div className="relative aspect-[4/3] bg-neutral-900 overflow-hidden">
-                        <img
-                          src={tpl.previewThumbnail}
-                          alt={tpl.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
+                    return (
+                      <div
+                        key={tpl.id}
+                        onClick={() => handleOpenTemplatePreview(tpl)}
+                        className="group bg-white rounded-2xl border border-[#E6E2D3] hover:border-[#2A2723] hover:shadow-md transition-all flex flex-col overflow-hidden cursor-pointer shadow-xs"
+                      >
+                        {/* Image Preview with Badges */}
+                        <div className="relative aspect-[4/3] bg-neutral-900 overflow-hidden">
+                          <img
+                            src={tpl.previewThumbnail}
+                            alt={tpl.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
 
-                        {/* Top Badges */}
-                        <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none z-10">
-                          {/* Tag badge */}
-                          {tagInfo && (
-                            <span
-                              className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1 backdrop-blur-md"
-                              style={{
-                                backgroundColor: tagInfo.bgColor,
-                                color: tagInfo.color,
-                              }}
-                            >
-                              {getTagIcon(tpl.tag)}
-                              <span>{tagInfo.label}</span>
-                            </span>
-                          )}
-
-                          {tpl.badge && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2A2723] text-white shadow-xs">
-                              {tpl.badge}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Aspect Ratio Chip */}
-                        <div className="absolute bottom-2.5 left-2.5 pointer-events-none">
-                          <span className="px-2 py-0.5 rounded bg-black/60 text-white font-mono text-[10px] font-semibold backdrop-blur-xs">
-                            {tpl.aspectLabel}
-                          </span>
-                        </div>
-
-                        {/* Hover Overlay Button */}
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="px-4 py-2 rounded-full bg-white text-[#2A2723] text-xs font-bold shadow-lg flex items-center gap-1.5 transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Use Template</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Template Details */}
-                      <div className="p-4 flex flex-col flex-1 justify-between bg-white">
-                        <div>
-                          <h4 className="text-xs font-bold text-[#2A2723] mb-1 group-hover:text-black">
-                            {tpl.name}
-                          </h4>
-                          <p className="text-[11px] text-[#7E7365] line-clamp-2 leading-relaxed mb-2.5">
-                            {tpl.subtitle}
-                          </p>
-
-                          {/* Mood tags pills */}
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {tpl.moodKeywords.slice(0, 3).map((kw, i) => (
-                              <span
-                                key={i}
-                                className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]"
-                              >
-                                #{kw}
+                          {/* Top Badges */}
+                          <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none z-10">
+                            {/* Tag badge or Collage Badge */}
+                            {isCollage ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-600 text-white shadow-xs flex items-center gap-1 backdrop-blur-md">
+                                <LayoutGrid className="w-3 h-3" />
+                                <span>{tpl.collageData?.slots.length} Frames</span>
                               </span>
-                            ))}
+                            ) : tagInfo ? (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1 backdrop-blur-md"
+                                style={{
+                                  backgroundColor: tagInfo.bgColor,
+                                  color: tagInfo.color,
+                                }}
+                              >
+                                {getTagIcon(tpl.tag)}
+                                <span>{tagInfo.label}</span>
+                              </span>
+                            ) : null}
+
+                            {tpl.badge && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2A2723] text-white shadow-xs">
+                                {tpl.badge}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Aspect Ratio Chip */}
+                          <div className="absolute bottom-2.5 left-2.5 pointer-events-none">
+                            <span className="px-2 py-0.5 rounded bg-black/60 text-white font-mono text-[10px] font-semibold backdrop-blur-xs">
+                              {tpl.aspectLabel}
+                            </span>
+                          </div>
+
+                          {/* Hover Overlay Button */}
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <span className="px-4 py-2 rounded-full bg-white text-[#2A2723] text-xs font-bold shadow-lg flex items-center gap-1.5 transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                              <span>{isCollage ? 'Customize Collage' : 'Use Template'}</span>
+                            </span>
                           </div>
                         </div>
 
-                        {/* Footer Features */}
-                        <div className="flex items-center justify-between pt-2 border-t border-[#F0EEE6] text-[10px] text-[#7E7365]">
-                          <span className="font-semibold text-[#2A2723] group-hover:underline flex items-center gap-1">
-                            <span>Init Project</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </span>
-                          <span className="font-mono capitalize">
-                            {tpl.adjustments.frameType !== 'none' ? tpl.adjustments.frameType : 'Frameless'}
-                          </span>
+                        {/* Template Details */}
+                        <div className="p-4 flex flex-col flex-1 justify-between bg-white">
+                          <div>
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <h4 className="text-xs font-bold text-[#2A2723] group-hover:text-black truncate">
+                                {tpl.name}
+                              </h4>
+                            </div>
+                            <p className="text-[11px] text-[#7E7365] line-clamp-2 leading-relaxed mb-2.5">
+                              {tpl.subtitle}
+                            </p>
+
+                            {/* Mood tags pills */}
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {tpl.moodKeywords.slice(0, 3).map((kw, i) => (
+                                <span
+                                  key={i}
+                                  className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]"
+                                >
+                                  #{kw}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Footer Features */}
+                          <div className="flex items-center justify-between pt-2 border-t border-[#F0EEE6] text-[10px] text-[#7E7365]">
+                            <span className="font-semibold text-[#2A2723] group-hover:underline flex items-center gap-1">
+                              <span>{isCollage ? 'Init Collage' : 'Init Project'}</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </span>
+                            <span className="font-mono capitalize">
+                              {isCollage
+                                ? `${tpl.collageData?.slots.length} Frames`
+                                : tpl.adjustments.frameType !== 'none'
+                                ? tpl.adjustments.frameType
+                                : 'Frameless'}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* 5. TEMPLATE DETAIL & CREATION MODAL DRAWER */}
+        {/* 5. TEMPLATE DETAIL & CREATION MODAL DRAWER (Supports Collages & Single-Media) */}
         {selectedTemplate && (
           <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-            <div className="bg-[#FAF9F6] w-full max-w-2xl rounded-2xl border border-[#E6E2D3] shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="bg-[#FAF9F6] w-full max-w-3xl rounded-2xl border border-[#E6E2D3] shadow-2xl flex flex-col overflow-hidden max-h-[92vh]">
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-[#E6E2D3]">
                 <div className="flex items-center gap-2">
@@ -736,7 +1025,10 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                   </h3>
                 </div>
                 <button
-                  onClick={() => setSelectedTemplate(null)}
+                  onClick={() => {
+                    setSelectedTemplate(null);
+                    setCustomCollage(null);
+                  }}
                   className="p-1.5 rounded-full text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6]"
                 >
                   <X className="w-4 h-4" />
@@ -745,33 +1037,6 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
               {/* Body */}
               <div className="p-5 overflow-y-auto flex flex-col gap-4">
-                {/* Preview Image with template grading */}
-                <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-neutral-900 border border-[#E6E2D3] group">
-                  <img
-                    src={uploadedMedia ? uploadedMedia.url : selectedTemplate.previewThumbnail}
-                    alt={selectedTemplate.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-2.5 left-2.5 bg-black/70 text-white text-[10px] font-mono px-2 py-0.5 rounded backdrop-blur-xs flex items-center gap-1.5">
-                    <span>{uploadedMedia ? `Custom Media: ${uploadedMedia.name}` : 'Template Sample Media'}</span>
-                  </div>
-                  {uploadedMedia && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setUploadedMedia(null);
-                        soundFx.playHapticTick();
-                      }}
-                      className="absolute top-2.5 right-2.5 px-2 py-1 bg-red-600/90 hover:bg-red-700 text-white rounded-lg text-[10px] font-semibold flex items-center gap-1 shadow-md transition-all cursor-pointer"
-                      title="Remove custom media item and revert to template default"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Remove Item</span>
-                    </button>
-                  )}
-                </div>
-
                 {/* Project Name Input */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider">
@@ -786,185 +1051,289 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                   />
                 </div>
 
-                {/* Media Source Selector */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider">
-                      Initial Media Source
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      {onRecordVideo && (
-                        <button
-                          onClick={() => {
-                            soundFx.playHapticTick();
-                            onClose();
-                            onRecordVideo();
-                          }}
-                          className="flex items-center gap-1 text-[10px] font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-red-200"
-                        >
-                          <Video className="w-3 h-3" />
-                          <span>Record Video</span>
-                        </button>
-                      )}
-                      {onOpenCamera && (
-                        <button
-                          onClick={() => {
-                            soundFx.playHapticTick();
-                            onClose();
-                            onOpenCamera();
-                          }}
-                          className="flex items-center gap-1 text-[10px] font-semibold text-[#2A2723] hover:text-black bg-[#FAF9F6] hover:bg-[#F0EEE6] px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-[#E6E2D3]"
-                        >
-                          <Camera className="w-3 h-3 text-amber-500" />
-                          <span>Take Photo</span>
-                        </button>
-                      )}
+                {/* A. COLLAGE TEMPLATE CONFIGURATOR */}
+                {customCollage ? (
+                  <div className="flex flex-col gap-4">
+                    {/* Visual Layout Preview */}
+                    <div className="relative aspect-[16/9] sm:aspect-[2/1] rounded-xl overflow-hidden bg-neutral-900 border border-[#E6E2D3] flex items-center justify-center p-2">
+                      <img
+                        src={customCollage.previewThumbnail}
+                        alt={customCollage.name}
+                        className="max-h-full max-w-full object-contain rounded shadow-lg"
+                      />
+                      <div className="absolute top-2.5 left-2.5 bg-black/75 text-white text-[10px] font-mono px-2 py-0.5 rounded backdrop-blur-xs flex items-center gap-1.5">
+                        <LayoutGrid className="w-3 h-3 text-amber-300" />
+                        <span>Collage Layout: {customCollage.slots.length} Frames ({customCollage.aspectLabel})</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Option Cards */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Option A: Use Template Sample */}
-                    <button
-                      onClick={() => {
-                        soundFx.playHapticTick();
-                        setUploadedMedia(null);
-                      }}
-                      className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                        !uploadedMedia
-                          ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
-                          : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-[#2A2723]">Template Sample</span>
-                        {!uploadedMedia && <Check className="w-3.5 h-3.5 text-[#2A2723]" />}
-                      </div>
-                      <p className="text-[10px] text-[#7E7365]">
-                        Curated editorial photography
-                      </p>
-                    </button>
-
-                    {/* Option B: Upload Custom Media */}
-                    <button
-                      onClick={() => {
-                        soundFx.playHapticTick();
-                        fileInputRef.current?.click();
-                      }}
-                      className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                        uploadedMedia && !userMediaLibrary.some((m) => m.id === uploadedMedia.id)
-                          ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
-                          : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-[#2A2723]">
-                          Upload From Device
-                        </span>
-                        <Upload className="w-3.5 h-3.5 text-[#7E7365]" />
-                      </div>
-                      <p className="text-[10px] text-[#7E7365] truncate">
-                        Select file from computer
-                      </p>
-                    </button>
-                  </div>
-
-                  {/* Option C: User Library Items (Recorded Videos & Captures) */}
-                  {userMediaLibrary.length > 0 && (
-                    <div className="mt-1 flex flex-col gap-1.5">
+                    {/* Slot Media Configurator List */}
+                    <div className="flex flex-col gap-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-[#2A2723] flex items-center gap-1.5">
-                          <Camera className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Choose from My Library ({userMediaLibrary.length} Captures & Videos):</span>
-                        </span>
-                        {uploadedMedia && userMediaLibrary.some((m) => m.id === uploadedMedia.id) && (
-                          <span className="text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
-                            Selected: {uploadedMedia.name}
-                          </span>
-                        )}
+                        <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Customize Multi-Frame Media ({customCollage.slots.length} Slots):</span>
+                        </label>
+                        <span className="text-[10px] text-[#7E7365]">Click any frame to replace photo/video</span>
                       </div>
 
-                      <div className="flex items-center gap-2 overflow-x-auto p-1.5 bg-white rounded-xl border border-[#E6E2D3] no-scrollbar">
-                        {userMediaLibrary.map((media) => {
-                          const isSelected = uploadedMedia?.id === media.id;
-                          const isVideo = media.type === 'video';
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {customCollage.slots.map((slot, index) => {
                           return (
                             <div
-                              key={media.id}
-                              onClick={() => {
-                                soundFx.playHapticTick();
-                                setUploadedMedia(media);
-                              }}
-                              className={`group/item relative flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden cursor-pointer border transition-all ${
-                                isSelected
-                                  ? 'border-[#2A2723] ring-2 ring-[#2A2723] scale-105 shadow-sm'
-                                  : 'border-[#E6E2D3] hover:border-[#2A2723] opacity-85 hover:opacity-100'
-                              }`}
-                              title={media.name}
+                              key={slot.id}
+                              className="p-2.5 bg-white rounded-xl border border-[#E6E2D3] flex items-center justify-between gap-3 shadow-xs"
                             >
-                              {isVideo ? (
-                                <video
-                                  src={media.url}
-                                  className="w-full h-full object-cover"
-                                  muted
-                                  playsInline
-                                />
-                              ) : (
-                                <img
-                                  src={media.url}
-                                  alt={media.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              )}
-
-                              {/* Badge */}
-                              <div className="absolute top-1 left-1 pointer-events-none">
-                                {isVideo ? (
-                                  <span className="p-0.5 rounded bg-red-600 text-white flex items-center justify-center">
-                                    <Video className="w-2.5 h-2.5" />
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="relative w-12 h-14 rounded-lg bg-neutral-900 overflow-hidden flex-shrink-0 border border-[#E6E2D3]">
+                                  {slot.media.type === 'video' ? (
+                                    <video src={slot.media.url} className="w-full h-full object-cover" muted playsInline />
+                                  ) : (
+                                    <img src={slot.media.url} alt={slot.label} className="w-full h-full object-cover" />
+                                  )}
+                                  <span className="absolute bottom-0.5 left-0.5 px-1 py-0.2 bg-black/70 text-white text-[8px] font-bold rounded">
+                                    #{index + 1}
                                   </span>
-                                ) : (
-                                  <span className="p-0.5 rounded bg-amber-500 text-white flex items-center justify-center">
-                                    <Camera className="w-2.5 h-2.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-xs font-bold text-[#2A2723] block truncate">
+                                    {slot.label || `Frame ${index + 1}`}
                                   </span>
-                                )}
+                                  <span className="text-[10px] text-[#7E7365] block truncate">
+                                    {slot.media.name || 'Sample media'}
+                                  </span>
+                                </div>
                               </div>
 
-                              {/* Delete Item Button */}
-                              {onDeleteUserMedia && (
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
                                 <button
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
+                                  onClick={() => {
                                     soundFx.playHapticTick();
-                                    if (uploadedMedia?.id === media.id) {
-                                      setUploadedMedia(null);
-                                    }
-                                    onDeleteUserMedia(media.id);
+                                    setActiveSlotUploadId(slot.id);
+                                    slotFileInputRef.current?.click();
                                   }}
-                                  className="absolute top-1 right-1 p-1 bg-black/75 hover:bg-red-600 text-white rounded-full transition-all shadow cursor-pointer opacity-90 group-hover/item:opacity-100"
-                                  title="Delete this item"
+                                  className="px-2.5 py-1 rounded-lg bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-[10px] font-semibold text-[#2A2723] flex items-center gap-1 transition-colors cursor-pointer"
+                                  title="Upload photo or video for this frame"
                                 >
-                                  <Trash2 className="w-2.5 h-2.5" />
+                                  <Upload className="w-3 h-3" />
+                                  <span>Replace</span>
                                 </button>
-                              )}
-
-                              {isSelected && (
-                                <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center pointer-events-none">
-                                  <Check className="w-4 h-4 text-white" />
-                                </div>
-                              )}
-
-                              <div className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-[8px] text-white truncate pointer-events-none">
-                                {media.name}
                               </div>
                             </div>
                           );
                         })}
                       </div>
+
+                      {/* Choose from Library Carousel for Slots */}
+                      {userMediaLibrary.length > 0 && (
+                        <div className="mt-2 p-3 bg-white rounded-xl border border-[#E6E2D3] flex flex-col gap-2">
+                          <span className="text-[11px] font-bold text-[#2A2723] flex items-center gap-1.5">
+                            <Camera className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Quick Insert from Your Media Library ({userMediaLibrary.length} Captures):</span>
+                          </span>
+                          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                            {userMediaLibrary.map((media) => {
+                              const isVideo = media.type === 'video';
+                              return (
+                                <div
+                                  key={media.id}
+                                  className="group/item relative flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden border border-[#E6E2D3] bg-neutral-900"
+                                >
+                                  {isVideo ? (
+                                    <video src={media.url} className="w-full h-full object-cover" muted playsInline />
+                                  ) : (
+                                    <img src={media.url} alt={media.name} className="w-full h-full object-cover" />
+                                  )}
+                                  
+                                  {/* Hover action to assign to slot */}
+                                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/item:opacity-100 flex flex-col items-center justify-center p-1 gap-1 transition-opacity">
+                                    <span className="text-[8px] font-bold text-white text-center leading-tight">Assign to:</span>
+                                    <div className="flex flex-wrap gap-1 justify-center">
+                                      {customCollage.slots.slice(0, 4).map((s, idx) => (
+                                        <button
+                                          key={s.id}
+                                          type="button"
+                                          onClick={() => handleAssignLibraryMediaToSlot(s.id, media)}
+                                          className="px-1.5 py-0.5 bg-white text-[#2A2723] text-[8px] font-bold rounded hover:bg-amber-300"
+                                        >
+                                          #{idx + 1}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  /* B. SINGLE MEDIA TEMPLATE CONFIGURATOR */
+                  <div className="flex flex-col gap-4">
+                    {/* Preview Image with template grading */}
+                    <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-neutral-900 border border-[#E6E2D3] group">
+                      <img
+                        src={uploadedMedia ? uploadedMedia.url : selectedTemplate.previewThumbnail}
+                        alt={selectedTemplate.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute bottom-2.5 left-2.5 bg-black/70 text-white text-[10px] font-mono px-2 py-0.5 rounded backdrop-blur-xs flex items-center gap-1.5">
+                        <span>{uploadedMedia ? `Custom Media: ${uploadedMedia.name}` : 'Template Sample Media'}</span>
+                      </div>
+                      {uploadedMedia && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadedMedia(null);
+                            soundFx.playHapticTick();
+                          }}
+                          className="absolute top-2.5 right-2.5 px-2 py-1 bg-red-600/90 hover:bg-red-700 text-white rounded-lg text-[10px] font-semibold flex items-center gap-1 shadow-md transition-all cursor-pointer"
+                          title="Remove custom media item"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Remove Item</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Media Source Selector */}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider">
+                          Initial Media Source
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          {onRecordVideo && (
+                            <button
+                              onClick={() => {
+                                soundFx.playHapticTick();
+                                onClose();
+                                onRecordVideo();
+                              }}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-red-200"
+                            >
+                              <Video className="w-3 h-3" />
+                              <span>Record Video</span>
+                            </button>
+                          )}
+                          {onOpenCamera && (
+                            <button
+                              onClick={() => {
+                                soundFx.playHapticTick();
+                                onClose();
+                                onOpenCamera();
+                              }}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-[#2A2723] hover:text-black bg-[#FAF9F6] hover:bg-[#F0EEE6] px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-[#E6E2D3]"
+                            >
+                              <Camera className="w-3 h-3 text-amber-500" />
+                              <span>Take Photo</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Option Cards */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            soundFx.playHapticTick();
+                            setUploadedMedia(null);
+                          }}
+                          className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                            !uploadedMedia
+                              ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
+                              : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-[#2A2723]">Template Sample</span>
+                            {!uploadedMedia && <Check className="w-3.5 h-3.5 text-[#2A2723]" />}
+                          </div>
+                          <p className="text-[10px] text-[#7E7365]">Curated editorial photography</p>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            soundFx.playHapticTick();
+                            singleFileInputRef.current?.click();
+                          }}
+                          className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                            uploadedMedia && !userMediaLibrary.some((m) => m.id === uploadedMedia.id)
+                              ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
+                              : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-[#2A2723]">Upload From Device</span>
+                            <Upload className="w-3.5 h-3.5 text-[#7E7365]" />
+                          </div>
+                          <p className="text-[10px] text-[#7E7365] truncate">Select file from computer</p>
+                        </button>
+                      </div>
+
+                      {/* User Library Items */}
+                      {userMediaLibrary.length > 0 && (
+                        <div className="mt-1 flex flex-col gap-1.5">
+                          <span className="text-[11px] font-bold text-[#2A2723] flex items-center gap-1.5">
+                            <Camera className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Choose from My Library ({userMediaLibrary.length} Captures):</span>
+                          </span>
+
+                          <div className="flex items-center gap-2 overflow-x-auto p-1.5 bg-white rounded-xl border border-[#E6E2D3] no-scrollbar">
+                            {userMediaLibrary.map((media) => {
+                              const isSelected = uploadedMedia?.id === media.id;
+                              const isVideo = media.type === 'video';
+                              return (
+                                <div
+                                  key={media.id}
+                                  onClick={() => {
+                                    soundFx.playHapticTick();
+                                    setUploadedMedia(media);
+                                  }}
+                                  className={`group/item relative flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden cursor-pointer border transition-all ${
+                                    isSelected
+                                      ? 'border-[#2A2723] ring-2 ring-[#2A2723] scale-105 shadow-sm'
+                                      : 'border-[#E6E2D3] hover:border-[#2A2723] opacity-85 hover:opacity-100'
+                                  }`}
+                                  title={media.name}
+                                >
+                                  {isVideo ? (
+                                    <video src={media.url} className="w-full h-full object-cover" muted playsInline />
+                                  ) : (
+                                    <img src={media.url} alt={media.name} className="w-full h-full object-cover" />
+                                  )}
+                                  <div className="absolute top-1 left-1 pointer-events-none">
+                                    {isVideo ? (
+                                      <span className="p-0.5 rounded bg-red-600 text-white flex items-center justify-center">
+                                        <Video className="w-2.5 h-2.5" />
+                                      </span>
+                                    ) : (
+                                      <span className="p-0.5 rounded bg-amber-500 text-white flex items-center justify-center">
+                                        <Camera className="w-2.5 h-2.5" />
+                                      </span>
+                                    )}
+                                  </div>
+                                  {isSelected && (
+                                    <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center pointer-events-none">
+                                      <Check className="w-4 h-4 text-white" />
+                                    </div>
+                                  )}
+                                  <div className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-[8px] text-white truncate pointer-events-none">
+                                    {media.name}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Pre-configured Adjustments Highlight */}
                 <div className="bg-white p-3.5 rounded-xl border border-[#E6E2D3] flex flex-col gap-2">
@@ -987,14 +1356,9 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         Border: {selectedTemplate.adjustments.frameType}
                       </span>
                     )}
-                    {selectedTemplate.adjustments.dateStamp?.enabled && (
-                      <span className="px-2 py-0.5 rounded bg-[#FAF9F6] border border-[#E6E2D3] text-[10px] font-medium text-[#2A2723]">
-                        Date Stamp: {selectedTemplate.adjustments.dateStamp.style}
-                      </span>
-                    )}
-                    {selectedTemplate.adjustments.lightLeakType !== 'none' && (
-                      <span className="px-2 py-0.5 rounded bg-[#FAF9F6] border border-[#E6E2D3] text-[10px] font-medium text-[#2A2723]">
-                        Light Leak: {selectedTemplate.adjustments.lightLeakType}
+                    {customCollage && (
+                      <span className="px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-[10px] font-semibold text-rose-800">
+                        Multi-Slot Canvas: {customCollage.slots.length} Frames
                       </span>
                     )}
                   </div>
@@ -1004,7 +1368,10 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
               {/* Footer Actions */}
               <div className="flex items-center justify-end gap-3 px-5 py-3.5 bg-white border-t border-[#E6E2D3]">
                 <button
-                  onClick={() => setSelectedTemplate(null)}
+                  onClick={() => {
+                    setSelectedTemplate(null);
+                    setCustomCollage(null);
+                  }}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-[#7E7365] hover:text-[#2A2723]"
                 >
                   Cancel
@@ -1014,7 +1381,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                   className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2A2723] text-white text-xs font-bold hover:bg-black transition-all cursor-pointer shadow-md"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Create Project</span>
+                  <span>{customCollage ? 'Create Collage Project' : 'Create Project'}</span>
                 </button>
               </div>
             </div>
@@ -1039,6 +1406,79 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
               </div>
 
               <div className="p-5 flex flex-col gap-4">
+                {/* Project Format Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider">
+                    Project Format
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBlankProjectType('single')}
+                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                        blankProjectType === 'single'
+                          ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
+                          : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
+                      }`}
+                    >
+                      <ImageIcon className="w-4 h-4 text-amber-600" />
+                      <div>
+                        <span className="text-xs font-bold text-[#2A2723] block">Single Media</span>
+                        <span className="text-[10px] text-[#7E7365]">1 Photo or Video</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setBlankProjectType('strip-3')}
+                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                        blankProjectType === 'strip-3'
+                          ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
+                          : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
+                      }`}
+                    >
+                      <LayoutGrid className="w-4 h-4 text-rose-600" />
+                      <div>
+                        <span className="text-xs font-bold text-[#2A2723] block">Collage (3 Frames)</span>
+                        <span className="text-[10px] text-[#7E7365]">Filmstrip Story</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setBlankProjectType('bento-4')}
+                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                        blankProjectType === 'bento-4'
+                          ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
+                          : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
+                      }`}
+                    >
+                      <Grid className="w-4 h-4 text-indigo-600" />
+                      <div>
+                        <span className="text-xs font-bold text-[#2A2723] block">Bento Grid (4)</span>
+                        <span className="text-[10px] text-[#7E7365]">Editorial Lookbook</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setBlankProjectType('grid-9')}
+                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                        blankProjectType === 'grid-9'
+                          ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723] shadow-xs'
+                          : 'bg-white/60 border-[#E6E2D3] hover:border-[#C5BDB2]'
+                      }`}
+                    >
+                      <Grid className="w-4 h-4 text-purple-600" />
+                      <div>
+                        <span className="text-xs font-bold text-[#2A2723] block">9-Grid Layout</span>
+                        <span className="text-[10px] text-[#7E7365]">Instagram Feed</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Project Name Input */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider">
                     Project Name
@@ -1100,26 +1540,6 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                                 </span>
                               )}
                             </div>
-
-                            {/* Delete Item Button */}
-                            {onDeleteUserMedia && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  soundFx.playHapticTick();
-                                  if (blankProjectMedia?.id === media.id) {
-                                    setBlankProjectMedia(null);
-                                  }
-                                  onDeleteUserMedia(media.id);
-                                }}
-                                className="absolute top-1 right-1 p-0.5 bg-black/75 hover:bg-red-600 text-white rounded-full transition-all shadow cursor-pointer opacity-90 group-hover/blankitem:opacity-100"
-                                title="Delete item"
-                              >
-                                <Trash2 className="w-2 h-2" />
-                              </button>
-                            )}
-
                             {isSelected && (
                               <div className="absolute inset-0 bg-[#2A2723]/30 flex items-center justify-center pointer-events-none">
                                 <Check className="w-3.5 h-3.5 text-white" />
@@ -1131,10 +1551,6 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                     </div>
                   </div>
                 )}
-
-                <p className="text-[11px] text-[#7E7365]">
-                  Initializes a clean project canvas with raw capturing defaults ready for custom adjustments.
-                </p>
               </div>
 
               <div className="flex items-center justify-end gap-3 px-5 py-3.5 bg-white border-t border-[#E6E2D3]">
@@ -1148,7 +1564,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                   onClick={handleCreateBlankProject}
                   className="px-5 py-2 rounded-xl bg-[#2A2723] text-white text-xs font-bold hover:bg-black transition-all cursor-pointer shadow-md"
                 >
-                  Create Blank
+                  Create Project
                 </button>
               </div>
             </div>

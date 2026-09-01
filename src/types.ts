@@ -240,7 +240,8 @@ export type ProjectTemplateTag =
   | 'notebook'
   | 'scrapbook'
   | 'polaroid'
-  | 'bento';
+  | 'bento'
+  | 'handwritten';
 
 export type TemplateSlotBorderStyle =
   | 'none'

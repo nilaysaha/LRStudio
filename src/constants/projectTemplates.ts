@@ -130,6 +130,14 @@ export const PROJECT_TEMPLATE_TAGS: {
     iconName: 'Grid',
     description: '9-grid Instagram feeds with like hearts and asymmetric multi-slot lookbook magazine layouts.',
   },
+  {
+    id: 'handwritten',
+    label: 'Handwritten Script',
+    color: '#4B5563',
+    bgColor: '#F9FAFB',
+    iconName: 'PenTool',
+    description: 'Calligraphy quotes, handwritten journal scribbles, and intimate story captions.',
+  },
 ];
 
 export const LUMENLAB_PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -1094,6 +1102,8 @@ export const LUMENLAB_PROJECT_TEMPLATES: ProjectTemplate[] = [
         ? 'polaroid'
         : col.category === 'editorial-grid'
         ? 'bento'
+        : col.category === 'handwritten-story'
+        ? 'handwritten'
         : 'clean';
 
     return {

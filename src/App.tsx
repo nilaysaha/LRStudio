@@ -295,22 +295,24 @@ export default function App() {
     name: string,
     template?: ProjectTemplate,
     customMedia?: MediaItem,
-    customAdjustments?: Adjustments
+    customAdjustments?: Adjustments,
+    collageData?: CollageTemplate
   ) => {
-    const newMedia = customMedia || template?.sampleMedia || SAMPLE_MEDIA_GALLERY[0];
+    const collageToUse = collageData || template?.collageData || null;
+    const newMedia = customMedia || collageToUse?.slots[0]?.media || template?.sampleMedia || SAMPLE_MEDIA_GALLERY[0];
     const newAdj = customAdjustments
       ? createAdjustmentsCopy(customAdjustments)
+      : collageToUse
+      ? createAdjustmentsCopy(collageToUse.adjustments)
       : template
       ? createAdjustmentsCopy(template.adjustments)
       : createAdjustmentsCopy(defaultAdjustments);
 
-    const collageToUse = template?.collageData || null;
-
     const newProject: Project = {
       id: `proj-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      name: name.trim() || template?.name || 'Untitled Project',
-      templateId: template?.id,
-      templateTag: template?.tag || 'custom',
+      name: name.trim() || collageToUse?.name || template?.name || 'Untitled Project',
+      templateId: template?.id || collageToUse?.id,
+      templateTag: template?.tag || (collageToUse ? 'bento' : 'custom'),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       media: newMedia,
