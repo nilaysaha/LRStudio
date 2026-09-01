@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import {
   X, Download, Share2, Sparkles, CheckCircle2, Film, Image as ImageIcon,
   Loader2, Copy, Check, ExternalLink, Send, Instagram, Smartphone, MessageCircle,
-  Video, Eye, Heart, Layers, LayoutTemplate
+  Video, Eye, Heart, Layers, LayoutTemplate, FileText, Package, Grid, ScrollText
 } from 'lucide-react';
 import { Adjustments, MediaItem, CollageTemplate, Project } from '../types';
-import { exportPhoto, exportVideo, exportTemplate, downloadDataUrl, downloadBlob } from '../utils/exportMedia';
+import {
+  exportPhoto, exportVideo, exportTemplate, downloadDataUrl, downloadBlob,
+  exportProjectToPdf, exportProjectToSeamlessStrip, exportProjectToZip
+} from '../utils/exportMedia';
 import { soundFx } from '../utils/audio';
 
 interface ExportModalProps {
@@ -33,7 +36,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [exportComplete, setExportComplete] = useState(false);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null);
-  const [exportScope, setExportScope] = useState<'current' | 'all-slides'>('current');
+  const [exportScope, setExportScope] = useState<'all-slides' | 'current'>(
+    project?.collages && project.collages.length > 1 ? 'all-slides' : 'current'
+  );
+  const [singleFileType, setSingleFileType] = useState<'pdf' | 'strip' | 'zip'>('pdf');
   const [multiSlideProgress, setMultiSlideProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Social sharing state
@@ -164,34 +170,74 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       if (exportScope === 'all-slides' && project?.collages && project.collages.length > 0) {
         const total = project.collages.length;
         setMultiSlideProgress({ current: 0, total });
+        const cleanProjectName = (project.name || 'project').toLowerCase().replace(/[^a-z0-9]/g, '_');
 
-        for (let i = 0; i < total; i++) {
-          const slide = project.collages[i];
-          setMultiSlideProgress({ current: i + 1, total });
-          setProgress(Math.round(((i + 1) / total) * 100));
+        if (singleFileType === 'pdf') {
+          // 1. Export as Single Multi-Page PDF Document
+          const pdfBlob = await exportProjectToPdf(
+            project,
+            adjustments,
+            { format: photoFormat, quality, scale },
+            (current, totalCount) => {
+              setMultiSlideProgress({ current, total: totalCount });
+              setProgress(Math.round((current / totalCount) * 100));
+            }
+          );
 
-          const slideAdj = slide.adjustments || adjustments;
-          const dataUrl = await exportTemplate(slide, slideAdj, {
-            format: photoFormat,
-            quality: quality,
-            scale: scale,
-          });
+          setExportedBlob(pdfBlob);
+          setIsExporting(false);
+          setExportComplete(true);
+          setMultiSlideProgress(null);
+          soundFx.playHapticTick();
+
+          downloadBlob(pdfBlob, `${cleanProjectName}_presentation.pdf`);
+          showToast(`Successfully exported all ${total} slides into a single PDF document!`);
+        } else if (singleFileType === 'strip') {
+          // 2. Export as Single Seamless Panoramic Carousel Strip Image
+          const stripDataUrl = await exportProjectToSeamlessStrip(
+            project,
+            adjustments,
+            { format: photoFormat, quality, scale },
+            'horizontal-strip',
+            (current, totalCount) => {
+              setMultiSlideProgress({ current, total: totalCount });
+              setProgress(Math.round((current / totalCount) * 100));
+            }
+          );
+
+          const res = await fetch(stripDataUrl);
+          const blob = await res.blob();
+          setExportedUrl(stripDataUrl);
+          setExportedBlob(blob);
+          setIsExporting(false);
+          setExportComplete(true);
+          setMultiSlideProgress(null);
+          soundFx.playHapticTick();
 
           const ext = photoFormat === 'image/png' ? 'png' : photoFormat === 'image/webp' ? 'webp' : 'jpg';
-          const cleanProjectName = (project.name || 'project').toLowerCase().replace(/[^a-z0-9]/g, '_');
-          const cleanSlideName = (slide.name || `slide_${i + 1}`).toLowerCase().replace(/[^a-z0-9]/g, '_');
-          const filename = `${cleanProjectName}_${i + 1}_${cleanSlideName}.${ext}`;
-          downloadDataUrl(dataUrl, filename);
+          downloadDataUrl(stripDataUrl, `${cleanProjectName}_carousel_strip.${ext}`);
+          showToast(`Successfully exported all ${total} slides into a single continuous carousel image!`);
+        } else {
+          // 3. Export as Single .ZIP Archive Package containing all slide files
+          const zipBlob = await exportProjectToZip(
+            project,
+            adjustments,
+            { format: photoFormat, quality, scale },
+            (current, totalCount) => {
+              setMultiSlideProgress({ current, total: totalCount });
+              setProgress(Math.round((current / totalCount) * 100));
+            }
+          );
 
-          // Small delay between multiple downloads so browser handles cleanly
-          await new Promise((r) => setTimeout(r, 400));
+          setExportedBlob(zipBlob);
+          setIsExporting(false);
+          setExportComplete(true);
+          setMultiSlideProgress(null);
+          soundFx.playHapticTick();
+
+          downloadBlob(zipBlob, `${cleanProjectName}_slides.zip`);
+          showToast(`Successfully packaged all ${total} slides into a single .ZIP archive!`);
         }
-
-        setIsExporting(false);
-        setExportComplete(true);
-        setMultiSlideProgress(null);
-        soundFx.playHapticTick();
-        showToast(`Successfully exported all ${total} slides in "${project.name}"!`);
       } else if (template) {
         // Export filled template collage
         const dataUrl = await exportTemplate(template, adjustments, {
@@ -555,27 +601,49 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
           {/* Multi-Slide Project Selector (when project contains multiple templates) */}
           {project?.collages && project.collages.length > 1 && (
-            <div className="bg-[#FAF9F6] p-3.5 rounded-xl border border-[#E6E2D3] flex flex-col gap-2.5">
+            <div className="bg-[#FAF9F6] p-3.5 rounded-xl border border-[#E6E2D3] flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Layers className="w-4 h-4 text-[#2A2723]" />
                   <span className="text-xs font-bold uppercase tracking-wider text-[#2A2723]">
-                    Project Slides Export
+                    Project Export (Single File)
                   </span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-900 text-white">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-900 text-white font-bold">
                   {project.collages.length} Slides
                 </span>
               </div>
 
+              {/* Scope switch: All Slides as 1 file vs Active Slide only */}
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportScope('all-slides');
+                    soundFx.playHapticTick();
+                  }}
+                  className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 transition-all cursor-pointer ${
+                    exportScope === 'all-slides'
+                      ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-xs'
+                      : 'bg-white text-[#7E7365] border-[#E6E2D3] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <span className="text-xs font-bold flex items-center justify-between">
+                    <span>All {project.collages.length} Slides</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400 text-black font-semibold">1 Single File</span>
+                  </span>
+                  <span className={`text-[10px] truncate ${exportScope === 'all-slides' ? 'text-white/80' : 'text-[#A69480]'}`}>
+                    PDF, Carousel Strip, or ZIP
+                  </span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
                     setExportScope('current');
                     soundFx.playHapticTick();
                   }}
-                  className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 transition-all ${
+                  className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 transition-all cursor-pointer ${
                     exportScope === 'current'
                       ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-xs'
                       : 'bg-white text-[#7E7365] border-[#E6E2D3] hover:text-[#2A2723]'
@@ -586,25 +654,68 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                     {template?.name || 'Active template'}
                   </span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExportScope('all-slides');
-                    soundFx.playHapticTick();
-                  }}
-                  className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 transition-all ${
-                    exportScope === 'all-slides'
-                      ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-xs'
-                      : 'bg-white text-[#7E7365] border-[#E6E2D3] hover:text-[#2A2723]'
-                  }`}
-                >
-                  <span className="text-xs font-bold">All {project.collages.length} Slides</span>
-                  <span className={`text-[10px] truncate ${exportScope === 'all-slides' ? 'text-white/80' : 'text-[#A69480]'}`}>
-                    Batch download zip/files
-                  </span>
-                </button>
               </div>
+
+              {/* Single File Type Options (when all slides selected) */}
+              {exportScope === 'all-slides' && (
+                <div className="flex flex-col gap-2 pt-1 border-t border-[#E6E2D3]">
+                  <span className="text-[11px] font-semibold text-[#2A2723]">
+                    Select Single File Format:
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSingleFileType('pdf');
+                        soundFx.playHapticTick();
+                      }}
+                      className={`p-2 rounded-lg border flex flex-col items-center text-center gap-1 transition-all cursor-pointer ${
+                        singleFileType === 'pdf'
+                          ? 'bg-amber-100/60 border-amber-500 text-[#2A2723] font-bold shadow-xs'
+                          : 'bg-white border-[#E6E2D3] text-[#7E7365] hover:text-[#2A2723]'
+                      }`}
+                    >
+                      <FileText className={`w-4 h-4 ${singleFileType === 'pdf' ? 'text-amber-700' : 'text-[#7E7365]'}`} />
+                      <span className="text-[11px]">PDF Document</span>
+                      <span className="text-[9px] text-[#A69480]">Multi-page</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSingleFileType('strip');
+                        soundFx.playHapticTick();
+                      }}
+                      className={`p-2 rounded-lg border flex flex-col items-center text-center gap-1 transition-all cursor-pointer ${
+                        singleFileType === 'strip'
+                          ? 'bg-amber-100/60 border-amber-500 text-[#2A2723] font-bold shadow-xs'
+                          : 'bg-white border-[#E6E2D3] text-[#7E7365] hover:text-[#2A2723]'
+                      }`}
+                    >
+                      <ImageIcon className={`w-4 h-4 ${singleFileType === 'strip' ? 'text-amber-700' : 'text-[#7E7365]'}`} />
+                      <span className="text-[11px]">Carousel Strip</span>
+                      <span className="text-[9px] text-[#A69480]">Single image</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSingleFileType('zip');
+                        soundFx.playHapticTick();
+                      }}
+                      className={`p-2 rounded-lg border flex flex-col items-center text-center gap-1 transition-all cursor-pointer ${
+                        singleFileType === 'zip'
+                          ? 'bg-amber-100/60 border-amber-500 text-[#2A2723] font-bold shadow-xs'
+                          : 'bg-white border-[#E6E2D3] text-[#7E7365] hover:text-[#2A2723]'
+                      }`}
+                    >
+                      <Package className={`w-4 h-4 ${singleFileType === 'zip' ? 'text-amber-700' : 'text-[#7E7365]'}`} />
+                      <span className="text-[11px]">ZIP Archive</span>
+                      <span className="text-[9px] text-[#A69480]">All in 1 zip</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {multiSlideProgress && (
                 <div className="mt-1 flex items-center justify-between text-xs font-semibold text-[#2A2723] bg-white p-2 rounded-lg border border-[#E6E2D3]">

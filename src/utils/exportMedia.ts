@@ -1,6 +1,8 @@
-import { Adjustments, MediaItem, CollageTemplate, TemplateSlot } from '../types';
+import { Adjustments, MediaItem, CollageTemplate, TemplateSlot, Project } from '../types';
 import { WebGLFilterEngine } from '../webgl/webglEngine';
 import { renderCameraOverlayOnCanvas, renderDateStampOnCanvas } from './cameraOverlayRenderer';
+import { jsPDF } from 'jspdf';
+import JSZip from 'jszip';
 
 export interface ExportOptions {
   format: 'image/jpeg' | 'image/png' | 'image/webp' | 'video/webm' | 'video/mp4';
@@ -808,4 +810,197 @@ export function downloadBlob(blob: Blob, filename: string) {
   downloadDataUrl(url, filename);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
+/**
+ * Renders all slides in a project into a single multi-page PDF document
+ */
+export async function exportProjectToPdf(
+  project: Project,
+  fallbackAdjustments: Adjustments,
+  options: ExportOptions,
+  onProgress?: (current: number, total: number) => void
+): Promise<Blob> {
+  const slides = project.collages && project.collages.length > 0
+    ? project.collages
+    : project.activeCollage
+    ? [project.activeCollage]
+    : [];
+
+  if (slides.length === 0) {
+    throw new Error('No slides found in project to export');
+  }
+
+  const total = slides.length;
+  let pdfDoc: jsPDF | null = null;
+
+  for (let i = 0; i < total; i++) {
+    const slide = slides[i];
+    if (onProgress) onProgress(i + 1, total);
+
+    const slideAdj = slide.adjustments || fallbackAdjustments;
+    const dataUrl = await exportTemplate(slide, slideAdj, {
+      format: 'image/jpeg',
+      quality: options.quality,
+      scale: options.scale,
+    });
+
+    const aspect = slide.aspectRatio || 1;
+    // Standard PDF page dimensions in points (72 pt per inch)
+    const basePt = 720;
+    const pageW = aspect >= 1 ? basePt : Math.round(basePt * aspect);
+    const pageH = aspect >= 1 ? Math.round(basePt / aspect) : basePt;
+    const orientation = aspect >= 1 ? 'landscape' : 'portrait';
+
+    if (i === 0) {
+      pdfDoc = new jsPDF({
+        orientation,
+        unit: 'pt',
+        format: [pageW, pageH],
+      });
+      pdfDoc.addImage(dataUrl, 'JPEG', 0, 0, pageW, pageH);
+    } else if (pdfDoc) {
+      pdfDoc.addPage([pageW, pageH], orientation);
+      pdfDoc.addImage(dataUrl, 'JPEG', 0, 0, pageW, pageH);
+    }
+  }
+
+  if (!pdfDoc) {
+    throw new Error('Failed to generate PDF document');
+  }
+
+  return pdfDoc.output('blob');
+}
+
+/**
+ * Combines all slides in a project into a single wide/tall stitched panoramic strip image
+ */
+export async function exportProjectToSeamlessStrip(
+  project: Project,
+  fallbackAdjustments: Adjustments,
+  options: ExportOptions,
+  layout: 'horizontal-strip' | 'vertical-scroll' = 'horizontal-strip',
+  onProgress?: (current: number, total: number) => void
+): Promise<string> {
+  const slides = project.collages && project.collages.length > 0
+    ? project.collages
+    : project.activeCollage
+    ? [project.activeCollage]
+    : [];
+
+  if (slides.length === 0) {
+    throw new Error('No slides found in project to export');
+  }
+
+  const total = slides.length;
+  const renderedImages: HTMLImageElement[] = [];
+
+  for (let i = 0; i < total; i++) {
+    const slide = slides[i];
+    if (onProgress) onProgress(i + 1, total);
+
+    const slideAdj = slide.adjustments || fallbackAdjustments;
+    const dataUrl = await exportTemplate(slide, slideAdj, {
+      format: options.format,
+      quality: options.quality,
+      scale: options.scale,
+    });
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error(`Failed loading rendered slide ${i + 1}`));
+      img.src = dataUrl;
+    });
+
+    renderedImages.push(img);
+  }
+
+  // Calculate target combined canvas dimensions
+  let totalWidth = 0;
+  let totalHeight = 0;
+
+  if (layout === 'horizontal-strip') {
+    // Horizontal carousel panorama
+    totalHeight = Math.max(...renderedImages.map((img) => img.naturalHeight));
+    totalWidth = renderedImages.reduce((sum, img) => sum + img.naturalWidth, 0);
+  } else {
+    // Vertical story scroll
+    totalWidth = Math.max(...renderedImages.map((img) => img.naturalWidth));
+    totalHeight = renderedImages.reduce((sum, img) => sum + img.naturalHeight, 0);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = totalWidth;
+  canvas.height = totalHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get canvas 2d context for strip export');
+
+  // Background
+  ctx.fillStyle = '#0E0D0C';
+  ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+  let currentOffset = 0;
+  for (const img of renderedImages) {
+    if (layout === 'horizontal-strip') {
+      ctx.drawImage(img, currentOffset, 0, img.naturalWidth, img.naturalHeight);
+      currentOffset += img.naturalWidth;
+    } else {
+      ctx.drawImage(img, 0, currentOffset, img.naturalWidth, img.naturalHeight);
+      currentOffset += img.naturalHeight;
+    }
+  }
+
+  return canvas.toDataURL(options.format, options.quality);
+}
+
+/**
+ * Packages all rendered slides in a project into a single .zip archive file
+ */
+export async function exportProjectToZip(
+  project: Project,
+  fallbackAdjustments: Adjustments,
+  options: ExportOptions,
+  onProgress?: (current: number, total: number) => void
+): Promise<Blob> {
+  const slides = project.collages && project.collages.length > 0
+    ? project.collages
+    : project.activeCollage
+    ? [project.activeCollage]
+    : [];
+
+  if (slides.length === 0) {
+    throw new Error('No slides found in project to export');
+  }
+
+  const zip = new JSZip();
+  const total = slides.length;
+  const cleanProjectName = (project.name || 'project').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const ext = options.format === 'image/png' ? 'png' : options.format === 'image/webp' ? 'webp' : 'jpg';
+
+  for (let i = 0; i < total; i++) {
+    const slide = slides[i];
+    if (onProgress) onProgress(i + 1, total);
+
+    const slideAdj = slide.adjustments || fallbackAdjustments;
+    const dataUrl = await exportTemplate(slide, slideAdj, {
+      format: options.format,
+      quality: options.quality,
+      scale: options.scale,
+    });
+
+    const base64Data = dataUrl.split(',')[1];
+    const cleanSlideName = (slide.name || `slide_${i + 1}`).toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const filename = `${String(i + 1).padStart(2, '0')}_${cleanSlideName}.${ext}`;
+
+    zip.file(filename, base64Data, { base64: true });
+  }
+
+  // Add project summary info text file
+  const infoContent = `LUMENLAB PROJECT EXPORT\n=======================\nProject: ${project.name}\nSlides: ${total}\nExport Date: ${new Date().toISOString()}\nCreated with LumenLab Analog Studio`;
+  zip.file('README_PROJECT.txt', infoContent);
+
+  return zip.generateAsync({ type: 'blob' });
+}
+
 

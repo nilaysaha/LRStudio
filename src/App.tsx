@@ -19,11 +19,12 @@ import { ProjectsModal } from './components/ProjectsModal';
 import { TemplateCanvasRenderer } from './components/template/TemplateCanvasRenderer';
 import { TemplateCustomizerBar } from './components/template/TemplateCustomizerBar';
 import { TemplateSelectorDrawer } from './components/template/TemplateSelectorDrawer';
+import { SlidePresentationPreviewModal } from './components/template/SlidePresentationPreviewModal';
 import { soundFx } from './utils/audio';
 import {
   Sparkles, Grid, Eye, RefreshCw, LayoutTemplate, Sliders, ChevronUp,
   Layers, Plus, Copy, Trash2, ChevronLeft, ChevronRight, FolderPlus,
-  FolderOpen
+  FolderOpen, Play
 } from 'lucide-react';
 
 const STORAGE_KEY_CUSTOM_PRESETS = 'lumenlab_custom_presets_v1';
@@ -153,6 +154,7 @@ export default function App() {
   const [cameraTargetSlotId, setCameraTargetSlotId] = useState<string | null>(null);
   const [isSavePresetOpen, setIsSavePresetOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isSlidePreviewOpen, setIsSlidePreviewOpen] = useState(false);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [projectsModalTab, setProjectsModalTab] = useState<'my-projects' | 'templates'>('my-projects');
 
@@ -1021,6 +1023,10 @@ export default function App() {
           setIsCameraOpen(true);
         }}
         onOpenCollages={() => setIsTemplateDrawerOpen(true)}
+        onOpenPreview={() => {
+          setIsSlidePreviewOpen(true);
+          soundFx.playHapticTick();
+        }}
         onOpenExport={() => setIsExportOpen(true)}
         onImportMediaFile={handleImportMediaFile}
         onOpenProjectsModal={() => {
@@ -1076,9 +1082,25 @@ export default function App() {
                 </button>
               )}
 
-              {/* Multi-Slide Chips (if project has collages list) */}
+              {/* Multi-Slide Chips with < > Arrows (if project has collages list) */}
               {currentProject?.collages && currentProject.collages.length > 0 ? (
                 <div className="flex items-center gap-1">
+                  {/* Previous Slide Arrow < */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const total = currentProject.collages.length;
+                      const currentIdx = currentProject.activeCollageIndex ?? 0;
+                      const prevIdx = (currentIdx - 1 + total) % total;
+                      handleSelectProjectSlide(prevIdx);
+                    }}
+                    className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95 transition-all cursor-pointer"
+                    title="Previous Slide (<)"
+                    aria-label="Previous Slide"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+
                   {currentProject.collages.map((col, idx) => {
                     const isSlideActive = (currentProject.activeCollageIndex ?? 0) === idx;
                     return (
@@ -1086,7 +1108,7 @@ export default function App() {
                         key={col.id || idx}
                         type="button"
                         onClick={() => handleSelectProjectSlide(idx)}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all ${
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
                           isSlideActive
                             ? 'bg-[#2A2723] text-white shadow-xs'
                             : 'bg-[#FAF9F6] text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
@@ -1098,6 +1120,36 @@ export default function App() {
                     );
                   })}
 
+                  {/* Next Slide Arrow > */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const total = currentProject.collages.length;
+                      const currentIdx = currentProject.activeCollageIndex ?? 0;
+                      const nextIdx = (currentIdx + 1) % total;
+                      handleSelectProjectSlide(nextIdx);
+                    }}
+                    className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95 transition-all cursor-pointer"
+                    title="Next Slide (>)"
+                    aria-label="Next Slide"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Preview Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSlidePreviewOpen(true);
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-[10px] font-bold transition-colors cursor-pointer shadow-xs"
+                    title="Preview Slide Carousel Presentation"
+                  >
+                    <Eye className="w-2.5 h-2.5" />
+                    <span>Preview</span>
+                  </button>
+
                   {/* Add Slide Quick Action */}
                   <button
                     type="button"
@@ -1106,7 +1158,7 @@ export default function App() {
                       setIsProjectsModalOpen(true);
                       soundFx.playHapticTick();
                     }}
-                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#EAE6DF] text-[#2A2723] border border-dashed border-[#A69480] text-[10px] font-semibold transition-colors"
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#EAE6DF] text-[#2A2723] border border-dashed border-[#A69480] text-[10px] font-semibold transition-colors cursor-pointer"
                     title="Add Template as New Slide"
                   >
                     <Plus className="w-2.5 h-2.5" />
@@ -1117,7 +1169,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => handleDuplicateProjectSlide()}
-                    className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors"
+                    className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors cursor-pointer"
                     title="Duplicate active slide"
                   >
                     <Copy className="w-3 h-3" />
@@ -1131,7 +1183,7 @@ export default function App() {
                           currentProject.activeCollageIndex ?? 0
                         )
                       }
-                      className="p-1 rounded-md text-[#7E7365] hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="p-1 rounded-md text-[#7E7365] hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                       title="Delete active slide"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -1147,6 +1199,18 @@ export default function App() {
                   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]">
                     {activeCollage.aspectLabel}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSlidePreviewOpen(true);
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-[10px] font-bold transition-colors cursor-pointer shadow-xs"
+                    title="Preview Presentation"
+                  >
+                    <Eye className="w-2.5 h-2.5" />
+                    <span>Preview</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1156,11 +1220,24 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
+                  setIsSlidePreviewOpen(true);
+                  soundFx.playHapticTick();
+                }}
+                className="px-3 py-1.5 rounded-full bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-950 text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Open Slide Presentation Preview"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Preview</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   setProjectsModalTab('templates');
                   setIsProjectsModalOpen(true);
                   soundFx.playHapticTick();
                 }}
-                className="px-3 py-1.5 rounded-full bg-[#2A2723] text-white text-xs font-semibold shadow-sm hover:bg-black flex items-center gap-1.5 transition-all"
+                className="px-3 py-1.5 rounded-full bg-[#2A2723] text-white text-xs font-semibold shadow-sm hover:bg-black flex items-center gap-1.5 transition-all cursor-pointer"
               >
                 <Grid className="w-3.5 h-3.5" />
                 <span>Templates</span>
@@ -1172,7 +1249,7 @@ export default function App() {
                   setActiveCollage(null);
                   soundFx.playHapticTick();
                 }}
-                className="px-2.5 py-1.5 rounded-full bg-white/90 backdrop-blur-md text-[#7E7365] hover:text-[#2A2723] border border-[#E6E2D3] text-xs font-medium shadow-xs transition-colors"
+                className="px-2.5 py-1.5 rounded-full bg-white/90 backdrop-blur-md text-[#7E7365] hover:text-[#2A2723] border border-[#E6E2D3] text-xs font-medium shadow-xs transition-colors cursor-pointer"
                 title="Edit Single Photo/Video"
               >
                 Single Media
@@ -1228,6 +1305,42 @@ export default function App() {
               }}
             />
           </div>
+        )}
+        {/* Floating Slide Navigation Arrows on Canvas (< and >) */}
+        {currentProject?.collages && currentProject.collages.length > 1 && (
+          <>
+            {/* Left < (Previous Slide) Navigation Arrow */}
+            <button
+              type="button"
+              onClick={() => {
+                const total = currentProject.collages.length;
+                const currentIdx = currentProject.activeCollageIndex ?? 0;
+                const prevIdx = (currentIdx - 1 + total) % total;
+                handleSelectProjectSlide(prevIdx);
+              }}
+              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+              title="Previous Slide (<)"
+              aria-label="Previous Slide"
+            >
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-[#2A2723] group-hover:-translate-x-0.5 transition-transform" />
+            </button>
+
+            {/* Right > (Next Slide) Navigation Arrow */}
+            <button
+              type="button"
+              onClick={() => {
+                const total = currentProject.collages.length;
+                const currentIdx = currentProject.activeCollageIndex ?? 0;
+                const nextIdx = (currentIdx + 1) % total;
+                handleSelectProjectSlide(nextIdx);
+              }}
+              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+              title="Next Slide (>)"
+              aria-label="Next Slide"
+            >
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-[#2A2723] group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          </>
         )}
       </section>
 
@@ -1395,6 +1508,20 @@ export default function App() {
         adjustments={adjustments}
         template={activeCollage}
         project={currentProject}
+      />
+
+      {/* Fullscreen Project Slideshow & Carousel Preview Modal */}
+      <SlidePresentationPreviewModal
+        isOpen={isSlidePreviewOpen}
+        onClose={() => setIsSlidePreviewOpen(false)}
+        project={currentProject}
+        activeCollage={activeCollage}
+        adjustments={adjustments}
+        onSelectSlide={handleSelectProjectSlide}
+        onOpenExport={() => {
+          setIsSlidePreviewOpen(false);
+          setIsExportOpen(true);
+        }}
       />
     </main>
   );

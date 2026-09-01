@@ -28,6 +28,7 @@ interface EditorHeaderProps {
   onOpenCamera: () => void;
   onOpenRecordVideo?: () => void;
   onOpenCollages?: () => void;
+  onOpenPreview?: () => void;
   onOpenExport: () => void;
   onImportMediaFile?: (file: File) => void;
   onOpenProjectsModal?: () => void;
@@ -53,6 +54,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onOpenCamera,
   onOpenRecordVideo,
   onOpenCollages,
+  onOpenPreview,
   onOpenExport,
   onImportMediaFile,
   onOpenProjectsModal,
@@ -432,6 +434,21 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   <span>Library</span>
                 </button>
 
+                {/* Slide Preview Button */}
+                {onOpenPreview && (
+                  <button
+                    onClick={() => {
+                      onOpenPreview();
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100/80 hover:bg-amber-200 border border-amber-300 text-xs font-bold text-amber-950 shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                    title="Open Fullscreen Slide Carousel & Presentation Preview"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-amber-900" />
+                    <span>Preview</span>
+                  </button>
+                )}
+
                 {/* Save / Export */}
                 <button
                   onClick={() => { onOpenExport(); soundFx.playHapticTick(); }}
@@ -512,6 +529,18 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 <Redo2 className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {/* Quick Preview Button */}
+            {onOpenPreview && (
+              <button
+                onClick={() => { onOpenPreview(); soundFx.playHapticTick(); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-100 border border-amber-300 text-amber-950 font-bold text-xs shadow-xs active:scale-95 transition-transform"
+                title="Preview Slides"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span className="text-[11px]">Preview</span>
+              </button>
+            )}
 
             {/* Quick Export/Save */}
             <button
