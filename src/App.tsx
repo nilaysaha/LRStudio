@@ -8,6 +8,7 @@ import { BUILT_IN_PRESETS, SAMPLE_MEDIA_GALLERY } from './constants/presets';
 import { LUMENLAB_PROJECT_TEMPLATES } from './constants/projectTemplates';
 import { COLLAGE_TEMPLATES } from './constants/collageTemplates';
 import { defaultAdjustments, createAdjustmentsCopy } from './constants/defaultAdjustments';
+import { HistorySnapshot, createHistorySnapshot, cloneMediaItem, cloneCollageTemplate } from './utils/history';
 import { EditorHeader } from './components/EditorHeader';
 import { ViewportCanvas } from './components/ViewportCanvas';
 import { AdjustmentsBar } from './components/AdjustmentsBar';
@@ -101,7 +102,8 @@ export default function App() {
   });
 
   // -------------------------------------------------------------
-  // 2. Active Media & Adjustments State
+  // -------------------------------------------------------------
+  // 2. Active Media, Adjustments & Collage State
   // -------------------------------------------------------------
   const activeInitialProject = projects.find((p) => p.id === currentProjectId) || projects[0] || INITIAL_SEEDED_PROJECTS[0];
 
@@ -115,9 +117,38 @@ export default function App() {
       : createAdjustmentsCopy(defaultAdjustments);
   });
 
-  // History Stack for Undo / Redo
-  const [history, setHistory] = useState<Adjustments[]>([createAdjustmentsCopy(adjustments)]);
+  // Current active project object
+  const currentProject = projects.find((p) => p.id === currentProjectId) || null;
+
+  // Collage & Template Customizer State
+  const [activeCollage, setActiveCollage] = useState<CollageTemplate | null>(() => {
+    return activeInitialProject?.activeCollage || null;
+  });
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const [isTemplateDrawerOpen, setIsTemplateDrawerOpen] = useState(false);
+  const [isPlayingMaster, setIsPlayingMaster] = useState(true);
+  const [isBottomDrawerCollapsed, setIsBottomDrawerCollapsed] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
+  const slotUploadInputRef = useRef<HTMLInputElement>(null);
+  const appBatchFileInputRef = useRef<HTMLInputElement>(null);
+  const [activeUploadSlotId, setActiveUploadSlotId] = useState<string | null>(null);
+
+  // History Stack for Full App Undo / Redo (Adjustments, Media, Templates, Slots, Text, Slides)
+  const [history, setHistory] = useState<HistorySnapshot[]>(() => [
+    createHistorySnapshot(
+      activeInitialProject ? activeInitialProject.adjustments : defaultAdjustments,
+      activeInitialProject ? activeInitialProject.media : SAMPLE_MEDIA_GALLERY[0],
+      activeInitialProject?.activeCollage || null,
+      null,
+      null,
+      activeInitialProject || null,
+      'Initial State'
+    ),
+  ]);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const lastPushTimeRef = useRef<number>(0);
+  const lastPushTypeRef = useRef<string>('');
 
   // Active Bottom Tab
   const [activeTab, setActiveTab] = useState<ActiveTab>('presets');
@@ -181,25 +212,6 @@ export default function App() {
     return [];
   });
 
-  // Current active project object
-  const currentProject = projects.find((p) => p.id === currentProjectId) || null;
-
-  // -------------------------------------------------------------
-  // 3. Collage & Template Customizer State
-  // -------------------------------------------------------------
-  const [activeCollage, setActiveCollage] = useState<CollageTemplate | null>(() => {
-    return activeInitialProject?.activeCollage || null;
-  });
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-  const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
-  const [isTemplateDrawerOpen, setIsTemplateDrawerOpen] = useState(false);
-  const [isPlayingMaster, setIsPlayingMaster] = useState(true);
-  const [isBottomDrawerCollapsed, setIsBottomDrawerCollapsed] = useState(false);
-  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
-  const slotUploadInputRef = useRef<HTMLInputElement>(null);
-  const appBatchFileInputRef = useRef<HTMLInputElement>(null);
-  const [activeUploadSlotId, setActiveUploadSlotId] = useState<string | null>(null);
-
   // -------------------------------------------------------------
   // 4. Auto-save & LocalStorage Sync
   // -------------------------------------------------------------
@@ -258,54 +270,166 @@ export default function App() {
   }, [presets]);
 
   // -------------------------------------------------------------
-  // 4. Adjustments & History Handlers
+  // 5. Universal History Record & Undo/Redo Engine
   // -------------------------------------------------------------
-  // Push adjustment changes to History stack with debounce
-  const updateAdjustments = useCallback(
-    (newAdj: Adjustments, pushToHistory = true) => {
-      setAdjustments(newAdj);
+  const recordHistory = useCallback(
+    (
+      snapshot: HistorySnapshot,
+      options?: { isDiscrete?: boolean; actionType?: string }
+    ) => {
+      const now = Date.now();
+      const isDiscrete = options?.isDiscrete ?? true;
+      const actionType = options?.actionType ?? 'general';
+      const isContinuous =
+        !isDiscrete &&
+        actionType === lastPushTypeRef.current &&
+        now - lastPushTimeRef.current < 600;
 
-      if (pushToHistory) {
-        setHistory((prev) => {
-          const truncated = prev.slice(0, historyIndex + 1);
-          return [...truncated, createAdjustmentsCopy(newAdj)];
-        });
-        setHistoryIndex((prev) => prev + 1);
+      lastPushTimeRef.current = now;
+      lastPushTypeRef.current = actionType;
+
+      setHistory((prev) => {
+        if (isContinuous && prev.length > 0 && historyIndex === prev.length - 1) {
+          const copy = [...prev];
+          copy[copy.length - 1] = snapshot;
+          return copy;
+        }
+        const truncated = prev.slice(0, historyIndex + 1);
+        const nextHistory = [...truncated, snapshot];
+        if (nextHistory.length > 60) {
+          return nextHistory.slice(nextHistory.length - 60);
+        }
+        return nextHistory;
+      });
+
+      if (!isContinuous || historyIndex !== history.length - 1) {
+        setHistoryIndex((prev) => Math.min(prev + 1, 59));
       }
     },
     [historyIndex]
   );
 
-  // Undo / Redo
-  const handleUndo = () => {
+  // Push adjustment changes to History stack
+  const updateAdjustments = useCallback(
+    (newAdj: Adjustments, pushToHistory = true, isDiscrete = false) => {
+      setAdjustments(newAdj);
+
+      if (pushToHistory) {
+        const snapshot = createHistorySnapshot(
+          newAdj,
+          currentMedia,
+          activeCollage,
+          selectedSlotId,
+          selectedTextId,
+          currentProject,
+          'Adjustments'
+        );
+        recordHistory(snapshot, { isDiscrete, actionType: 'adjustments' });
+      }
+    },
+    [currentMedia, activeCollage, selectedSlotId, selectedTextId, currentProject, recordHistory]
+  );
+
+  // Undo
+  const handleUndo = useCallback(() => {
     if (historyIndex > 0) {
       const targetIndex = historyIndex - 1;
-      setHistoryIndex(targetIndex);
-      setAdjustments(createAdjustmentsCopy(history[targetIndex]));
-    }
-  };
+      const targetSnapshot = history[targetIndex];
+      if (!targetSnapshot) return;
 
-  const handleRedo = () => {
+      soundFx.playHapticTick();
+      setHistoryIndex(targetIndex);
+
+      // 1. Restore adjustments
+      setAdjustments(createAdjustmentsCopy(targetSnapshot.adjustments));
+
+      // 2. Restore current media
+      if (targetSnapshot.currentMedia) {
+        setCurrentMedia(cloneMediaItem(targetSnapshot.currentMedia));
+      }
+
+      // 3. Restore active collage and selection
+      const restoredCollage = targetSnapshot.activeCollage ? cloneCollageTemplate(targetSnapshot.activeCollage) : null;
+      setActiveCollage(restoredCollage);
+      setSelectedSlotId(targetSnapshot.selectedSlotId);
+      setSelectedTextId(targetSnapshot.selectedTextId);
+
+      // 4. Restore project slides if applicable
+      if (currentProjectId && targetSnapshot.projectCollages) {
+        const restoredCollages = targetSnapshot.projectCollages.map((c) => cloneCollageTemplate(c)!);
+        const restoredIdx = targetSnapshot.activeCollageIndex ?? 0;
+        setProjects((prev) =>
+          prev.map((p) => {
+            if (p.id !== currentProjectId) return p;
+            return {
+              ...p,
+              updatedAt: Date.now(),
+              collages: restoredCollages,
+              activeCollageIndex: restoredIdx,
+              activeCollage: restoredCollages[restoredIdx] || restoredCollage || undefined,
+              thumbnailUrl: (restoredCollages[restoredIdx] || restoredCollage)?.previewThumbnail || p.thumbnailUrl,
+            };
+          })
+        );
+      }
+    }
+  }, [historyIndex, history, currentProjectId]);
+
+  // Redo
+  const handleRedo = useCallback(() => {
     if (historyIndex < history.length - 1) {
       const targetIndex = historyIndex + 1;
+      const targetSnapshot = history[targetIndex];
+      if (!targetSnapshot) return;
+
+      soundFx.playHapticTick();
       setHistoryIndex(targetIndex);
-      setAdjustments(createAdjustmentsCopy(history[targetIndex]));
+
+      // 1. Restore adjustments
+      setAdjustments(createAdjustmentsCopy(targetSnapshot.adjustments));
+
+      // 2. Restore current media
+      if (targetSnapshot.currentMedia) {
+        setCurrentMedia(cloneMediaItem(targetSnapshot.currentMedia));
+      }
+
+      // 3. Restore active collage and selection
+      const restoredCollage = targetSnapshot.activeCollage ? cloneCollageTemplate(targetSnapshot.activeCollage) : null;
+      setActiveCollage(restoredCollage);
+      setSelectedSlotId(targetSnapshot.selectedSlotId);
+      setSelectedTextId(targetSnapshot.selectedTextId);
+
+      // 4. Restore project slides if applicable
+      if (currentProjectId && targetSnapshot.projectCollages) {
+        const restoredCollages = targetSnapshot.projectCollages.map((c) => cloneCollageTemplate(c)!);
+        const restoredIdx = targetSnapshot.activeCollageIndex ?? 0;
+        setProjects((prev) =>
+          prev.map((p) => {
+            if (p.id !== currentProjectId) return p;
+            return {
+              ...p,
+              updatedAt: Date.now(),
+              collages: restoredCollages,
+              activeCollageIndex: restoredIdx,
+              activeCollage: restoredCollages[restoredIdx] || restoredCollage || undefined,
+              thumbnailUrl: (restoredCollages[restoredIdx] || restoredCollage)?.previewThumbnail || p.thumbnailUrl,
+            };
+          })
+        );
+      }
     }
-  };
+  }, [historyIndex, history, currentProjectId]);
 
   // Reset to original
   const handleReset = () => {
     soundFx.playHapticTick();
     const originalPreset = BUILT_IN_PRESETS.find((p) => p.id === 'none');
-    if (originalPreset) {
-      updateAdjustments(createAdjustmentsCopy(originalPreset.adjustments));
-    } else {
-      updateAdjustments(createAdjustmentsCopy(defaultAdjustments));
-    }
+    const targetAdj = originalPreset ? createAdjustmentsCopy(originalPreset.adjustments) : createAdjustmentsCopy(defaultAdjustments);
+    updateAdjustments(targetAdj, true, true);
   };
 
   // -------------------------------------------------------------
-  // 5. Project Lifecycle Handlers
+  // 6. Project Lifecycle & Slide Handlers
   // -------------------------------------------------------------
   // Create Project (from LumenLabs template or blank)
   const handleCreateProject = (
@@ -349,7 +473,17 @@ export default function App() {
     setSelectedSlotId(null);
     setSelectedTextId(null);
     setAdjustments(newAdj);
-    setHistory([createAdjustmentsCopy(newAdj)]);
+    setHistory([
+      createHistorySnapshot(
+        newAdj,
+        newMedia,
+        collageToUse,
+        null,
+        null,
+        newProject,
+        'Create Project'
+      ),
+    ]);
     setHistoryIndex(0);
     setIsProjectsModalOpen(false);
     soundFx.playShutter();
@@ -368,18 +502,29 @@ export default function App() {
     setSelectedTextId(null);
     const newAdj = createAdjustmentsCopy(project.adjustments);
     setAdjustments(newAdj);
-    setHistory([createAdjustmentsCopy(newAdj)]);
+    setHistory([
+      createHistorySnapshot(
+        newAdj,
+        project.media,
+        activeCol,
+        null,
+        null,
+        project,
+        'Open Project'
+      ),
+    ]);
     setHistoryIndex(0);
     setIsProjectsModalOpen(false);
     soundFx.playHapticTick();
   };
 
-  // Update active collage and auto-persist to active project slide
-  const handleUpdateActiveCollage = (updated: CollageTemplate | null) => {
-    setActiveCollage(updated);
-    if (currentProjectId && updated) {
-      setProjects((prev) =>
-        prev.map((p) => {
+  // Update active collage and auto-persist to active project slide with History recording
+  const handleUpdateActiveCollage = useCallback(
+    (updated: CollageTemplate | null, pushToHistory = true, isDiscrete = true) => {
+      setActiveCollage(updated);
+      let updatedProjects = projects;
+      if (currentProjectId && updated) {
+        updatedProjects = projects.map((p) => {
           if (p.id !== currentProjectId) return p;
           const currentCollages =
             p.collages && p.collages.length > 0 ? [...p.collages] : [updated];
@@ -396,10 +541,26 @@ export default function App() {
             collages: currentCollages,
             thumbnailUrl: updated.previewThumbnail || p.thumbnailUrl,
           };
-        })
-      );
-    }
-  };
+        });
+        setProjects(updatedProjects);
+      }
+
+      if (pushToHistory && updated) {
+        const activeProj = updatedProjects.find((p) => p.id === currentProjectId) || currentProject;
+        const snapshot = createHistorySnapshot(
+          adjustments,
+          currentMedia,
+          updated,
+          selectedSlotId,
+          selectedTextId,
+          activeProj,
+          'Update Template'
+        );
+        recordHistory(snapshot, { isDiscrete, actionType: 'collage' });
+      }
+    },
+    [projects, currentProjectId, currentProject, adjustments, currentMedia, selectedSlotId, selectedTextId, recordHistory]
+  );
 
   // Add a new collage / template slide into the currently open project
   const handleAddCollageToCurrentProject = (newCollage: CollageTemplate) => {
@@ -419,6 +580,7 @@ export default function App() {
       })),
     };
 
+    let updatedProject: Project | null = null;
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id !== currentProjectId) return p;
@@ -429,22 +591,37 @@ export default function App() {
             ? [p.activeCollage]
             : [];
         const updatedList = [...existing, clonedCollage];
-        return {
+        updatedProject = {
           ...p,
           updatedAt: Date.now(),
           collages: updatedList,
           activeCollageIndex: updatedList.length - 1,
           activeCollage: clonedCollage,
         };
+        return updatedProject;
       })
     );
 
     setActiveCollage(clonedCollage);
     setSelectedSlotId(null);
     setSelectedTextId(null);
+    const targetAdj = clonedCollage.adjustments
+      ? createAdjustmentsCopy(clonedCollage.adjustments)
+      : adjustments;
     if (clonedCollage.adjustments) {
-      updateAdjustments(createAdjustmentsCopy(clonedCollage.adjustments));
+      setAdjustments(targetAdj);
     }
+
+    const snapshot = createHistorySnapshot(
+      targetAdj,
+      currentMedia,
+      clonedCollage,
+      null,
+      null,
+      updatedProject,
+      'Add Slide'
+    );
+    recordHistory(snapshot, { isDiscrete: true, actionType: 'slide' });
     soundFx.playShutter();
   };
 
@@ -455,16 +632,32 @@ export default function App() {
     setActiveCollage(targetCollage);
     setSelectedSlotId(null);
     setSelectedTextId(null);
+    let updatedProject: Project | null = null;
     setProjects((prev) =>
-      prev.map((p) =>
-        p.id === currentProjectId
-          ? { ...p, activeCollageIndex: index, activeCollage: targetCollage }
-          : p
-      )
+      prev.map((p) => {
+        if (p.id === currentProjectId) {
+          updatedProject = { ...p, activeCollageIndex: index, activeCollage: targetCollage };
+          return updatedProject;
+        }
+        return p;
+      })
     );
+    const targetAdj = targetCollage.adjustments
+      ? createAdjustmentsCopy(targetCollage.adjustments)
+      : adjustments;
     if (targetCollage.adjustments) {
-      updateAdjustments(createAdjustmentsCopy(targetCollage.adjustments));
+      setAdjustments(targetAdj);
     }
+    const snapshot = createHistorySnapshot(
+      targetAdj,
+      currentMedia,
+      targetCollage,
+      null,
+      null,
+      updatedProject,
+      'Select Slide'
+    );
+    recordHistory(snapshot, { isDiscrete: true, actionType: 'slide' });
     soundFx.playHapticTick();
   };
 
@@ -495,23 +688,37 @@ export default function App() {
     const updatedList = [...existing, cloned];
     const newIdx = updatedList.length - 1;
 
+    let updatedProject: Project | null = null;
     setProjects((prev) =>
-      prev.map((p) =>
-        p.id === currentProjectId
-          ? {
-              ...p,
-              updatedAt: Date.now(),
-              collages: updatedList,
-              activeCollageIndex: newIdx,
-              activeCollage: cloned,
-            }
-          : p
-      )
+      prev.map((p) => {
+        if (p.id === currentProjectId) {
+          updatedProject = {
+            ...p,
+            updatedAt: Date.now(),
+            collages: updatedList,
+            activeCollageIndex: newIdx,
+            activeCollage: cloned,
+          };
+          return updatedProject;
+        }
+        return p;
+      })
     );
 
     setActiveCollage(cloned);
     setSelectedSlotId(null);
     setSelectedTextId(null);
+
+    const snapshot = createHistorySnapshot(
+      adjustments,
+      currentMedia,
+      cloned,
+      null,
+      null,
+      updatedProject,
+      'Duplicate Slide'
+    );
+    recordHistory(snapshot, { isDiscrete: true, actionType: 'slide' });
     soundFx.playShutter();
   };
 
@@ -522,23 +729,37 @@ export default function App() {
     const nextIdx = Math.max(0, Math.min(index, updatedList.length - 1));
     const nextCollage = updatedList[nextIdx];
 
+    let updatedProject: Project | null = null;
     setProjects((prev) =>
-      prev.map((p) =>
-        p.id === currentProjectId
-          ? {
-              ...p,
-              updatedAt: Date.now(),
-              collages: updatedList,
-              activeCollageIndex: nextIdx,
-              activeCollage: nextCollage,
-            }
-          : p
-      )
+      prev.map((p) => {
+        if (p.id === currentProjectId) {
+          updatedProject = {
+            ...p,
+            updatedAt: Date.now(),
+            collages: updatedList,
+            activeCollageIndex: nextIdx,
+            activeCollage: nextCollage,
+          };
+          return updatedProject;
+        }
+        return p;
+      })
     );
 
     setActiveCollage(nextCollage);
     setSelectedSlotId(null);
     setSelectedTextId(null);
+
+    const snapshot = createHistorySnapshot(
+      adjustments,
+      currentMedia,
+      nextCollage,
+      null,
+      null,
+      updatedProject,
+      'Delete Slide'
+    );
+    recordHistory(snapshot, { isDiscrete: true, actionType: 'slide' });
     soundFx.playHapticTick();
   };
 
@@ -578,31 +799,45 @@ export default function App() {
 
     const activeCol = list[newActiveIdx] || currentProject.activeCollage || activeCollage;
 
+    let updatedProject: Project | null = null;
     setProjects((prev) =>
-      prev.map((p) =>
-        p.id === currentProjectId
-          ? {
-              ...p,
-              updatedAt: Date.now(),
-              collages: list,
-              activeCollageIndex: newActiveIdx,
-              activeCollage: activeCol,
-            }
-          : p
-      )
+      prev.map((p) => {
+        if (p.id === currentProjectId) {
+          updatedProject = {
+            ...p,
+            updatedAt: Date.now(),
+            collages: list,
+            activeCollageIndex: newActiveIdx,
+            activeCollage: activeCol,
+          };
+          return updatedProject;
+        }
+        return p;
+      })
     );
 
     setActiveCollage(activeCol);
+
+    const snapshot = createHistorySnapshot(
+      adjustments,
+      currentMedia,
+      activeCol,
+      selectedSlotId,
+      selectedTextId,
+      updatedProject,
+      'Reorder Slides'
+    );
+    recordHistory(snapshot, { isDiscrete: true, actionType: 'slide' });
     soundFx.playHapticTick();
   };
 
   // Switch to a new collage template directly
   const handleSelectCollageTemplate = (template: CollageTemplate) => {
-    handleUpdateActiveCollage(template);
+    handleUpdateActiveCollage(template, true, true);
     setSelectedSlotId(null);
     setSelectedTextId(null);
     if (template.adjustments) {
-      updateAdjustments(createAdjustmentsCopy(template.adjustments));
+      updateAdjustments(createAdjustmentsCopy(template.adjustments), true, true);
     }
     soundFx.playShutter();
   };
@@ -637,7 +872,7 @@ export default function App() {
     const updatedSlots = activeCollage.slots.map((s) =>
       s.id === activeUploadSlotId ? { ...s, media: newMedia } : s
     );
-    handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots });
+    handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots }, true, true);
     setActiveUploadSlotId(null);
     if (slotUploadInputRef.current) slotUploadInputRef.current.value = '';
   };
@@ -719,7 +954,7 @@ export default function App() {
       setUserMediaLibrary((prev) => [...batchMediaItems, ...prev]);
     }
 
-    handleUpdateActiveCollage({ ...targetCollage, slots: updatedSlots });
+    handleUpdateActiveCollage({ ...targetCollage, slots: updatedSlots }, true, true);
     if (appBatchFileInputRef.current) appBatchFileInputRef.current.value = '';
   };
 
@@ -771,17 +1006,21 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 6. Presets & Recipe Handlers
+  // 7. Presets & Recipe Handlers
   // -------------------------------------------------------------
   // Select Preset Handler
   const handleSelectPreset = (preset: Preset) => {
     if (preset.id === 'none') {
-      updateAdjustments(createAdjustmentsCopy(defaultAdjustments));
+      updateAdjustments(createAdjustmentsCopy(defaultAdjustments), true, true);
     } else {
-      updateAdjustments({
-        ...createAdjustmentsCopy(preset.adjustments),
-        presetStrength: 1.0,
-      });
+      updateAdjustments(
+        {
+          ...createAdjustmentsCopy(preset.adjustments),
+          presetStrength: 1.0,
+        },
+        true,
+        true
+      );
     }
   };
 
@@ -844,7 +1083,7 @@ export default function App() {
 
   const handlePasteRecipe = () => {
     if (copiedRecipe) {
-      updateAdjustments(createAdjustmentsCopy(copiedRecipe));
+      updateAdjustments(createAdjustmentsCopy(copiedRecipe), true, true);
     }
   };
 
@@ -852,6 +1091,22 @@ export default function App() {
   const handleImportMediaFile = (file: File) => {
     const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
     const url = URL.createObjectURL(file);
+
+    const finishImport = (newMedia: MediaItem) => {
+      setCurrentMedia(newMedia);
+      setUserMediaLibrary((prev) => [newMedia, ...prev]);
+      const snapshot = createHistorySnapshot(
+        adjustments,
+        newMedia,
+        activeCollage,
+        selectedSlotId,
+        selectedTextId,
+        currentProject,
+        'Import Media'
+      );
+      recordHistory(snapshot, { isDiscrete: true, actionType: 'media' });
+      soundFx.playHapticTick();
+    };
 
     if (isVideo) {
       const newMedia: MediaItem = {
@@ -866,9 +1121,7 @@ export default function App() {
         createdAt: Date.now(),
         source: 'upload',
       };
-      setCurrentMedia(newMedia);
-      setUserMediaLibrary((prev) => [newMedia, ...prev]);
-      soundFx.playHapticTick();
+      finishImport(newMedia);
     } else {
       const img = new Image();
       img.onload = () => {
@@ -886,9 +1139,7 @@ export default function App() {
           createdAt: Date.now(),
           source: 'upload',
         };
-        setCurrentMedia(newMedia);
-        setUserMediaLibrary((prev) => [newMedia, ...prev]);
-        soundFx.playHapticTick();
+        finishImport(newMedia);
       };
       img.onerror = () => {
         const newMedia: MediaItem = {
@@ -903,9 +1154,7 @@ export default function App() {
           createdAt: Date.now(),
           source: 'upload',
         };
-        setCurrentMedia(newMedia);
-        setUserMediaLibrary((prev) => [newMedia, ...prev]);
-        soundFx.playHapticTick();
+        finishImport(newMedia);
       };
       img.src = url;
     }
@@ -941,15 +1190,27 @@ export default function App() {
       const updatedSlots = activeCollage.slots.map((s) =>
         s.id === targetSlotId ? { ...s, media: capturedMedia } : s
       );
-      setActiveCollage({ ...activeCollage, slots: updatedSlots });
+      handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots }, true, true);
       setSelectedSlotId(targetSlotId);
       soundFx.playShutter();
     } else {
       // Normal single media canvas update
       setCurrentMedia(capturedMedia);
+      const targetAdj = capturedAdjustments ? createAdjustmentsCopy(capturedAdjustments) : adjustments;
       if (capturedAdjustments) {
-        updateAdjustments(createAdjustmentsCopy(capturedAdjustments));
+        setAdjustments(targetAdj);
       }
+      const snapshot = createHistorySnapshot(
+        targetAdj,
+        capturedMedia,
+        activeCollage,
+        selectedSlotId,
+        selectedTextId,
+        currentProject,
+        'Camera Capture'
+      );
+      recordHistory(snapshot, { isDiscrete: true, actionType: 'media' });
+      soundFx.playShutter();
     }
   };
 
@@ -1210,7 +1471,7 @@ export default function App() {
               adjustments={adjustments}
               compareMode={compareMode}
               activeTab={activeTab}
-              onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, false)}
+              onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, true, false)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center p-1 sm:p-4 pt-12 sm:pt-14 overflow-y-auto">
@@ -1347,7 +1608,7 @@ export default function App() {
             onBatchUploadMultipleMedia={handleBatchUploadMultipleMedia}
             presets={presets}
             onApplyPresetToTemplate={(preset) => {
-              updateAdjustments(createAdjustmentsCopy(preset.adjustments));
+              updateAdjustments(createAdjustmentsCopy(preset.adjustments), true, true);
             }}
             onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
             onOpenExport={() => setIsExportOpen(true)}
@@ -1368,7 +1629,7 @@ export default function App() {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             adjustments={adjustments}
-            onChangeAdjustments={(newAdj) => updateAdjustments(newAdj)}
+            onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, true, false)}
             presets={presets}
             onSelectPreset={handleSelectPreset}
             onOpenSavePresetModal={() => setIsSavePresetOpen(true)}
@@ -1451,12 +1712,22 @@ export default function App() {
             const updatedSlots = activeCollage.slots.map((s) =>
               s.id === libraryTargetSlotId ? { ...s, media } : s
             );
-            handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots });
+            handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots }, true, true);
             setSelectedSlotId(libraryTargetSlotId);
             setLibraryTargetSlotId(null);
             setIsMediaLibraryOpen(false);
           } else {
             setCurrentMedia(media);
+            const snapshot = createHistorySnapshot(
+              adjustments,
+              media,
+              activeCollage,
+              selectedSlotId,
+              selectedTextId,
+              currentProject,
+              'Select Media'
+            );
+            recordHistory(snapshot, { isDiscrete: true, actionType: 'media' });
             setIsMediaLibraryOpen(false);
           }
           soundFx.playHapticTick();
