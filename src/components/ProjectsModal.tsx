@@ -30,6 +30,7 @@ interface ProjectsModalProps {
     customAdjustments?: Adjustments,
     collageData?: CollageTemplate
   ) => void;
+  onAddCollageToCurrentProject?: (collageData: CollageTemplate) => void;
   onDuplicateProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
   onRenameProject: (projectId: string, newName: string) => void;
@@ -48,6 +49,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   userMediaLibrary = [],
   onSelectProject,
   onCreateProject,
+  onAddCollageToCurrentProject,
   onDuplicateProject,
   onDeleteProject,
   onRenameProject,
@@ -569,7 +571,12 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         {/* Top Overlay Badges */}
                         <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none z-10">
                           {/* Template or Collage Badge */}
-                          {isCollage ? (
+                          {proj.collages && proj.collages.length > 1 ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-600 text-white shadow-xs flex items-center gap-1 backdrop-blur-md">
+                              <Layers className="w-3 h-3" />
+                              <span>{proj.collages.length} Slides ({proj.activeCollage?.slots.length || 0}F)</span>
+                            </span>
+                          ) : isCollage ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-600 text-white shadow-xs flex items-center gap-1 backdrop-blur-md">
                               <LayoutGrid className="w-3 h-3" />
                               <span>Collage ({proj.activeCollage?.slots.length} Frames)</span>
@@ -950,7 +957,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                           <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <span className="px-4 py-2 rounded-full bg-white text-[#2A2723] text-xs font-bold shadow-lg flex items-center gap-1.5 transform translate-y-2 group-hover:translate-y-0 transition-transform">
                               <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                              <span>{isCollage ? 'Customize Collage' : 'Use Template'}</span>
+                              <span>Init Project</span>
                             </span>
                           </div>
                         </div>
@@ -983,7 +990,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                           {/* Footer Features */}
                           <div className="flex items-center justify-between pt-2 border-t border-[#F0EEE6] text-[10px] text-[#7E7365]">
                             <span className="font-semibold text-[#2A2723] group-hover:underline flex items-center gap-1">
-                              <span>{isCollage ? 'Init Collage' : 'Init Project'}</span>
+                              <span>Init Project</span>
                               <ArrowRight className="w-3 h-3" />
                             </span>
                             <span className="font-mono capitalize">
@@ -1021,7 +1028,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                     {selectedTemplate.tagLabel}
                   </span>
                   <h3 className="text-sm font-bold text-[#2A2723]">
-                    Initialize Project: {selectedTemplate.name}
+                    Init Project: {selectedTemplate.name}
                   </h3>
                 </div>
                 <button
@@ -1366,7 +1373,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
               </div>
 
               {/* Footer Actions */}
-              <div className="flex items-center justify-end gap-3 px-5 py-3.5 bg-white border-t border-[#E6E2D3]">
+              <div className="flex items-center justify-between gap-3 px-5 py-3.5 bg-white border-t border-[#E6E2D3]">
                 <button
                   onClick={() => {
                     setSelectedTemplate(null);
@@ -1376,13 +1383,67 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={handleCreateFromTemplate}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2A2723] text-white text-xs font-bold hover:bg-black transition-all cursor-pointer shadow-md"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>{customCollage ? 'Create Collage Project' : 'Create Project'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {currentProjectId && onAddCollageToCurrentProject && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundFx.playShutter();
+                        const collageToAdd = customCollage || selectedTemplate.collageData;
+                        if (collageToAdd) {
+                          onAddCollageToCurrentProject(collageToAdd);
+                        } else {
+                          const singleSlotCollage: CollageTemplate = {
+                            id: `slide-${Date.now()}-${selectedTemplate.id}`,
+                            name: selectedTemplate.name,
+                            category: 'polaroid-stack',
+                            categoryLabel: selectedTemplate.tagLabel,
+                            description: selectedTemplate.description,
+                            subtitle: selectedTemplate.subtitle,
+                            aspectRatio: selectedTemplate.aspectRatio,
+                            aspectLabel: selectedTemplate.aspectLabel,
+                            previewThumbnail: selectedTemplate.previewThumbnail,
+                            slots: [
+                              {
+                                id: `slot-${Date.now()}`,
+                                label: selectedTemplate.name,
+                                media: uploadedMedia || selectedTemplate.sampleMedia,
+                                x: 0,
+                                y: 0,
+                                width: 100,
+                                height: 100,
+                                fit: 'cover',
+                                borderRadius: 0,
+                                shadow: 'none',
+                                zIndex: 1,
+                              }
+                            ],
+                            textElements: [],
+                            overlays: {},
+                            adjustments: createAdjustmentsCopy(selectedTemplate.adjustments),
+                            moodKeywords: selectedTemplate.moodKeywords,
+                          };
+                          onAddCollageToCurrentProject(singleSlotCollage);
+                        }
+                        setSelectedTemplate(null);
+                        setCustomCollage(null);
+                        onClose();
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-950 text-xs font-bold transition-all cursor-pointer shadow-xs"
+                      title="Add this template as a slide to currently active project"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-amber-600" />
+                      <span>+ Add to Current Project</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={handleCreateFromTemplate}
+                    className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2A2723] text-white text-xs font-bold hover:bg-black transition-all cursor-pointer shadow-md"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Init Project</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

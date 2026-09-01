@@ -445,7 +445,10 @@ export interface Project {
   mediaList?: MediaItem[];
   adjustments: Adjustments;
   aspectRatio?: number;
-  // Customized collage data if using a template
+  // Multiple collages/templates contained in the project
+  collages?: CollageTemplate[];
+  activeCollageIndex?: number;
+  // Active collage data currently being edited
   activeCollage?: CollageTemplate;
 }
 

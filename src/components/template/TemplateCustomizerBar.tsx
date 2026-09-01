@@ -3,15 +3,16 @@ import {
   Layers, Type, Sliders, Palette, Sparkles, Upload,
   Volume2, VolumeX, RotateCw, Trash2, Eye, Check, Frame,
   Plus, Edit3, Grid, Paperclip, BookOpen, Sun, Flame, Video, Camera, FolderPlus,
-  ChevronDown, ChevronUp, Share2, Download
+  ChevronDown, ChevronUp, Share2, Download, Film
 } from 'lucide-react';
 import {
   CollageTemplate, TemplateSlot, TemplateTextElement,
   BinderRingType, PaperTextureType, TemplateTapeStyle,
   TemplatePaperClipStyle, TemplateSlotBorderStyle, TextFontFamily,
-  Preset
+  Preset, Project
 } from '../../types';
 import { soundFx } from '../../utils/audio';
+import { ProjectFilmstrip } from './ProjectFilmstrip';
 
 interface TemplateCustomizerBarProps {
   template: CollageTemplate;
@@ -31,9 +32,16 @@ interface TemplateCustomizerBarProps {
   onOpenExport?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  // Multi-Slide Project props
+  project?: Project | null;
+  onSelectProjectSlide?: (index: number) => void;
+  onDuplicateProjectSlide?: (index: number) => void;
+  onDeleteProjectSlide?: (index: number) => void;
+  onReorderProjectSlides?: (fromIndex: number, toIndex: number) => void;
+  onAddNewSlide?: () => void;
 }
 
-type CustomizerTab = 'slots' | 'text' | 'decorations' | 'paper' | 'presets';
+type CustomizerTab = 'filmstrip' | 'slots' | 'text' | 'decorations' | 'paper' | 'presets';
 
 export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
   template,
@@ -53,8 +61,17 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
   onOpenExport,
   isCollapsed = false,
   onToggleCollapse,
+  project,
+  onSelectProjectSlide,
+  onDuplicateProjectSlide,
+  onDeleteProjectSlide,
+  onReorderProjectSlides,
+  onAddNewSlide,
 }) => {
-  const [activeTab, setActiveTab] = useState<CustomizerTab>('slots');
+  const slideCount = project?.collages?.length || 1;
+  const [activeTab, setActiveTab] = useState<CustomizerTab>(
+    slideCount > 1 ? 'filmstrip' : 'slots'
+  );
 
   const selectedSlot = template.slots.find((s) => s.id === selectedSlotId);
   const selectedText = template.textElements.find((t) => t.id === selectedTextId);
@@ -133,7 +150,12 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
       <div className="flex items-center justify-between pb-1.5 border-b border-[#F0EEE6]/80 overflow-x-auto no-scrollbar gap-2 flex-shrink-0">
         <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
           {[
-            { id: 'slots', label: 'Media Slots', icon: <Layers className="w-3.5 h-3.5" /> },
+            {
+              id: 'filmstrip',
+              label: `Filmstrip (${slideCount})`,
+              icon: <Film className="w-3.5 h-3.5 text-amber-500" />,
+            },
+            { id: 'slots', label: 'Media Frames', icon: <Layers className="w-3.5 h-3.5" /> },
             { id: 'text', label: 'Text & Quotes', icon: <Type className="w-3.5 h-3.5" /> },
             { id: 'decorations', label: 'Tape & Clips', icon: <Paperclip className="w-3.5 h-3.5" /> },
             { id: 'paper', label: 'Paper Texture', icon: <Palette className="w-3.5 h-3.5" /> },
@@ -224,6 +246,32 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
       {/* Content (Visible when NOT collapsed) */}
       {!isCollapsed && (
         <div className="w-full transition-opacity duration-200 animate-in fade-in-50">
+
+      {/* ---------------------------------------------------- */}
+      {/* 0. 35MM FILMSTRIP & PROJECT SLIDES TAB               */}
+      {/* ---------------------------------------------------- */}
+      {activeTab === 'filmstrip' && (
+        <ProjectFilmstrip
+          project={project || null}
+          activeCollage={template}
+          onSelectSlide={(index) => {
+            if (onSelectProjectSlide) onSelectProjectSlide(index);
+          }}
+          onDuplicateSlide={(index) => {
+            if (onDuplicateProjectSlide) onDuplicateProjectSlide(index);
+          }}
+          onDeleteSlide={(index) => {
+            if (onDeleteProjectSlide) onDeleteProjectSlide(index);
+          }}
+          onReorderSlides={(fromIndex, toIndex) => {
+            if (onReorderProjectSlides) onReorderProjectSlides(fromIndex, toIndex);
+          }}
+          onAddNewSlide={() => {
+            if (onAddNewSlide) onAddNewSlide();
+          }}
+          onOpenTemplateSelector={onOpenTemplateSelector}
+        />
+      )}
 
       {/* ---------------------------------------------------- */}
       {/* 1. MEDIA SLOTS TAB                                  */}

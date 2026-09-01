@@ -20,7 +20,11 @@ import { TemplateCanvasRenderer } from './components/template/TemplateCanvasRend
 import { TemplateCustomizerBar } from './components/template/TemplateCustomizerBar';
 import { TemplateSelectorDrawer } from './components/template/TemplateSelectorDrawer';
 import { soundFx } from './utils/audio';
-import { Sparkles, Grid, Eye, RefreshCw, LayoutTemplate, Sliders, ChevronUp } from 'lucide-react';
+import {
+  Sparkles, Grid, Eye, RefreshCw, LayoutTemplate, Sliders, ChevronUp,
+  Layers, Plus, Copy, Trash2, ChevronLeft, ChevronRight, FolderPlus,
+  FolderOpen
+} from 'lucide-react';
 
 const STORAGE_KEY_CUSTOM_PRESETS = 'lumenlab_custom_presets_v1';
 const STORAGE_KEY_FAVORITES = 'lumenlab_favorite_presets_v1';
@@ -308,6 +312,8 @@ export default function App() {
       ? createAdjustmentsCopy(template.adjustments)
       : createAdjustmentsCopy(defaultAdjustments);
 
+    const collagesList: CollageTemplate[] = collageToUse ? [{ ...collageToUse }] : [];
+
     const newProject: Project = {
       id: `proj-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: name.trim() || collageToUse?.name || template?.name || 'Untitled Project',
@@ -318,6 +324,8 @@ export default function App() {
       media: newMedia,
       adjustments: newAdj,
       thumbnailUrl: collageToUse ? collageToUse.previewThumbnail : newMedia.url,
+      collages: collagesList,
+      activeCollageIndex: collagesList.length > 0 ? 0 : undefined,
       activeCollage: collageToUse || undefined,
     };
 
@@ -338,7 +346,11 @@ export default function App() {
   const handleSelectProject = (project: Project) => {
     setCurrentProjectId(project.id);
     setCurrentMedia(project.media);
-    setActiveCollage(project.activeCollage || null);
+    const activeCol =
+      project.activeCollage ||
+      (project.collages && project.collages[project.activeCollageIndex || 0]) ||
+      null;
+    setActiveCollage(activeCol);
     setSelectedSlotId(null);
     setSelectedTextId(null);
     const newAdj = createAdjustmentsCopy(project.adjustments);
@@ -349,9 +361,231 @@ export default function App() {
     soundFx.playHapticTick();
   };
 
+  // Update active collage and auto-persist to active project slide
+  const handleUpdateActiveCollage = (updated: CollageTemplate | null) => {
+    setActiveCollage(updated);
+    if (currentProjectId && updated) {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== currentProjectId) return p;
+          const currentCollages =
+            p.collages && p.collages.length > 0 ? [...p.collages] : [updated];
+          const idx = p.activeCollageIndex ?? 0;
+          if (idx >= 0 && idx < currentCollages.length) {
+            currentCollages[idx] = updated;
+          } else {
+            currentCollages.push(updated);
+          }
+          return {
+            ...p,
+            updatedAt: Date.now(),
+            activeCollage: updated,
+            collages: currentCollages,
+            thumbnailUrl: updated.previewThumbnail || p.thumbnailUrl,
+          };
+        })
+      );
+    }
+  };
+
+  // Add a new collage / template slide into the currently open project
+  const handleAddCollageToCurrentProject = (newCollage: CollageTemplate) => {
+    if (!currentProjectId) {
+      handleCreateProject(newCollage.name, undefined, undefined, undefined, newCollage);
+      return;
+    }
+
+    const currentSlideCount = currentProject?.collages?.length || 1;
+    const clonedCollage: CollageTemplate = {
+      ...newCollage,
+      id: `slide-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: `${newCollage.name} #${currentSlideCount + 1}`,
+      slots: newCollage.slots.map((s, idx) => ({
+        ...s,
+        id: `slot-${Date.now()}-${idx}`,
+      })),
+    };
+
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id !== currentProjectId) return p;
+        const existing =
+          p.collages && p.collages.length > 0
+            ? [...p.collages]
+            : p.activeCollage
+            ? [p.activeCollage]
+            : [];
+        const updatedList = [...existing, clonedCollage];
+        return {
+          ...p,
+          updatedAt: Date.now(),
+          collages: updatedList,
+          activeCollageIndex: updatedList.length - 1,
+          activeCollage: clonedCollage,
+        };
+      })
+    );
+
+    setActiveCollage(clonedCollage);
+    setSelectedSlotId(null);
+    setSelectedTextId(null);
+    if (clonedCollage.adjustments) {
+      updateAdjustments(createAdjustmentsCopy(clonedCollage.adjustments));
+    }
+    soundFx.playShutter();
+  };
+
+  // Switch between slides in the current project
+  const handleSelectProjectSlide = (index: number) => {
+    if (!currentProject || !currentProject.collages || !currentProject.collages[index]) return;
+    const targetCollage = currentProject.collages[index];
+    setActiveCollage(targetCollage);
+    setSelectedSlotId(null);
+    setSelectedTextId(null);
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === currentProjectId
+          ? { ...p, activeCollageIndex: index, activeCollage: targetCollage }
+          : p
+      )
+    );
+    if (targetCollage.adjustments) {
+      updateAdjustments(createAdjustmentsCopy(targetCollage.adjustments));
+    }
+    soundFx.playHapticTick();
+  };
+
+  // Duplicate the current project slide
+  const handleDuplicateProjectSlide = (index?: number) => {
+    if (!currentProject) return;
+    const targetIdx =
+      typeof index === 'number'
+        ? index
+        : (currentProject.activeCollageIndex ?? 0);
+    const source =
+      (currentProject.collages && currentProject.collages[targetIdx]) ||
+      currentProject.activeCollage ||
+      activeCollage;
+    if (!source) return;
+
+    const cloned: CollageTemplate = {
+      ...source,
+      id: `slide-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: `${source.name} (Copy)`,
+      slots: source.slots.map((s, idx) => ({ ...s, id: `slot-${Date.now()}-${idx}` })),
+    };
+
+    const existing =
+      currentProject.collages && currentProject.collages.length > 0
+        ? [...currentProject.collages]
+        : [source];
+    const updatedList = [...existing, cloned];
+    const newIdx = updatedList.length - 1;
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === currentProjectId
+          ? {
+              ...p,
+              updatedAt: Date.now(),
+              collages: updatedList,
+              activeCollageIndex: newIdx,
+              activeCollage: cloned,
+            }
+          : p
+      )
+    );
+
+    setActiveCollage(cloned);
+    setSelectedSlotId(null);
+    setSelectedTextId(null);
+    soundFx.playShutter();
+  };
+
+  // Delete a slide from the current project
+  const handleDeleteProjectSlide = (index: number) => {
+    if (!currentProject || !currentProject.collages || currentProject.collages.length <= 1) return;
+    const updatedList = currentProject.collages.filter((_, i) => i !== index);
+    const nextIdx = Math.max(0, Math.min(index, updatedList.length - 1));
+    const nextCollage = updatedList[nextIdx];
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === currentProjectId
+          ? {
+              ...p,
+              updatedAt: Date.now(),
+              collages: updatedList,
+              activeCollageIndex: nextIdx,
+              activeCollage: nextCollage,
+            }
+          : p
+      )
+    );
+
+    setActiveCollage(nextCollage);
+    setSelectedSlotId(null);
+    setSelectedTextId(null);
+    soundFx.playHapticTick();
+  };
+
+  // Reorder slides in the current project (drag & drop / nudge)
+  const handleReorderProjectSlides = (fromIndex: number, toIndex: number) => {
+    if (!currentProjectId || !currentProject) return;
+    const list =
+      currentProject.collages && currentProject.collages.length > 0
+        ? [...currentProject.collages]
+        : currentProject.activeCollage
+        ? [currentProject.activeCollage]
+        : [];
+
+    if (
+      fromIndex < 0 ||
+      fromIndex >= list.length ||
+      toIndex < 0 ||
+      toIndex >= list.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+
+    const [movedItem] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, movedItem);
+
+    // Track new active index
+    const currentActiveIdx = currentProject.activeCollageIndex ?? 0;
+    let newActiveIdx = currentActiveIdx;
+    if (currentActiveIdx === fromIndex) {
+      newActiveIdx = toIndex;
+    } else if (fromIndex < currentActiveIdx && toIndex >= currentActiveIdx) {
+      newActiveIdx = currentActiveIdx - 1;
+    } else if (fromIndex > currentActiveIdx && toIndex <= currentActiveIdx) {
+      newActiveIdx = currentActiveIdx + 1;
+    }
+
+    const activeCol = list[newActiveIdx] || currentProject.activeCollage || activeCollage;
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === currentProjectId
+          ? {
+              ...p,
+              updatedAt: Date.now(),
+              collages: list,
+              activeCollageIndex: newActiveIdx,
+              activeCollage: activeCol,
+            }
+          : p
+      )
+    );
+
+    setActiveCollage(activeCol);
+    soundFx.playHapticTick();
+  };
+
   // Switch to a new collage template directly
   const handleSelectCollageTemplate = (template: CollageTemplate) => {
-    setActiveCollage(template);
+    handleUpdateActiveCollage(template);
     setSelectedSlotId(null);
     setSelectedTextId(null);
     if (template.adjustments) {
@@ -390,7 +624,7 @@ export default function App() {
     const updatedSlots = activeCollage.slots.map((s) =>
       s.id === activeUploadSlotId ? { ...s, media: newMedia } : s
     );
-    setActiveCollage({ ...activeCollage, slots: updatedSlots });
+    handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots });
     setActiveUploadSlotId(null);
     if (slotUploadInputRef.current) slotUploadInputRef.current.value = '';
   };
@@ -472,7 +706,7 @@ export default function App() {
       setUserMediaLibrary((prev) => [...batchMediaItems, ...prev]);
     }
 
-    setActiveCollage({ ...targetCollage, slots: updatedSlots });
+    handleUpdateActiveCollage({ ...targetCollage, slots: updatedSlots });
     if (appBatchFileInputRef.current) appBatchFileInputRef.current.value = '';
   };
 
@@ -820,27 +1054,110 @@ export default function App() {
 
       {/* Main Canvas Viewport Area */}
       <section className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 bg-[#F5F2EB]">
-        {/* Template Mode Controls Header Bar */}
+        {/* Template & Project Mode Controls Header Bar */}
         {activeCollage && (
-          <div className="absolute top-2 left-3 right-3 sm:top-3 sm:left-4 sm:right-4 z-20 flex items-center justify-between pointer-events-none">
-            <div className="flex items-center gap-1.5 pointer-events-auto bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#E6E2D3] shadow-sm">
-              <LayoutTemplate className="w-3.5 h-3.5 text-[#2A2723]" />
-              <span className="text-xs font-bold text-[#2A2723]">
-                {activeCollage.name}
-              </span>
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]">
-                {activeCollage.aspectLabel}
-              </span>
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-neutral-900 text-white">
-                {activeCollage.slots.length} Frames
-              </span>
+          <div className="absolute top-2 left-3 right-3 sm:top-3 sm:left-4 sm:right-4 z-20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pointer-events-none">
+            {/* Left: Project Badge & Active Template Info / Slide Switcher */}
+            <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-2xl border border-[#E6E2D3] shadow-md max-w-full overflow-x-auto no-scrollbar">
+              {/* Project Title Tag */}
+              {currentProject && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProjectsModalTab('my-projects');
+                    setIsProjectsModalOpen(true);
+                    soundFx.playHapticTick();
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] text-[11px] font-semibold transition-colors"
+                  title="Open Project Studio"
+                >
+                  <FolderOpen className="w-3 h-3 text-[#A69480]" />
+                  <span className="max-w-[120px] truncate">{currentProject.name}</span>
+                </button>
+              )}
+
+              {/* Multi-Slide Chips (if project has collages list) */}
+              {currentProject?.collages && currentProject.collages.length > 0 ? (
+                <div className="flex items-center gap-1">
+                  {currentProject.collages.map((col, idx) => {
+                    const isSlideActive = (currentProject.activeCollageIndex ?? 0) === idx;
+                    return (
+                      <button
+                        key={col.id || idx}
+                        type="button"
+                        onClick={() => handleSelectProjectSlide(idx)}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all ${
+                          isSlideActive
+                            ? 'bg-[#2A2723] text-white shadow-xs'
+                            : 'bg-[#FAF9F6] text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
+                        }`}
+                      >
+                        <Layers className="w-2.5 h-2.5" />
+                        <span>Slide {idx + 1}</span>
+                      </button>
+                    );
+                  })}
+
+                  {/* Add Slide Quick Action */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProjectsModalTab('templates');
+                      setIsProjectsModalOpen(true);
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#EAE6DF] text-[#2A2723] border border-dashed border-[#A69480] text-[10px] font-semibold transition-colors"
+                    title="Add Template as New Slide"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span className="hidden xs:inline">Slide</span>
+                  </button>
+
+                  {/* Slide actions: Duplicate / Delete */}
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicateProjectSlide()}
+                    className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors"
+                    title="Duplicate active slide"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+
+                  {currentProject.collages.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDeleteProjectSlide(
+                          currentProject.activeCollageIndex ?? 0
+                        )
+                      }
+                      className="p-1 rounded-md text-[#7E7365] hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="Delete active slide"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <LayoutTemplate className="w-3.5 h-3.5 text-[#2A2723]" />
+                  <span className="text-xs font-bold text-[#2A2723]">
+                    {activeCollage.name}
+                  </span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]">
+                    {activeCollage.aspectLabel}
+                  </span>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 pointer-events-auto">
+            {/* Right: Quick Action Controls */}
+            <div className="flex items-center gap-1.5 pointer-events-auto">
               <button
                 type="button"
                 onClick={() => {
-                  setIsTemplateDrawerOpen(true);
+                  setProjectsModalTab('templates');
+                  setIsProjectsModalOpen(true);
                   soundFx.playHapticTick();
                 }}
                 className="px-3 py-1.5 rounded-full bg-[#2A2723] text-white text-xs font-semibold shadow-sm hover:bg-black flex items-center gap-1.5 transition-all"
@@ -873,10 +1190,10 @@ export default function App() {
             onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, false)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center p-2 pt-10 sm:pt-12 overflow-y-auto">
+          <div className="w-full h-full flex items-center justify-center p-2 pt-14 sm:pt-14 overflow-y-auto">
             <TemplateCanvasRenderer
               template={activeCollage}
-              onChangeTemplate={(updated) => setActiveCollage(updated)}
+              onChangeTemplate={handleUpdateActiveCollage}
               selectedSlotId={selectedSlotId}
               onSelectSlot={setSelectedSlotId}
               selectedTextId={selectedTextId}
@@ -907,7 +1224,7 @@ export default function App() {
                 const updatedSlots = activeCollage.slots.map((s) =>
                   s.id === slotId ? { ...s, media: newMedia } : s
                 );
-                setActiveCollage({ ...activeCollage, slots: updatedSlots });
+                handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots });
               }}
             />
           </div>
@@ -918,7 +1235,7 @@ export default function App() {
       {activeCollage ? (
         <TemplateCustomizerBar
           template={activeCollage}
-          onChangeTemplate={(updated) => setActiveCollage(updated)}
+          onChangeTemplate={handleUpdateActiveCollage}
           selectedSlotId={selectedSlotId}
           onSelectSlot={setSelectedSlotId}
           selectedTextId={selectedTextId}
@@ -936,6 +1253,15 @@ export default function App() {
           onOpenExport={() => setIsExportOpen(true)}
           isCollapsed={isBottomDrawerCollapsed}
           onToggleCollapse={() => setIsBottomDrawerCollapsed((prev) => !prev)}
+          project={currentProject}
+          onSelectProjectSlide={handleSelectProjectSlide}
+          onDuplicateProjectSlide={handleDuplicateProjectSlide}
+          onDeleteProjectSlide={handleDeleteProjectSlide}
+          onReorderProjectSlides={handleReorderProjectSlides}
+          onAddNewSlide={() => {
+            setProjectsModalTab('templates');
+            setIsProjectsModalOpen(true);
+          }}
         />
       ) : (
         <AdjustmentsBar
@@ -973,6 +1299,7 @@ export default function App() {
         userMediaLibrary={userMediaLibrary}
         onSelectProject={handleSelectProject}
         onCreateProject={handleCreateProject}
+        onAddCollageToCurrentProject={handleAddCollageToCurrentProject}
         onDuplicateProject={handleDuplicateProject}
         onDeleteProject={handleDeleteProject}
         onRenameProject={handleRenameProject}
@@ -1023,7 +1350,7 @@ export default function App() {
             const updatedSlots = activeCollage.slots.map((s) =>
               s.id === libraryTargetSlotId ? { ...s, media } : s
             );
-            setActiveCollage({ ...activeCollage, slots: updatedSlots });
+            handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots });
             setSelectedSlotId(libraryTargetSlotId);
             setLibraryTargetSlotId(null);
             setIsMediaLibraryOpen(false);
@@ -1060,13 +1387,14 @@ export default function App() {
         onSavePreset={handleSaveCustomPreset}
       />
 
-      {/* High-Resolution Export Modal (Supports both Single Media and Collage Templates) */}
+      {/* High-Resolution Export Modal (Supports Single Media, Templates, and Multi-Slide Projects) */}
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
         media={currentMedia}
         adjustments={adjustments}
         template={activeCollage}
+        project={currentProject}
       />
     </main>
   );

@@ -4,7 +4,7 @@ import {
   Loader2, Copy, Check, ExternalLink, Send, Instagram, Smartphone, MessageCircle,
   Video, Eye, Heart, Layers, LayoutTemplate
 } from 'lucide-react';
-import { Adjustments, MediaItem, CollageTemplate } from '../types';
+import { Adjustments, MediaItem, CollageTemplate, Project } from '../types';
 import { exportPhoto, exportVideo, exportTemplate, downloadDataUrl, downloadBlob } from '../utils/exportMedia';
 import { soundFx } from '../utils/audio';
 
@@ -14,6 +14,7 @@ interface ExportModalProps {
   media: MediaItem | null;
   adjustments: Adjustments;
   template?: CollageTemplate | null;
+  project?: Project | null;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -22,6 +23,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   media,
   adjustments,
   template,
+  project,
 }) => {
   const [photoFormat, setPhotoFormat] = useState<'image/jpeg' | 'image/png' | 'image/webp'>('image/jpeg');
   const [quality, setQuality] = useState(0.95);
@@ -31,6 +33,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [exportComplete, setExportComplete] = useState(false);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null);
+  const [exportScope, setExportScope] = useState<'current' | 'all-slides'>('current');
+  const [multiSlideProgress, setMultiSlideProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Social sharing state
   const [isSharing, setIsSharing] = useState(false);
@@ -157,7 +161,38 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     setExportComplete(false);
 
     try {
-      if (template) {
+      if (exportScope === 'all-slides' && project?.collages && project.collages.length > 0) {
+        const total = project.collages.length;
+        setMultiSlideProgress({ current: 0, total });
+
+        for (let i = 0; i < total; i++) {
+          const slide = project.collages[i];
+          setMultiSlideProgress({ current: i + 1, total });
+          setProgress(Math.round(((i + 1) / total) * 100));
+
+          const slideAdj = slide.adjustments || adjustments;
+          const dataUrl = await exportTemplate(slide, slideAdj, {
+            format: photoFormat,
+            quality: quality,
+            scale: scale,
+          });
+
+          const ext = photoFormat === 'image/png' ? 'png' : photoFormat === 'image/webp' ? 'webp' : 'jpg';
+          const cleanProjectName = (project.name || 'project').toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const cleanSlideName = (slide.name || `slide_${i + 1}`).toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const filename = `${cleanProjectName}_${i + 1}_${cleanSlideName}.${ext}`;
+          downloadDataUrl(dataUrl, filename);
+
+          // Small delay between multiple downloads so browser handles cleanly
+          await new Promise((r) => setTimeout(r, 400));
+        }
+
+        setIsExporting(false);
+        setExportComplete(true);
+        setMultiSlideProgress(null);
+        soundFx.playHapticTick();
+        showToast(`Successfully exported all ${total} slides in "${project.name}"!`);
+      } else if (template) {
         // Export filled template collage
         const dataUrl = await exportTemplate(template, adjustments, {
           format: photoFormat,
@@ -515,6 +550,71 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               >
                 <X className="w-3.5 h-3.5" />
               </button>
+            </div>
+          )}
+
+          {/* Multi-Slide Project Selector (when project contains multiple templates) */}
+          {project?.collages && project.collages.length > 1 && (
+            <div className="bg-[#FAF9F6] p-3.5 rounded-xl border border-[#E6E2D3] flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#2A2723]" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#2A2723]">
+                    Project Slides Export
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-900 text-white">
+                  {project.collages.length} Slides
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportScope('current');
+                    soundFx.playHapticTick();
+                  }}
+                  className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 transition-all ${
+                    exportScope === 'current'
+                      ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-xs'
+                      : 'bg-white text-[#7E7365] border-[#E6E2D3] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <span className="text-xs font-bold">Current Slide Only</span>
+                  <span className={`text-[10px] truncate ${exportScope === 'current' ? 'text-white/80' : 'text-[#A69480]'}`}>
+                    {template?.name || 'Active template'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportScope('all-slides');
+                    soundFx.playHapticTick();
+                  }}
+                  className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 transition-all ${
+                    exportScope === 'all-slides'
+                      ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-xs'
+                      : 'bg-white text-[#7E7365] border-[#E6E2D3] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <span className="text-xs font-bold">All {project.collages.length} Slides</span>
+                  <span className={`text-[10px] truncate ${exportScope === 'all-slides' ? 'text-white/80' : 'text-[#A69480]'}`}>
+                    Batch download zip/files
+                  </span>
+                </button>
+              </div>
+
+              {multiSlideProgress && (
+                <div className="mt-1 flex items-center justify-between text-xs font-semibold text-[#2A2723] bg-white p-2 rounded-lg border border-[#E6E2D3]">
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Rendering Slide {multiSlideProgress.current} of {multiSlideProgress.total}...
+                  </span>
+                  <span className="font-mono">{Math.round((multiSlideProgress.current / multiSlideProgress.total) * 100)}%</span>
+                </div>
+              )}
             </div>
           )}
 
