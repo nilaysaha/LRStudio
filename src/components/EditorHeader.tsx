@@ -4,7 +4,7 @@ import {
   Download, Eye, SplitSquareVertical, Sparkles, Upload,
   RotateCcw, Menu, X, ChevronLeft, ChevronRight, Sliders, Info, FolderOpen,
   Plus, ChevronDown, Video, LayoutGrid, FileText, Package, Layers, Share2,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, Database, CheckCircle2, HardDrive, AlertCircle, Loader2, Clock
 } from 'lucide-react';
 import { MediaItem, Project } from '../types';
 import { PROJECT_TEMPLATE_TAGS } from '../constants/projectTemplates';
@@ -34,6 +34,11 @@ interface EditorHeaderProps {
   onImportMediaFile?: (file: File) => void;
   onOpenProjectsModal?: () => void;
   onOpenTemplatesGallery?: () => void;
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
+  lastSavedAt?: number | null;
+  totalProjectsCount?: number;
+  onForceSave?: () => void;
+  onReloadFromStorage?: () => void;
 }
 
 export const EditorHeader: React.FC<EditorHeaderProps> = ({
@@ -60,25 +65,35 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onImportMediaFile,
   onOpenProjectsModal,
   onOpenTemplatesGallery,
+  saveStatus = 'saved',
+  lastSavedAt = null,
+  totalProjectsCount = 1,
+  onForceSave,
+  onReloadFromStorage,
 }) => {
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
   const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
+  const [isStorageMenuOpen, setIsStorageMenuOpen] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
+  const storageMenuRef = useRef<HTMLDivElement>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Close save menu on outside click
+  // Close menus on outside click
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (saveMenuRef.current && !saveMenuRef.current.contains(e.target as Node)) {
         setIsSaveMenuOpen(false);
       }
+      if (storageMenuRef.current && !storageMenuRef.current.contains(e.target as Node)) {
+        setIsStorageMenuOpen(false);
+      }
     };
-    if (isSaveMenuOpen) {
+    if (isSaveMenuOpen || isStorageMenuOpen) {
       window.addEventListener('mousedown', handleOutsideClick);
     }
     return () => window.removeEventListener('mousedown', handleOutsideClick);
-  }, [isSaveMenuOpen]);
+  }, [isSaveMenuOpen, isStorageMenuOpen]);
 
   // Desktop horizontal scroll management
   const desktopScrollRef = useRef<HTMLDivElement>(null);
@@ -295,6 +310,126 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                     <span>Templates</span>
                   </button>
                 )}
+
+                {/* Auto-Save & IndexedDB Status Indicator Pill */}
+                <div className="relative flex-shrink-0" ref={storageMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsStorageMenuOpen((prev) => !prev);
+                      soundFx.playHapticTick();
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer shadow-xs select-none whitespace-nowrap ${
+                      saveStatus === 'saving'
+                        ? 'bg-amber-50 text-amber-900 border-amber-300'
+                        : saveStatus === 'error'
+                        ? 'bg-rose-50 text-rose-800 border-rose-300'
+                        : 'bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#4A453E] border-[#E6E2D3]'
+                    }`}
+                    title="Local IndexedDB Persistence Status (Click for details & force sync)"
+                  >
+                    {saveStatus === 'saving' ? (
+                      <>
+                        <Loader2 className="w-3 h-3 text-amber-600 animate-spin" />
+                        <span className="text-[11px] font-semibold text-amber-900">Saving...</span>
+                      </>
+                    ) : saveStatus === 'error' ? (
+                      <>
+                        <AlertCircle className="w-3 h-3 text-rose-600" />
+                        <span className="text-[11px] font-semibold text-rose-700">Save Error</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-xs" />
+                        <Database className="w-3 h-3 text-emerald-700" />
+                        <span className="text-[11px] text-[#2A2723] font-semibold">
+                          Saved ..
+                        </span>
+                      </>
+                    )}
+                    <ChevronDown className={`w-2.5 h-2.5 text-[#7E7365] transition-transform ${isStorageMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Storage Status Popover Dropdown */}
+                  {isStorageMenuOpen && (
+                    <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-[#E6E2D3] rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150 text-[#2A2723]">
+                      <div className="flex items-center justify-between pb-2 border-b border-[#F0EEE6]">
+                        <div className="flex items-center gap-1.5">
+                          <Database className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-[#2A2723]">
+                            IndexedDB Storage
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
+                          Auto-Saved
+                        </span>
+                      </div>
+
+                      <p className="text-[10px] text-[#7E7365] leading-tight">
+                        Project images, collage pages, multi-slide layouts & edits are saved automatically in your browser's persistent IndexedDB.
+                      </p>
+
+                      <div className="flex flex-col gap-1.5 text-xs text-[#7E7365] bg-[#FAF9F6] p-2 rounded-xl border border-[#E6E2D3]/60">
+                        <div className="flex justify-between items-center">
+                          <span>Active Project:</span>
+                          <span className="font-semibold text-[#2A2723] truncate max-w-[130px]">
+                            {currentProject?.name || 'Untitled'}
+                          </span>
+                        </div>
+                        {currentProject?.collages && currentProject.collages.length > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span>Project Slides / Pages:</span>
+                            <span className="font-semibold text-[#2A2723] font-mono">
+                              {currentProject.collages.length}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span>Total Projects:</span>
+                          <span className="font-semibold text-[#2A2723] font-mono">
+                            {totalProjectsCount}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span>Last Synced:</span>
+                          <span className="font-semibold text-[#2A2723] font-mono text-[11px]">
+                            {lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Just now'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-1 flex flex-col gap-1.5">
+                        {onForceSave && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsStorageMenuOpen(false);
+                              onForceSave();
+                            }}
+                            className="w-full py-1.5 px-3 rounded-xl bg-[#2A2723] hover:bg-black text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Force Save to DB Now</span>
+                          </button>
+                        )}
+
+                        {onReloadFromStorage && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsStorageMenuOpen(false);
+                              onReloadFromStorage();
+                            }}
+                            className="w-full py-1.5 px-3 rounded-xl bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#4A453E] hover:text-[#2A2723] text-xs font-medium flex items-center justify-center gap-1.5 border border-[#E6E2D3] transition-colors cursor-pointer"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-[#7E7365]" />
+                            <span>Reload Projects from DB</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Center Quick Tool Actions (Undo, Redo, Compare, Recipe) */}
@@ -691,6 +826,36 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 
           {/* Center/Right: Quick Undo/Redo & Save + Collapsed Hamburger Button */}
           <div className="flex items-center gap-1.5">
+            {/* Mobile Compact DB Status Pill */}
+            <div
+              className={`flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] select-none ${
+                saveStatus === 'saving'
+                  ? 'bg-amber-50 text-amber-900 border-amber-300'
+                  : saveStatus === 'error'
+                  ? 'bg-rose-50 text-rose-800 border-rose-300'
+                  : 'bg-[#FAF9F6] text-[#4A453E] border-[#E6E2D3]'
+              }`}
+              title="Auto-saved to local IndexedDB"
+            >
+              {saveStatus === 'saving' ? (
+                <>
+                  <Loader2 className="w-2.5 h-2.5 text-amber-600 animate-spin" />
+                  <span className="text-[9px] text-amber-900 font-semibold">Saving</span>
+                </>
+              ) : saveStatus === 'error' ? (
+                <>
+                  <AlertCircle className="w-2.5 h-2.5 text-rose-600" />
+                  <span className="text-[9px] text-rose-700 font-semibold">Error</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-xs" />
+                  <Database className="w-2.5 h-2.5 text-emerald-700" />
+                  <span className="text-[9px] font-semibold text-[#2A2723]">Saved</span>
+                </>
+              )}
+            </div>
+
             {/* Compact Undo / Redo */}
             <div className="flex items-center bg-[#FAF9F6] rounded-full border border-[#E6E2D3] p-0.5">
               <button
@@ -795,6 +960,59 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            {/* IndexedDB Auto-Save Status Card in Mobile Drawer */}
+            <div className="bg-[#FAF9F6] p-3 rounded-2xl border border-[#E6E2D3] flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Database className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-[11px] font-bold text-[#2A2723] uppercase tracking-wider">
+                    IndexedDB Local Storage
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200 text-[9px] font-bold">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>Auto-Saved</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-[#7E7365]">
+                Projects, photos, videos & slide edits are stored in your browser's persistent IndexedDB.
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-[#4A453E] pt-1 border-t border-[#E6E2D3]/60">
+                <span>Last Synced:</span>
+                <span className="font-semibold font-mono text-[#2A2723]">
+                  {lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Just now'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {onForceSave && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onForceSave();
+                      closeHamburger();
+                    }}
+                    className="py-1.5 px-2 rounded-xl bg-[#2A2723] text-white text-[11px] font-semibold flex items-center justify-center gap-1 active:scale-95 transition-all"
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>Save Now</span>
+                  </button>
+                )}
+                {onReloadFromStorage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onReloadFromStorage();
+                      closeHamburger();
+                    }}
+                    className="py-1.5 px-2 rounded-xl bg-white border border-[#E6E2D3] text-[#2A2723] text-[11px] font-medium flex items-center justify-center gap-1 active:scale-95 transition-all"
+                  >
+                    <RotateCcw className="w-3 h-3 text-[#7E7365]" />
+                    <span>Reload DB</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Section 0: Active Project & LumenLabs Templates */}

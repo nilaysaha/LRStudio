@@ -798,7 +798,21 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
               </div>
             ) : (
               /* Projects Grid */
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="flex flex-col gap-3.5">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[#2A2723]">Your Saved Projects</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#EAE6D8] text-[#2A2723] font-semibold">
+                      {projects.length} {projects.length === 1 ? 'project' : 'projects'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-[#7E7365]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span>Stored in IndexedDB</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {projects.map((proj) => {
                   const isCurrent = proj.id === currentProjectId;
                   const isEditing = editingProjectId === proj.id;
@@ -998,6 +1012,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                     </div>
                   );
                 })}
+                </div>
               </div>
             )}
           </div>

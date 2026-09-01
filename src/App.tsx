@@ -9,6 +9,15 @@ import { LUMENLAB_PROJECT_TEMPLATES } from './constants/projectTemplates';
 import { COLLAGE_TEMPLATES } from './constants/collageTemplates';
 import { defaultAdjustments, createAdjustmentsCopy } from './constants/defaultAdjustments';
 import { HistorySnapshot, createHistorySnapshot, cloneMediaItem, cloneCollageTemplate } from './utils/history';
+import {
+  isIndexedDBAvailable,
+  loadProjectsFromIndexedDB,
+  saveProjectsToIndexedDB,
+  loadUserMediaFromIndexedDB,
+  saveUserMediaToIndexedDB,
+  saveAppStateItem,
+  loadAppStateItem,
+} from './utils/indexedDB';
 import { EditorHeader } from './components/EditorHeader';
 import { ViewportCanvas } from './components/ViewportCanvas';
 import { AdjustmentsBar } from './components/AdjustmentsBar';
@@ -213,28 +222,144 @@ export default function App() {
   });
 
   // -------------------------------------------------------------
-  // 4. Auto-save & LocalStorage Sync
+  // 4. IndexedDB Persistence & Auto-Save Engine
   // -------------------------------------------------------------
-  // Save user media library to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_USER_MEDIA, JSON.stringify(userMediaLibrary));
-    } catch {
-      // Storage quota or disabled
-    }
-  }, [userMediaLibrary]);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(Date.now());
+  const [isStorageInitialized, setIsStorageInitialized] = useState<boolean>(false);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Save projects and active project id to localStorage
+  // Initial load from IndexedDB on startup
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
-      if (currentProjectId) {
-        localStorage.setItem(STORAGE_KEY_CURRENT_PROJECT_ID, currentProjectId);
+    let isMounted = true;
+    async function loadFromDB() {
+      try {
+        if (!isIndexedDBAvailable()) {
+          setIsStorageInitialized(true);
+          return;
+        }
+
+        const dbProjects = await loadProjectsFromIndexedDB();
+        const dbUserMedia = await loadUserMediaFromIndexedDB();
+        const savedProjectId = await loadAppStateItem<string>('currentProjectId');
+
+        if (isMounted) {
+          if (dbProjects && dbProjects.length > 0) {
+            setProjects(dbProjects);
+            const activeId = savedProjectId && dbProjects.some((p) => p.id === savedProjectId)
+              ? savedProjectId
+              : dbProjects[0].id;
+            setCurrentProjectId(activeId);
+
+            const activeProj = dbProjects.find((p) => p.id === activeId) || dbProjects[0];
+            if (activeProj) {
+              setCurrentMedia(activeProj.media);
+              setAdjustments(createAdjustmentsCopy(activeProj.adjustments));
+              const activeCol =
+                activeProj.activeCollage ||
+                (activeProj.collages && activeProj.collages[activeProj.activeCollageIndex || 0]) ||
+                null;
+              setActiveCollage(activeCol);
+            }
+          } else {
+            // If IndexedDB has no projects yet, seed from localStorage or initial templates
+            try {
+              const legacyProjects = localStorage.getItem(STORAGE_KEY_PROJECTS);
+              if (legacyProjects) {
+                const parsed = JSON.parse(legacyProjects);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  setProjects(parsed);
+                  await saveProjectsToIndexedDB(parsed);
+                } else {
+                  await saveProjectsToIndexedDB(INITIAL_SEEDED_PROJECTS);
+                }
+              } else {
+                await saveProjectsToIndexedDB(INITIAL_SEEDED_PROJECTS);
+              }
+            } catch {
+              await saveProjectsToIndexedDB(INITIAL_SEEDED_PROJECTS);
+            }
+          }
+
+          if (dbUserMedia && dbUserMedia.length > 0) {
+            setUserMediaLibrary(dbUserMedia);
+          } else {
+            try {
+              const legacyMedia = localStorage.getItem(STORAGE_KEY_USER_MEDIA);
+              if (legacyMedia) {
+                const parsed = JSON.parse(legacyMedia);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  setUserMediaLibrary(parsed);
+                  await saveUserMediaToIndexedDB(parsed);
+                }
+              }
+            } catch {}
+          }
+
+          setLastSavedAt(Date.now());
+          setSaveStatus('saved');
+          setIsStorageInitialized(true);
+        }
+      } catch (err) {
+        console.warn('Initial IndexedDB load failed, continuing with memory state:', err);
+        if (isMounted) {
+          setIsStorageInitialized(true);
+          setSaveStatus('saved');
+        }
       }
-    } catch {
-      // Storage quota or disabled
     }
-  }, [projects, currentProjectId]);
+
+    loadFromDB();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Debounced auto-save to IndexedDB whenever projects, userMediaLibrary, or currentProjectId change
+  useEffect(() => {
+    if (!isStorageInitialized) return;
+
+    setSaveStatus('saving');
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        if (projects.length > 0) {
+          await saveProjectsToIndexedDB(projects);
+        }
+        if (userMediaLibrary.length > 0) {
+          await saveUserMediaToIndexedDB(userMediaLibrary);
+        }
+        if (currentProjectId) {
+          await saveAppStateItem('currentProjectId', currentProjectId);
+        }
+
+        // Keep localStorage as auxiliary backup
+        try {
+          localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+          localStorage.setItem(STORAGE_KEY_USER_MEDIA, JSON.stringify(userMediaLibrary));
+          if (currentProjectId) {
+            localStorage.setItem(STORAGE_KEY_CURRENT_PROJECT_ID, currentProjectId);
+          }
+        } catch {}
+
+        setLastSavedAt(Date.now());
+        setSaveStatus('saved');
+      } catch (err) {
+        console.warn('Auto-save to IndexedDB error:', err);
+        setSaveStatus('error');
+      }
+    }, 450);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [projects, userMediaLibrary, currentProjectId, isStorageInitialized]);
 
   // Sync active project state whenever currentMedia, adjustments, or activeCollage change
   useEffect(() => {
@@ -256,6 +381,66 @@ export default function App() {
       })
     );
   }, [adjustments, currentMedia, currentProjectId, activeCollage]);
+
+  // Manual Force Save to IndexedDB
+  const handleForceSaveToIndexedDB = useCallback(async () => {
+    setSaveStatus('saving');
+    try {
+      if (projects.length > 0) {
+        await saveProjectsToIndexedDB(projects);
+      }
+      if (userMediaLibrary.length > 0) {
+        await saveUserMediaToIndexedDB(userMediaLibrary);
+      }
+      if (currentProjectId) {
+        await saveAppStateItem('currentProjectId', currentProjectId);
+      }
+      setLastSavedAt(Date.now());
+      setSaveStatus('saved');
+      soundFx.playHapticTick();
+    } catch (err) {
+      console.warn('Manual force save failed:', err);
+      setSaveStatus('error');
+    }
+  }, [projects, userMediaLibrary, currentProjectId]);
+
+  // Manual Reload from IndexedDB
+  const handleReloadFromIndexedDB = useCallback(async () => {
+    setSaveStatus('saving');
+    try {
+      const dbProjects = await loadProjectsFromIndexedDB();
+      const dbUserMedia = await loadUserMediaFromIndexedDB();
+      const savedProjectId = await loadAppStateItem<string>('currentProjectId');
+
+      if (dbProjects && dbProjects.length > 0) {
+        setProjects(dbProjects);
+        const activeId = savedProjectId && dbProjects.some((p) => p.id === savedProjectId)
+          ? savedProjectId
+          : dbProjects[0].id;
+        setCurrentProjectId(activeId);
+
+        const activeProj = dbProjects.find((p) => p.id === activeId) || dbProjects[0];
+        if (activeProj) {
+          setCurrentMedia(activeProj.media);
+          setAdjustments(createAdjustmentsCopy(activeProj.adjustments));
+          const activeCol =
+            activeProj.activeCollage ||
+            (activeProj.collages && activeProj.collages[activeProj.activeCollageIndex || 0]) ||
+            null;
+          setActiveCollage(activeCol);
+        }
+      }
+      if (dbUserMedia) {
+        setUserMediaLibrary(dbUserMedia);
+      }
+      setLastSavedAt(Date.now());
+      setSaveStatus('saved');
+      soundFx.playHapticTick();
+    } catch (err) {
+      console.warn('Manual reload from IndexedDB failed:', err);
+      setSaveStatus('error');
+    }
+  }, []);
 
   // Sync favorites & custom presets to localStorage
   useEffect(() => {
@@ -1309,6 +1494,11 @@ export default function App() {
           setProjectsModalTab('templates');
           setIsProjectsModalOpen(true);
         }}
+        saveStatus={saveStatus}
+        lastSavedAt={lastSavedAt}
+        totalProjectsCount={projects.length}
+        onForceSave={handleForceSaveToIndexedDB}
+        onReloadFromStorage={handleReloadFromIndexedDB}
       />
 
       {/* Hidden File Input for Customizing Active Template Slot */}
