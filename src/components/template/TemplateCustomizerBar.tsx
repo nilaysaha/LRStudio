@@ -3,7 +3,8 @@ import {
   Layers, Type, Sliders, Palette, Sparkles, Upload,
   Volume2, VolumeX, RotateCw, Trash2, Eye, Check, Frame,
   Plus, Edit3, Grid, Paperclip, BookOpen, Sun, Flame, Video, Camera, FolderPlus,
-  ChevronDown, ChevronUp, Share2, Download, Film
+  ChevronDown, ChevronUp, Share2, Download, Film,
+  Move, Copy, ArrowUp, ArrowDown, AlignCenter, Maximize2, Minimize2
 } from 'lucide-react';
 import {
   CollageTemplate, TemplateSlot, TemplateTextElement,
@@ -403,6 +404,171 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                           </button>
                         )
                       )}
+                    </div>
+                  </div>
+
+                  {/* Position & Size Adjusters */}
+                  <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-[#E6E2D3]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-[#7E7365] uppercase font-semibold flex items-center gap-1">
+                        <Move className="w-3 h-3 text-[#2A2723]" />
+                        <span>Position & Sizing</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateSlot(selectedSlot.id, {
+                            x: 50 - selectedSlot.width / 2,
+                            y: 50 - selectedSlot.height / 2,
+                          });
+                          soundFx.playHapticTick();
+                        }}
+                        className="text-[10px] text-[#0A84FF] font-semibold hover:underline flex items-center gap-0.5"
+                      >
+                        <AlignCenter className="w-3 h-3" />
+                        <span>Center</span>
+                      </button>
+                    </div>
+
+                    {/* X & Y Sliders */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px] text-[#7E7365]">
+                          <span>X: {Math.round(selectedSlot.x)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="90"
+                          value={Math.round(selectedSlot.x)}
+                          onChange={(e) => updateSlot(selectedSlot.id, { x: Number(e.target.value) })}
+                          className="w-full h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px] text-[#7E7365]">
+                          <span>Y: {Math.round(selectedSlot.y)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="90"
+                          value={Math.round(selectedSlot.y)}
+                          onChange={(e) => updateSlot(selectedSlot.id, { y: Number(e.target.value) })}
+                          className="w-full h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Width & Height Sliders */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px] text-[#7E7365]">
+                          <span>Width: {Math.round(selectedSlot.width)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="15"
+                          max="95"
+                          value={Math.round(selectedSlot.width)}
+                          onChange={(e) => updateSlot(selectedSlot.id, { width: Number(e.target.value) })}
+                          className="w-full h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px] text-[#7E7365]">
+                          <span>Height: {Math.round(selectedSlot.height)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="15"
+                          max="95"
+                          value={Math.round(selectedSlot.height)}
+                          onChange={(e) => updateSlot(selectedSlot.id, { height: Number(e.target.value) })}
+                          className="w-full h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Rotation Angle */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[10px] text-[#7E7365]">
+                        <span className="flex items-center gap-1">
+                          <RotateCw className="w-3 h-3" />
+                          <span>Rotation: {Math.round(selectedSlot.rotation || 0)}°</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateSlot(selectedSlot.id, { rotation: 0 });
+                            soundFx.playHapticTick();
+                          }}
+                          className="text-[9px] text-[#7E7365] hover:text-[#2A2723] underline"
+                        >
+                          Reset 0°
+                        </button>
+                      </div>
+                      <input
+                        type="range"
+                        min="-45"
+                        max="45"
+                        value={Math.round(selectedSlot.rotation || 0)}
+                        onChange={(e) => updateSlot(selectedSlot.id, { rotation: Number(e.target.value) })}
+                        className="w-full h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
+                      />
+                    </div>
+
+                    {/* Quick Layer & Action Bar */}
+                    <div className="flex items-center justify-between gap-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentZ = selectedSlot.zIndex || 2;
+                          updateSlot(selectedSlot.id, { zIndex: currentZ + 1 });
+                          soundFx.playHapticTick();
+                        }}
+                        className="flex-1 py-1 px-1.5 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded-lg text-[10px] font-medium text-[#2A2723] flex items-center justify-center gap-1"
+                        title="Bring Forward"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                        <span>Forward</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentZ = selectedSlot.zIndex || 2;
+                          updateSlot(selectedSlot.id, { zIndex: Math.max(1, currentZ - 1) });
+                          soundFx.playHapticTick();
+                        }}
+                        className="flex-1 py-1 px-1.5 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded-lg text-[10px] font-medium text-[#2A2723] flex items-center justify-center gap-1"
+                        title="Send Backward"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                        <span>Back</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSlot: TemplateSlot = {
+                            ...selectedSlot,
+                            id: `slot-${Date.now()}`,
+                            label: `${selectedSlot.label || 'Frame'} Copy`,
+                            x: Math.min(70, selectedSlot.x + 5),
+                            y: Math.min(70, selectedSlot.y + 5),
+                            zIndex: (selectedSlot.zIndex || 2) + 1,
+                          };
+                          onChangeTemplate({ ...template, slots: [...template.slots, newSlot] });
+                          onSelectSlot(newSlot.id);
+                          soundFx.playShutter();
+                        }}
+                        className="flex-1 py-1 px-1.5 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded-lg text-[10px] font-medium text-[#2A2723] flex items-center justify-center gap-1"
+                        title="Duplicate Frame"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Duplicate</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1000,6 +1166,99 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     {t.label}
                   </button>
                 ))}
+              </div>
+
+              {/* Quick Transform and Position Bar for Bottom Drawer */}
+              <div className="w-full flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E6E2D3]">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#7E7365] font-medium flex items-center gap-1">
+                    <Move className="w-3 h-3 text-[#2A2723]" />
+                    <span>Pos:</span>
+                  </span>
+                  <div className="flex items-center gap-1 text-[11px] text-[#2A2723] font-mono bg-white px-2 py-0.5 rounded border border-[#E6E2D3]">
+                    <span>X: {Math.round(selectedSlot.x)}%</span>
+                    <span>•</span>
+                    <span>Y: {Math.round(selectedSlot.y)}%</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateSlot(selectedSlot.id, {
+                        x: 50 - selectedSlot.width / 2,
+                        y: 50 - selectedSlot.height / 2,
+                      });
+                      soundFx.playHapticTick();
+                    }}
+                    className="px-2 py-1 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded text-[11px] font-medium text-[#0A84FF] flex items-center gap-1"
+                  >
+                    <AlignCenter className="w-3 h-3" />
+                    <span>Center</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentRot = selectedSlot.rotation || 0;
+                      updateSlot(selectedSlot.id, { rotation: (currentRot + 15) % 360 });
+                      soundFx.playHapticTick();
+                    }}
+                    className="px-2 py-1 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded text-[11px] font-medium text-[#2A2723] flex items-center gap-1"
+                    title="Rotate +15°"
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    <span>+15°</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentZ = selectedSlot.zIndex || 2;
+                      updateSlot(selectedSlot.id, { zIndex: currentZ + 1 });
+                      soundFx.playHapticTick();
+                    }}
+                    className="p-1 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded text-[#2A2723]"
+                    title="Bring Forward"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentZ = selectedSlot.zIndex || 2;
+                      updateSlot(selectedSlot.id, { zIndex: Math.max(1, currentZ - 1) });
+                      soundFx.playHapticTick();
+                    }}
+                    className="p-1 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded text-[#2A2723]"
+                    title="Send Backward"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newSlot: TemplateSlot = {
+                        ...selectedSlot,
+                        id: `slot-${Date.now()}`,
+                        label: `${selectedSlot.label || 'Frame'} Copy`,
+                        x: Math.min(70, selectedSlot.x + 5),
+                        y: Math.min(70, selectedSlot.y + 5),
+                        zIndex: (selectedSlot.zIndex || 2) + 1,
+                      };
+                      onChangeTemplate({ ...template, slots: [...template.slots, newSlot] });
+                      onSelectSlot(newSlot.id);
+                      soundFx.playShutter();
+                    }}
+                    className="px-2 py-1 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded text-[11px] font-medium text-[#2A2723] flex items-center gap-1"
+                    title="Duplicate Frame"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Duplicate</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
