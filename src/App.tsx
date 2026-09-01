@@ -190,7 +190,7 @@ export default function App() {
   const [exportInitialSingleFileType, setExportInitialSingleFileType] = useState<'pdf' | 'strip' | 'zip' | undefined>(undefined);
   const [isSlidePreviewOpen, setIsSlidePreviewOpen] = useState(false);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
-  const [projectsModalTab, setProjectsModalTab] = useState<'my-projects' | 'templates'>('my-projects');
+  const [projectsModalTab, setProjectsModalTab] = useState<'my-projects' | 'templates' | 'library'>('my-projects');
 
   const handleOpenExportWithOptions = (options?: { scope?: 'all-slides' | 'current'; singleFileType?: 'pdf' | 'strip' | 'zip' }) => {
     setExportInitialScope(options?.scope);
@@ -1667,6 +1667,9 @@ export default function App() {
         onRenameProject={handleRenameProject}
         onDeleteUserMedia={(mediaId) => {
           setUserMediaLibrary((prev) => prev.filter((m) => m.id !== mediaId));
+        }}
+        onAddUserMedia={(newMedia) => {
+          setUserMediaLibrary((prev) => [newMedia, ...prev]);
         }}
         onOpenCamera={() => {
           setCameraInitialMode('photo');

@@ -714,24 +714,57 @@ export async function exportTemplate(
     ctx.textAlign = txt.align || 'left';
     ctx.textBaseline = 'top';
 
-    const textMetrics = ctx.measureText(txt.text);
-    const tWidth = textMetrics.width;
-    const tHeight = fSize * 1.3;
+    const lines = (txt.text || '').split('\n');
+    const lineHeights = fSize * 1.35;
+    const padX = fSize * 0.45;
+    const padY = fSize * 0.3;
+    let maxLineWidth = 0;
+    lines.forEach((line) => {
+      const w = ctx.measureText(line).width;
+      if (w > maxLineWidth) maxLineWidth = w;
+    });
+    const totalBoxHeight = lines.length * lineHeights + padY * 2;
+    const totalBoxWidth = maxLineWidth + padX * 2;
 
-    // Draw background style if specified
-    if (txt.style === 'callout-box' || txt.style === 'modern-box') {
+    let boxX = -padX;
+    if (txt.align === 'center') boxX = -maxLineWidth / 2 - padX;
+    else if (txt.align === 'right') boxX = -maxLineWidth - padX;
+    const boxY = -padY;
+
+    // Draw background style or custom background color if specified
+    if (
+      txt.backgroundColor &&
+      txt.backgroundColor !== 'transparent' &&
+      txt.backgroundColor !== 'none'
+    ) {
+      ctx.save();
+      if (txt.backgroundOpacity !== undefined) {
+        ctx.globalAlpha = txt.backgroundOpacity;
+      }
+      ctx.fillStyle = txt.backgroundColor;
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, totalBoxWidth, totalBoxHeight, 6);
+        ctx.fill();
+      } else {
+        ctx.fillRect(boxX, boxY, totalBoxWidth, totalBoxHeight);
+      }
+      ctx.restore();
+    } else if (txt.style === 'callout-box' || txt.style === 'modern-box') {
       ctx.fillStyle = 'rgba(20, 20, 20, 0.9)';
-      ctx.fillRect(-6, -4, tWidth + 12, tHeight);
+      ctx.fillRect(boxX, boxY, totalBoxWidth, totalBoxHeight);
     } else if (txt.style === 'memo-card') {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-      ctx.fillRect(-6, -4, tWidth + 12, tHeight);
+      ctx.fillStyle = '#FAF6EE';
+      ctx.fillRect(boxX, boxY, totalBoxWidth, totalBoxHeight);
     } else if (txt.style === 'typewriter-strip') {
-      ctx.fillStyle = '#FDE047';
-      ctx.fillRect(-6, -4, tWidth + 12, tHeight);
+      ctx.fillStyle = '#2A2723';
+      ctx.fillRect(boxX, boxY, totalBoxWidth, totalBoxHeight);
     }
 
     ctx.fillStyle = txt.color || '#2A2723';
-    ctx.fillText(txt.text, 0, 0);
+    lines.forEach((line, idx) => {
+      ctx.fillText(line, 0, idx * lineHeights);
+    });
 
     ctx.restore();
   }

@@ -1233,30 +1233,73 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
           >
             {/* Style wrappers */}
             {txt.style === 'memo-card' ? (
-              <div className="bg-[#FAF6EE] text-[#2A2723] p-3 rounded-xs shadow-md border border-[#E6DEC9] whitespace-pre-line leading-relaxed pointer-events-none">
+              <div
+                className="p-3 rounded-xs shadow-md border border-[#E6DEC9] whitespace-pre-line leading-relaxed pointer-events-none"
+                style={{
+                  backgroundColor:
+                    txt.backgroundColor &&
+                    txt.backgroundColor !== 'transparent' &&
+                    txt.backgroundColor !== 'none'
+                      ? txt.backgroundColor
+                      : '#FAF6EE',
+                }}
+              >
                 <p
                   className={`${fontClass} text-xs font-normal`}
-                  style={{ color: txt.color }}
+                  style={{ color: txt.color || '#2A2723' }}
                 >
                   {txt.text}
                 </p>
               </div>
             ) : txt.style === 'typewriter-strip' ? (
-              <div className="bg-[#2A2723] text-white px-2 py-0.5 rounded-xs shadow-sm inline-block pointer-events-none">
+              <div
+                className="px-2 py-0.5 rounded-xs shadow-sm inline-block pointer-events-none"
+                style={{
+                  backgroundColor:
+                    txt.backgroundColor &&
+                    txt.backgroundColor !== 'transparent' &&
+                    txt.backgroundColor !== 'none'
+                      ? txt.backgroundColor
+                      : '#2A2723',
+                }}
+              >
                 <span
                   className={`${fontClass} text-[11px] tracking-wider`}
-                  style={{ color: '#FFFFFF' }}
+                  style={{ color: txt.color || '#FFFFFF' }}
                 >
                   {txt.text}
                 </span>
               </div>
+            ) : txt.backgroundColor &&
+              txt.backgroundColor !== 'transparent' &&
+              txt.backgroundColor !== 'none' ? (
+              <div
+                className="px-2.5 py-1 rounded-md shadow-xs border border-black/10 inline-block pointer-events-none transition-colors"
+                style={{
+                  backgroundColor: txt.backgroundColor,
+                  opacity: txt.backgroundOpacity !== undefined ? txt.backgroundOpacity : 1,
+                }}
+              >
+                <p
+                  className={`${fontClass} leading-tight whitespace-pre-line ${
+                    txt.uppercase ? 'uppercase' : ''
+                  }`}
+                  style={{
+                    color: txt.color || '#2A2723',
+                    fontSize: `${txt.fontSize}px`,
+                    letterSpacing: txt.letterSpacing,
+                  }}
+                >
+                  {txt.text}
+                </p>
+              </div>
             ) : (
               <p
-                className={`${fontClass} leading-tight pointer-events-none ${
+                className={`${fontClass} leading-tight pointer-events-none whitespace-pre-line ${
                   txt.uppercase ? 'uppercase' : ''
                 }`}
                 style={{
-                  color: txt.color,
+                  color: txt.color || '#2A2723',
                   fontSize: `${txt.fontSize}px`,
                   letterSpacing: txt.letterSpacing,
                 }}

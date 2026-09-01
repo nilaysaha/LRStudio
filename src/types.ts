@@ -320,6 +320,8 @@ export interface TemplateTextElement {
   fontFamily: TextFontFamily;
   fontSize: number; // relative base size
   color: string;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
   align: 'left' | 'center' | 'right';
   x: number; // percentage 0 to 100
   y: number; // percentage 0 to 100

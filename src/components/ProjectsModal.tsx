@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X, Plus, Sparkles, FolderOpen, Trash2, Copy, Edit2, Check,
   Search, ArrowRight, Upload, Film, Camera, Video,
   Layers, Heart, Sun, Eye, Zap, Compass, PenTool, Flame,
   Smartphone, BookOpen, Paperclip, Grid, LayoutGrid, LayoutTemplate,
-  Sliders, Image as ImageIcon, CheckCircle2
+  Sliders, Image as ImageIcon, CheckCircle2, HardDrive, CheckSquare,
+  Square, Wand2, Filter, Clock, ArrowUpRight, Shuffle
 } from 'lucide-react';
 import {
   Project, ProjectTemplate, ProjectTemplateTag, MediaItem, Adjustments,
@@ -20,7 +21,7 @@ interface ProjectsModalProps {
   onClose: () => void;
   projects: Project[];
   currentProjectId: string | null;
-  initialTab?: 'my-projects' | 'templates';
+  initialTab?: 'my-projects' | 'templates' | 'library';
   userMediaLibrary?: MediaItem[];
   onSelectProject: (project: Project) => void;
   onCreateProject: (
@@ -35,6 +36,7 @@ interface ProjectsModalProps {
   onDeleteProject: (projectId: string) => void;
   onRenameProject: (projectId: string, newName: string) => void;
   onDeleteUserMedia?: (mediaId: string) => void;
+  onAddUserMedia?: (media: MediaItem) => void;
   onImportFileToProject?: (file: File) => Promise<MediaItem | null>;
   onOpenCamera?: () => void;
   onRecordVideo?: () => void;
@@ -54,16 +56,17 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   onDeleteProject,
   onRenameProject,
   onDeleteUserMedia,
+  onAddUserMedia,
   onOpenCamera,
   onRecordVideo,
 }) => {
-  // Modal active tab: 'my-projects' | 'templates'
-  const [activeTab, setActiveTab] = useState<'my-projects' | 'templates'>(
+  // Modal active tab: 'my-projects' | 'templates' | 'library'
+  const [activeTab, setActiveTab] = useState<'my-projects' | 'templates' | 'library'>(
     initialTab || (projects.length === 0 ? 'templates' : 'my-projects')
   );
 
   // Sync activeTab when modal is reopened or initialTab changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen && initialTab) {
       setActiveTab(initialTab);
     }
@@ -72,7 +75,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   // Scope filter inside templates: 'all' | 'collages' | 'film'
   const [templateScope, setTemplateScope] = useState<'all' | 'collages' | 'film'>('all');
 
-  // Tag filter & search states
+  // Tag filter & search states in Templates
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [slotCountFilter, setSlotCountFilter] = useState<'all' | '2' | '3' | '4' | '6' | '9'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -88,19 +91,33 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   // Collage template custom state (for multi-slot configuration before project creation)
   const [customCollage, setCustomCollage] = useState<CollageTemplate | null>(null);
   const [activeSlotUploadId, setActiveSlotUploadId] = useState<string | null>(null);
+  const [slotPickerDrawerSlotId, setSlotPickerDrawerSlotId] = useState<string | null>(null);
 
   // Blank project creation modal step
   const [isBlankProjectMode, setIsBlankProjectMode] = useState<boolean>(false);
   const [blankProjectType, setBlankProjectType] = useState<'single' | 'split-2' | 'strip-3' | 'bento-4' | 'grid-9'>('single');
   const [blankProjectName, setBlankProjectName] = useState<string>('Untitled Project');
   const [blankProjectMedia, setBlankProjectMedia] = useState<MediaItem | null>(null);
+  const [blankProjectSelectedMediaIds, setBlankProjectSelectedMediaIds] = useState<string[]>([]);
 
   // Inline rename state in My Projects
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingProjectName, setEditingProjectName] = useState<string>('');
 
+  // Library tab filter & multi-select states
+  const [libraryFilter, setLibraryFilter] = useState<'all' | 'image' | 'video'>('all');
+  const [librarySearch, setLibrarySearch] = useState<string>('');
+  const [selectedLibraryIds, setSelectedLibraryIds] = useState<string[]>([]);
+  const [activeLibraryPreviewMedia, setActiveLibraryPreviewMedia] = useState<MediaItem | null>(null);
+  const [isCreatingCollageFromLibrary, setIsCreatingCollageFromLibrary] = useState<boolean>(false);
+  const [selectedLibraryCollageFormat, setSelectedLibraryCollageFormat] = useState<string>('auto');
+
+  // Quick media selector for applying templates to user photo
+  const [activeTemplateUserMedia, setActiveTemplateUserMedia] = useState<MediaItem | null>(null);
+
   const singleFileInputRef = useRef<HTMLInputElement>(null);
   const slotFileInputRef = useRef<HTMLInputElement>(null);
+  const libraryBatchUploadRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -136,16 +153,30 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   const collageCount = LUMENLAB_PROJECT_TEMPLATES.filter((t) => Boolean(t.collageData)).length;
   const filmCount = LUMENLAB_PROJECT_TEMPLATES.filter((t) => !t.collageData).length;
 
+  // Filter library media
+  const filteredUserMedia = userMediaLibrary.filter((m) => {
+    if (libraryFilter !== 'all' && m.type !== libraryFilter) return false;
+    if (librarySearch.trim()) {
+      const q = librarySearch.toLowerCase().trim();
+      return m.name.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
   // Handle open template preview drawer
   const handleOpenTemplatePreview = (tpl: ProjectTemplate) => {
     soundFx.playHapticTick();
     setSelectedTemplate(tpl);
     setNewProjectName(`${tpl.name} Project`);
-    setUploadedMedia(null);
+    setUploadedMedia(activeTemplateUserMedia || null);
 
     if (tpl.collageData) {
       // Clone collage data for custom editing
-      setCustomCollage(JSON.parse(JSON.stringify(tpl.collageData)));
+      const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(tpl.collageData));
+      if (activeTemplateUserMedia && clonedCollage.slots[0]) {
+        clonedCollage.slots[0].media = activeTemplateUserMedia;
+      }
+      setCustomCollage(clonedCollage);
     } else {
       setCustomCollage(null);
     }
@@ -175,6 +206,103 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
     onClose();
   };
 
+  // Start direct single-media project from any user library image
+  const handleStartProjectFromLibraryMedia = (media: MediaItem) => {
+    soundFx.playShutter();
+    onCreateProject(
+      `${media.name} Project`,
+      undefined,
+      media,
+      createAdjustmentsCopy(defaultAdjustments)
+    );
+    onClose();
+  };
+
+  // Apply template to library media item
+  const handleApplyTemplateToLibraryMedia = (media: MediaItem, tpl: ProjectTemplate) => {
+    soundFx.playShutter();
+    if (tpl.collageData) {
+      const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(tpl.collageData));
+      if (clonedCollage.slots[0]) {
+        clonedCollage.slots[0].media = media;
+      }
+      onCreateProject(
+        `${media.name} • ${tpl.name}`,
+        tpl,
+        media,
+        createAdjustmentsCopy(clonedCollage.adjustments || tpl.adjustments),
+        clonedCollage
+      );
+    } else {
+      onCreateProject(
+        `${media.name} • ${tpl.name}`,
+        tpl,
+        media,
+        createAdjustmentsCopy(tpl.adjustments)
+      );
+    }
+    onClose();
+  };
+
+  // Create collage from multi-selected library images
+  const handleCreateCollageFromSelectedLibraryItems = () => {
+    const selectedItems = userMediaLibrary.filter((m) => selectedLibraryIds.includes(m.id));
+    if (selectedItems.length === 0) return;
+    soundFx.playShutter();
+
+    const count = selectedItems.length;
+    let baseCollage: CollageTemplate;
+
+    if (count === 2) {
+      baseCollage = COLLAGE_TEMPLATES.find((t) => t.slots.length === 2) || COLLAGE_TEMPLATES[0];
+    } else if (count === 3) {
+      baseCollage = COLLAGE_TEMPLATES.find((t) => t.slots.length === 3) || COLLAGE_TEMPLATES[0];
+    } else if (count === 4) {
+      baseCollage = COLLAGE_TEMPLATES.find((t) => t.slots.length === 4) || COLLAGE_TEMPLATES[0];
+    } else if (count >= 5 && count <= 6) {
+      baseCollage = COLLAGE_TEMPLATES.find((t) => t.slots.length === 6) || COLLAGE_TEMPLATES[0];
+    } else {
+      baseCollage = COLLAGE_TEMPLATES.find((t) => t.slots.length === 9) || COLLAGE_TEMPLATES[0];
+    }
+
+    const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(baseCollage));
+    // Assign selected items into slots in order
+    clonedCollage.slots = clonedCollage.slots.map((slot, index) => {
+      const assignedMedia = selectedItems[index % selectedItems.length];
+      return {
+        ...slot,
+        media: assignedMedia || slot.media,
+      };
+    });
+
+    onCreateProject(
+      `Library Collage (${selectedItems.length} Captures)`,
+      undefined,
+      selectedItems[0],
+      createAdjustmentsCopy(clonedCollage.adjustments),
+      clonedCollage
+    );
+    setSelectedLibraryIds([]);
+    setIsCreatingCollageFromLibrary(false);
+    onClose();
+  };
+
+  // Auto-fill all collage slots from library in template preview drawer
+  const handleAutoFillCollageFromLibrary = () => {
+    if (!customCollage || userMediaLibrary.length === 0) return;
+    soundFx.playShutter();
+
+    const updatedSlots = customCollage.slots.map((slot, index) => {
+      const libraryMedia = userMediaLibrary[index % userMediaLibrary.length];
+      return {
+        ...slot,
+        media: libraryMedia || slot.media,
+      };
+    });
+
+    setCustomCollage({ ...customCollage, slots: updatedSlots });
+  };
+
   // Handle create blank project
   const handleCreateBlankProject = () => {
     soundFx.playShutter();
@@ -201,9 +329,18 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
       }
 
       const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(baseTemplate));
-      if (blankProjectMedia && clonedCollage.slots[0]) {
+      
+      // If user selected multiple library items in blank creator, fill them in
+      if (blankProjectSelectedMediaIds.length > 0) {
+        const pickedMedias = userMediaLibrary.filter((m) => blankProjectSelectedMediaIds.includes(m.id));
+        clonedCollage.slots = clonedCollage.slots.map((slot, idx) => {
+          const picked = pickedMedias[idx % pickedMedias.length];
+          return picked ? { ...slot, media: picked } : slot;
+        });
+      } else if (blankProjectMedia && clonedCollage.slots[0]) {
         clonedCollage.slots[0].media = blankProjectMedia;
       }
+
       onCreateProject(
         nameToUse,
         undefined,
@@ -215,7 +352,73 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
     setIsBlankProjectMode(false);
     setBlankProjectMedia(null);
+    setBlankProjectSelectedMediaIds([]);
     onClose();
+  };
+
+  // Batch or single file upload directly into Library
+  const handleBatchLibraryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    soundFx.playShutter();
+    setIsUploading(true);
+
+    try {
+      const fileList: File[] = Array.from(files);
+      for (const [index, file] of fileList.entries()) {
+        const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
+        const url = URL.createObjectURL(file);
+
+        if (isVideo) {
+          const video = document.createElement('video');
+          video.src = url;
+          await new Promise((res) => {
+            video.onloadedmetadata = res;
+            video.onerror = res;
+          });
+          const newMedia: MediaItem = {
+            id: `media-${Date.now()}-${index}`,
+            name: file.name.replace(/\.[^/.]+$/, ''),
+            type: 'video',
+            url,
+            file,
+            aspectRatio: (video.videoWidth || 1920) / (video.videoHeight || 1080),
+            width: video.videoWidth || 1920,
+            height: video.videoHeight || 1080,
+            duration: video.duration || 10,
+            createdAt: Date.now(),
+            source: 'upload',
+          };
+          onAddUserMedia?.(newMedia);
+        } else {
+          const img = new Image();
+          img.src = url;
+          await new Promise((res) => {
+            img.onload = res;
+            img.onerror = res;
+          });
+          const newMedia: MediaItem = {
+            id: `media-${Date.now()}-${index}`,
+            name: file.name.replace(/\.[^/.]+$/, ''),
+            type: 'image',
+            url,
+            file,
+            aspectRatio: (img.naturalWidth || 1200) / (img.naturalHeight || 1500),
+            width: img.naturalWidth || 1200,
+            height: img.naturalHeight || 1500,
+            createdAt: Date.now(),
+            source: 'upload',
+          };
+          onAddUserMedia?.(newMedia);
+        }
+      }
+    } catch (err) {
+      console.error('Batch library upload error:', err);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   // File upload for single media template
@@ -228,13 +431,15 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
       const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
       const url = URL.createObjectURL(file);
 
+      let mediaItem: MediaItem;
       if (isVideo) {
         const video = document.createElement('video');
         video.src = url;
         await new Promise((res) => {
           video.onloadedmetadata = res;
+          video.onerror = res;
         });
-        setUploadedMedia({
+        mediaItem = {
           id: `media-${Date.now()}`,
           name: file.name.replace(/\.[^/.]+$/, ''),
           type: 'video',
@@ -244,24 +449,31 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
           width: video.videoWidth || 1920,
           height: video.videoHeight || 1080,
           duration: video.duration || 10,
-        });
+          createdAt: Date.now(),
+          source: 'upload',
+        };
       } else {
         const img = new Image();
         img.src = url;
         await new Promise((res) => {
           img.onload = res;
+          img.onerror = res;
         });
-        setUploadedMedia({
+        mediaItem = {
           id: `media-${Date.now()}`,
           name: file.name.replace(/\.[^/.]+$/, ''),
           type: 'image',
           url,
           file,
-          aspectRatio: (img.width || 1200) / (img.height || 1500),
-          width: img.width || 1200,
-          height: img.height || 1500,
-        });
+          aspectRatio: (img.naturalWidth || 1200) / (img.naturalHeight || 1500),
+          width: img.naturalWidth || 1200,
+          height: img.naturalHeight || 1500,
+          createdAt: Date.now(),
+          source: 'upload',
+        };
       }
+      setUploadedMedia(mediaItem);
+      onAddUserMedia?.(mediaItem);
       soundFx.playHapticTick();
     } catch (err) {
       console.error('File import failed:', err);
@@ -289,7 +501,11 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
         aspectRatio: isVideo ? 16 / 9 : 4 / 5,
         width: 1080,
         height: 1920,
+        createdAt: Date.now(),
+        source: 'upload',
       };
+
+      onAddUserMedia?.(newMedia);
 
       const updatedSlots = customCollage.slots.map((s) =>
         s.id === activeSlotUploadId ? { ...s, media: newMedia } : s
@@ -312,7 +528,27 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
       s.id === slotId ? { ...s, media } : s
     );
     setCustomCollage({ ...customCollage, slots: updatedSlots });
+    setSlotPickerDrawerSlotId(null);
     soundFx.playHapticTick();
+  };
+
+  // Toggle selection for library batch actions
+  const handleToggleLibraryItemSelection = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    soundFx.playHapticTick();
+    setSelectedLibraryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Select all or clear library selection
+  const handleToggleSelectAllLibrary = () => {
+    soundFx.playHapticTick();
+    if (selectedLibraryIds.length === filteredUserMedia.length) {
+      setSelectedLibraryIds([]);
+    } else {
+      setSelectedLibraryIds(filteredUserMedia.map((m) => m.id));
+    }
   };
 
   // Save inline rename in My Projects
@@ -348,7 +584,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 select-none">
-      <div className="bg-[#FAF9F6] w-full max-w-5xl h-[92vh] max-h-[860px] rounded-2xl shadow-2xl border border-[#E6E2D3] flex flex-col overflow-hidden">
+      <div className="bg-[#FAF9F6] w-full max-w-5xl h-[92vh] max-h-[880px] rounded-2xl shadow-2xl border border-[#E6E2D3] flex flex-col overflow-hidden">
         
         {/* Hidden File Inputs */}
         <input
@@ -364,6 +600,15 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
           type="file"
           accept="image/*,video/*,.jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.webm"
           onChange={handleSlotFileUpload}
+          className="hidden"
+        />
+
+        <input
+          ref={libraryBatchUploadRef}
+          type="file"
+          multiple
+          accept="image/*,video/*,.jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.webm"
+          onChange={handleBatchLibraryUpload}
           className="hidden"
         />
 
@@ -383,7 +628,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-[#7E7365] hidden sm:block">
-                Create & edit projects with single-media film recipes or multi-frame story & collage layouts
+                Start projects with your own library images & videos, single-media film recipes, or multi-frame collages
               </p>
             </div>
           </div>
@@ -403,14 +648,14 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
         {/* 2. TAB CONTROLS & TOP ACTIONS BAR */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between px-4 sm:px-6 py-2.5 bg-[#F5F2EB] border-b border-[#E6E2D3] gap-2">
-          {/* Tabs Switcher */}
-          <div className="flex items-center bg-white p-1 rounded-xl border border-[#E6E2D3] shadow-xs">
+          {/* Tabs Switcher: My Projects | Templates Studio | My Media Library */}
+          <div className="flex items-center bg-white p-1 rounded-xl border border-[#E6E2D3] shadow-xs overflow-x-auto no-scrollbar">
             <button
               onClick={() => {
                 soundFx.playHapticTick();
                 setActiveTab('my-projects');
               }}
-              className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'my-projects'
                   ? 'bg-[#2A2723] text-white shadow-xs'
                   : 'text-[#7E7365] hover:text-[#2A2723]'
@@ -430,7 +675,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 soundFx.playHapticTick();
                 setActiveTab('templates');
               }}
-              className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'templates'
                   ? 'bg-[#2A2723] text-white shadow-xs'
                   : 'text-[#7E7365] hover:text-[#2A2723]'
@@ -444,10 +689,42 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 {LUMENLAB_PROJECT_TEMPLATES.length}
               </span>
             </button>
+
+            <button
+              onClick={() => {
+                soundFx.playHapticTick();
+                setActiveTab('library');
+              }}
+              className={`flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'library'
+                  ? 'bg-[#2A2723] text-white shadow-xs'
+                  : 'text-[#7E7365] hover:text-[#2A2723]'
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5 text-amber-400" />
+              <span>My Library Media</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                activeTab === 'library' ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
+              }`}>
+                {userMediaLibrary.length}
+              </span>
+            </button>
           </div>
 
           {/* Quick Create Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => {
+                soundFx.playHapticTick();
+                libraryBatchUploadRef.current?.click();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E6E2D3] bg-white text-xs font-semibold text-[#2A2723] hover:bg-[#FAF9F6] hover:border-[#C5BDB2] transition-colors cursor-pointer shadow-xs"
+              title="Upload new photos or videos into your library"
+            >
+              <Upload className="w-3.5 h-3.5 text-amber-600" />
+              <span>Import Media</span>
+            </button>
+
             <button
               onClick={() => {
                 soundFx.playHapticTick();
@@ -468,7 +745,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#2A2723] text-white text-xs font-semibold hover:bg-black transition-colors cursor-pointer shadow-xs"
             >
               <LayoutGrid className="w-3.5 h-3.5 text-amber-300" />
-              <span>Collage Templates</span>
+              <span>Collages</span>
             </button>
           </div>
         </div>
@@ -484,30 +761,29 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 </div>
                 <h3 className="text-base font-bold text-[#2A2723] mb-1">No Projects Created Yet</h3>
                 <p className="text-xs text-[#7E7365] mb-5 leading-relaxed">
-                  Start your creative journey with a multi-frame collage layout or a curated film grading recipe.
+                  Start your creative journey with your own library captures, multi-frame collages, or curated film recipes.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      setActiveTab('library');
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2A2723] text-white text-xs font-semibold hover:bg-black transition-all cursor-pointer shadow-sm"
+                  >
+                    <Camera className="w-4 h-4 text-amber-300" />
+                    <span>Choose from My Library</span>
+                  </button>
                   <button
                     onClick={() => {
                       soundFx.playHapticTick();
                       setActiveTab('templates');
                       setTemplateScope('collages');
                     }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2A2723] text-white text-xs font-semibold hover:bg-black transition-all cursor-pointer shadow-sm"
-                  >
-                    <LayoutGrid className="w-4 h-4 text-amber-300" />
-                    <span>Choose Collage Template</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      soundFx.playHapticTick();
-                      setActiveTab('templates');
-                      setTemplateScope('film');
-                    }}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#E6E2D3] bg-white text-xs font-semibold text-[#2A2723] hover:bg-[#FAF9F6] transition-all cursor-pointer shadow-xs"
                   >
-                    <Film className="w-4 h-4 text-amber-600" />
-                    <span>Film Recipes</span>
+                    <LayoutGrid className="w-4 h-4 text-rose-500" />
+                    <span>Collage Templates</span>
                   </button>
                   <button
                     onClick={() => {
@@ -730,7 +1006,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
         {/* 4. TAB 2: UNIFIED TEMPLATES STUDIO EXPLORER */}
         {activeTab === 'templates' && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Scope Filter Segmented Switch + Search */}
+            {/* Template Top Toolbar: Scope Filter + Search + My Library Photo Tray */}
             <div className="px-4 sm:px-6 py-3 bg-white border-b border-[#E6E2D3] flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
               {/* Main Scope Switcher (All / Collages / Film) */}
               <div className="flex items-center bg-[#FAF9F6] p-1 rounded-xl border border-[#E6E2D3] self-start">
@@ -807,6 +1083,75 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 />
               </div>
             </div>
+
+            {/* Quick Starter: Apply to My Library Photo Banner */}
+            {userMediaLibrary.length > 0 && (
+              <div className="px-4 sm:px-6 py-2 bg-amber-50/60 border-b border-amber-200/70 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Apply Template to My Photo:</span>
+                  </span>
+                  <span className="text-[10px] text-amber-800 hidden lg:inline">
+                    (Pick your library image to immediately initialize templates with it)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      setActiveTemplateUserMedia(null);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                      activeTemplateUserMedia === null
+                        ? 'bg-amber-900 text-white border-amber-900 shadow-xs'
+                        : 'bg-white text-[#2A2723] border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    Sample Photography
+                  </button>
+
+                  {userMediaLibrary.slice(0, 8).map((media) => {
+                    const isSelected = activeTemplateUserMedia?.id === media.id;
+                    return (
+                      <button
+                        key={media.id}
+                        type="button"
+                        onClick={() => {
+                          soundFx.playHapticTick();
+                          setActiveTemplateUserMedia(isSelected ? null : media);
+                        }}
+                        className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                          isSelected
+                            ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-900'
+                            : 'bg-white text-[#2A2723] border-amber-200 hover:bg-amber-100'
+                        }`}
+                        title={media.name}
+                      >
+                        <div className="w-4 h-4 rounded overflow-hidden bg-neutral-900 flex-shrink-0">
+                          <img src={media.url} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <span className="max-w-[80px] truncate">{media.name}</span>
+                        {isSelected && <Check className="w-3 h-3 text-amber-300" />}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      setActiveTab('library');
+                    }}
+                    className="text-[11px] font-bold text-amber-900 hover:underline px-2 whitespace-nowrap"
+                  >
+                    + All {userMediaLibrary.length} Photos →
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Tag Categories Horizontal Carousel */}
             <div className="px-4 sm:px-6 py-2 bg-[#F9F8F5] border-b border-[#E6E2D3] flex items-center justify-between gap-3">
@@ -903,6 +1248,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                   {filteredTemplates.map((tpl) => {
                     const tagInfo = PROJECT_TEMPLATE_TAGS.find((t) => t.id === tpl.tag);
                     const isCollage = Boolean(tpl.collageData);
+                    const previewImgSrc = activeTemplateUserMedia ? activeTemplateUserMedia.url : tpl.previewThumbnail;
 
                     return (
                       <div
@@ -913,7 +1259,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         {/* Image Preview with Badges */}
                         <div className="relative aspect-[4/3] bg-neutral-900 overflow-hidden">
                           <img
-                            src={tpl.previewThumbnail}
+                            src={previewImgSrc}
                             alt={tpl.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
@@ -939,9 +1285,10 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                               </span>
                             ) : null}
 
-                            {tpl.badge && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2A2723] text-white shadow-xs">
-                                {tpl.badge}
+                            {activeTemplateUserMedia && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500 text-white shadow-xs flex items-center gap-1">
+                                <Camera className="w-2.5 h-2.5" />
+                                <span>My Photo</span>
                               </span>
                             )}
                           </div>
@@ -1011,7 +1358,361 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
           </div>
         )}
 
-        {/* 5. TEMPLATE DETAIL & CREATION MODAL DRAWER (Supports Collages & Single-Media) */}
+        {/* 5. TAB 3: DEDICATED "MY MEDIA LIBRARY" VIEW FOR PROJECT SELECTIONS */}
+        {activeTab === 'library' && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Library Action Bar & Filters */}
+            <div className="px-4 sm:px-6 py-3 bg-white border-b border-[#E6E2D3] flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+              {/* Type Filters (All / Photos / Videos) */}
+              <div className="flex items-center bg-[#FAF9F6] p-1 rounded-xl border border-[#E6E2D3] self-start">
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundFx.playHapticTick();
+                    setLibraryFilter('all');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    libraryFilter === 'all'
+                      ? 'bg-[#2A2723] text-white shadow-xs'
+                      : 'text-[#7E7365] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <HardDrive className="w-3.5 h-3.5" />
+                  <span>All Media</span>
+                  <span className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
+                    libraryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
+                  }`}>
+                    {userMediaLibrary.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundFx.playHapticTick();
+                    setLibraryFilter('image');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    libraryFilter === 'image'
+                      ? 'bg-[#2A2723] text-white shadow-xs'
+                      : 'text-[#7E7365] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Photos</span>
+                  <span className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
+                    libraryFilter === 'image' ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
+                  }`}>
+                    {userMediaLibrary.filter((m) => m.type === 'image').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundFx.playHapticTick();
+                    setLibraryFilter('video');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    libraryFilter === 'video'
+                      ? 'bg-[#2A2723] text-white shadow-xs'
+                      : 'text-[#7E7365] hover:text-[#2A2723]'
+                  }`}
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Videos</span>
+                  <span className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
+                    libraryFilter === 'video' ? 'bg-white/20 text-white' : 'bg-[#EAE6D8] text-[#2A2723]'
+                  }`}>
+                    {userMediaLibrary.filter((m) => m.type === 'video').length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Search + Camera / Upload Buttons */}
+              <div className="flex items-center gap-2">
+                <div className="relative w-full md:w-52 flex-shrink-0">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#7E7365]" />
+                  <input
+                    type="text"
+                    placeholder="Search captures..."
+                    value={librarySearch}
+                    onChange={(e) => setLibrarySearch(e.target.value)}
+                    className="w-full bg-[#FAF9F6] border border-[#E6E2D3] rounded-full pl-8 pr-3 py-1.5 text-xs text-[#2A2723] placeholder-[#7E7365] focus:outline-none focus:border-[#2A2723] focus:bg-white transition-colors"
+                  />
+                </div>
+
+                {onOpenCamera && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      onClose();
+                      onOpenCamera();
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl border border-[#E6E2D3] bg-white hover:bg-[#FAF9F6] text-xs font-semibold text-[#2A2723] flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    title="Take Photo"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="hidden sm:inline">Camera</span>
+                  </button>
+                )}
+
+                {onRecordVideo && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      onClose();
+                      onRecordVideo();
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-900 flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    title="Record Video"
+                  >
+                    <Video className="w-3.5 h-3.5 text-red-600" />
+                    <span className="hidden sm:inline">Video</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Multi-Selection Action Strip (when 1 or more media items are selected) */}
+            {selectedLibraryIds.length > 0 && (
+              <div className="px-4 sm:px-6 py-2.5 bg-[#2A2723] text-white flex flex-wrap items-center justify-between gap-2 animate-in slide-in-from-top-2 duration-150">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-amber-300">
+                    {selectedLibraryIds.length} item{selectedLibraryIds.length > 1 ? 's' : ''} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAllLibrary}
+                    className="text-[11px] text-white/70 hover:text-white underline cursor-pointer"
+                  >
+                    {selectedLibraryIds.length === filteredUserMedia.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* If 1 selected: Start Single Project */}
+                  {selectedLibraryIds.length === 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = userMediaLibrary.find((m) => m.id === selectedLibraryIds[0]);
+                        if (target) handleStartProjectFromLibraryMedia(target);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-[#2A2723] rounded-lg text-xs font-bold shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Start Single Project</span>
+                    </button>
+                  )}
+
+                  {/* If 2+ selected: Create Collage Project */}
+                  {selectedLibraryIds.length >= 2 && (
+                    <button
+                      type="button"
+                      onClick={handleCreateCollageFromSelectedLibraryItems}
+                      className="flex items-center gap-1.5 px-3 py-1 bg-rose-500 hover:bg-rose-400 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Create {selectedLibraryIds.length}-Slot Collage Project</span>
+                    </button>
+                  )}
+
+                  {/* Delete Selected */}
+                  {onDeleteUserMedia && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Remove ${selectedLibraryIds.length} item(s) from your library?`)) {
+                          selectedLibraryIds.forEach((id) => onDeleteUserMedia(id));
+                          setSelectedLibraryIds([]);
+                          soundFx.playHapticTick();
+                        }
+                      }}
+                      className="p-1 rounded-lg text-white/70 hover:text-red-400 hover:bg-white/10 cursor-pointer"
+                      title="Delete Selected"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Media Gallery Grid */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              {filteredUserMedia.length === 0 ? (
+                /* Empty Library State */
+                <div className="flex flex-col items-center justify-center h-full text-center p-8 max-w-md mx-auto">
+                  <div className="w-16 h-16 rounded-2xl bg-[#EAE6D8] flex items-center justify-center mb-4 text-[#7E7365]">
+                    <ImageIcon className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-base font-bold text-[#2A2723] mb-1">Your Media Library is Empty</h3>
+                  <p className="text-xs text-[#7E7365] mb-5 leading-relaxed">
+                    Import your own high-resolution photos and videos, or use the built-in camera to take fresh captures and turn them into projects.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundFx.playHapticTick();
+                        libraryBatchUploadRef.current?.click();
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2A2723] text-white text-xs font-semibold hover:bg-black transition-all cursor-pointer shadow-sm"
+                    >
+                      <Upload className="w-4 h-4 text-amber-300" />
+                      <span>Upload Photos / Videos</span>
+                    </button>
+
+                    {onOpenCamera && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundFx.playHapticTick();
+                          onClose();
+                          onOpenCamera();
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#E6E2D3] bg-white text-xs font-semibold text-[#2A2723] hover:bg-[#FAF9F6] transition-all cursor-pointer shadow-xs"
+                      >
+                        <Camera className="w-4 h-4 text-amber-500" />
+                        <span>Take Photo</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Rich Media Grid */
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+                  {filteredUserMedia.map((media) => {
+                    const isSelected = selectedLibraryIds.includes(media.id);
+                    const isVideo = media.type === 'video';
+
+                    return (
+                      <div
+                        key={media.id}
+                        onClick={() => handleToggleLibraryItemSelection(media.id)}
+                        className={`group relative bg-white rounded-xl border transition-all overflow-hidden flex flex-col shadow-xs cursor-pointer ${
+                          isSelected
+                            ? 'border-[#2A2723] ring-2 ring-[#2A2723]'
+                            : 'border-[#E6E2D3] hover:border-[#2A2723] hover:shadow-md'
+                        }`}
+                      >
+                        {/* Thumbnail Viewport */}
+                        <div className="relative aspect-[3/4] bg-neutral-900 overflow-hidden flex items-center justify-center">
+                          {isVideo ? (
+                            <video
+                              src={media.url}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            <img
+                              src={media.url}
+                              alt={media.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          )}
+
+                          {/* Top Left Media Type Badge */}
+                          <div className="absolute top-2 left-2 pointer-events-none z-10">
+                            {isVideo ? (
+                              <span className="px-1.5 py-0.5 rounded bg-red-600/90 text-white text-[9px] font-bold flex items-center gap-1 shadow-xs backdrop-blur-xs">
+                                <Video className="w-2.5 h-2.5" />
+                                <span>VIDEO</span>
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-mono font-semibold backdrop-blur-xs">
+                                {media.width ? `${media.width}×${media.height}` : 'PHOTO'}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Selection Checkbox */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleLibraryItemSelection(media.id, e)}
+                            className={`absolute top-2 right-2 z-10 w-5 h-5 rounded-md flex items-center justify-center transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#2A2723] text-white shadow-xs'
+                                : 'bg-black/40 text-white/80 hover:bg-black/60'
+                            }`}
+                          >
+                            {isSelected ? <Check className="w-3.5 h-3.5" /> : <div className="w-2 h-2 rounded-xs border border-white/80" />}
+                          </button>
+
+                          {/* Hover Action Overlay */}
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5 z-10">
+                            <div className="flex justify-end">
+                              {onDeleteUserMedia && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    soundFx.playHapticTick();
+                                    if (window.confirm(`Delete "${media.name}" from library?`)) {
+                                      onDeleteUserMedia(media.id);
+                                    }
+                                  }}
+                                  className="p-1 rounded bg-black/50 text-white hover:bg-red-600 transition-colors"
+                                  title="Delete item"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartProjectFromLibraryMedia(media);
+                                }}
+                                className="w-full py-1.5 px-2 bg-amber-400 hover:bg-amber-300 text-[#2A2723] text-[10px] font-bold rounded-lg shadow-sm flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>Start Project</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  soundFx.playHapticTick();
+                                  setActiveTemplateUserMedia(media);
+                                  setActiveTab('templates');
+                                }}
+                                className="w-full py-1 px-2 bg-white hover:bg-[#F0EEE6] text-[#2A2723] text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <Sparkles className="w-3 h-3 text-amber-600" />
+                                <span>Apply Recipe</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card Info */}
+                        <div className="p-2 bg-white flex flex-col gap-0.5">
+                          <span className="text-[11px] font-bold text-[#2A2723] truncate" title={media.name}>
+                            {media.name}
+                          </span>
+                          <span className="text-[9px] text-[#7E7365] font-mono">
+                            {media.createdAt ? new Date(media.createdAt).toLocaleDateString() : 'Library Capture'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 6. TEMPLATE DETAIL & CREATION MODAL DRAWER (Supports Collages & Single-Media) */}
         {selectedTemplate && (
           <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
             <div className="bg-[#FAF9F6] w-full max-w-3xl rounded-2xl border border-[#E6E2D3] shadow-2xl flex flex-col overflow-hidden max-h-[92vh]">
@@ -1072,6 +1773,18 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         <LayoutGrid className="w-3 h-3 text-amber-300" />
                         <span>Collage Layout: {customCollage.slots.length} Frames ({customCollage.aspectLabel})</span>
                       </div>
+
+                      {userMediaLibrary.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleAutoFillCollageFromLibrary}
+                          className="absolute top-2.5 right-2.5 bg-amber-400 hover:bg-amber-300 text-[#2A2723] text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Fill all frame slots automatically using your library images"
+                        >
+                          <Shuffle className="w-3 h-3" />
+                          <span>Auto-Fill from My Library</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Slot Media Configurator List */}
@@ -1113,6 +1826,21 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                               </div>
 
                               <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {userMediaLibrary.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      soundFx.playHapticTick();
+                                      setSlotPickerDrawerSlotId(slotPickerDrawerSlotId === slot.id ? null : slot.id);
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-[10px] font-bold text-amber-900 flex items-center gap-1 transition-colors cursor-pointer"
+                                    title="Choose from your library"
+                                  >
+                                    <Camera className="w-3 h-3 text-amber-600" />
+                                    <span>Library</span>
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1120,11 +1848,11 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                                     setActiveSlotUploadId(slot.id);
                                     slotFileInputRef.current?.click();
                                   }}
-                                  className="px-2.5 py-1 rounded-lg bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-[10px] font-semibold text-[#2A2723] flex items-center gap-1 transition-colors cursor-pointer"
+                                  className="px-2 py-1 rounded-lg bg-[#FAF9F6] hover:bg-[#F0EEE6] border border-[#E6E2D3] text-[10px] font-semibold text-[#2A2723] flex items-center gap-1 transition-colors cursor-pointer"
                                   title="Upload photo or video for this frame"
                                 >
                                   <Upload className="w-3 h-3" />
-                                  <span>Replace</span>
+                                  <span>Upload</span>
                                 </button>
                               </div>
                             </div>
@@ -1132,8 +1860,45 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                         })}
                       </div>
 
+                      {/* Expanded Frame Slot Media Picker Tray (when a slot's "Library" is clicked) */}
+                      {slotPickerDrawerSlotId && userMediaLibrary.length > 0 && (
+                        <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 flex flex-col gap-2 animate-in fade-in duration-150">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                              <Camera className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Select Media for Frame #{customCollage.slots.findIndex((s) => s.id === slotPickerDrawerSlotId) + 1}:</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSlotPickerDrawerSlotId(null)}
+                              className="text-[10px] text-amber-900 hover:underline font-semibold"
+                            >
+                              Done
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2 overflow-x-auto p-1.5 bg-white rounded-xl border border-amber-200 no-scrollbar">
+                            {userMediaLibrary.map((m) => (
+                              <div
+                                key={m.id}
+                                onClick={() => handleAssignLibraryMediaToSlot(slotPickerDrawerSlotId, m)}
+                                className="group relative flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden cursor-pointer border border-[#E6E2D3] hover:border-amber-500 hover:scale-105 transition-all shadow-xs"
+                                title={`Use "${m.name}"`}
+                              >
+                                <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <Check className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-[7px] text-white truncate pointer-events-none">
+                                  {m.name}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Choose from Library Carousel for Slots */}
-                      {userMediaLibrary.length > 0 && (
+                      {userMediaLibrary.length > 0 && !slotPickerDrawerSlotId && (
                         <div className="mt-2 p-3 bg-white rounded-xl border border-[#E6E2D3] flex flex-col gap-2">
                           <span className="text-[11px] font-bold text-[#2A2723] flex items-center gap-1.5">
                             <Camera className="w-3.5 h-3.5 text-amber-500" />
@@ -1162,7 +1927,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                                           key={s.id}
                                           type="button"
                                           onClick={() => handleAssignLibraryMediaToSlot(s.id, media)}
-                                          className="px-1.5 py-0.5 bg-white text-[#2A2723] text-[8px] font-bold rounded hover:bg-amber-300"
+                                          className="px-1.5 py-0.5 bg-white text-[#2A2723] text-[8px] font-bold rounded hover:bg-amber-300 cursor-pointer"
                                         >
                                           #{idx + 1}
                                         </button>
@@ -1202,7 +1967,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                           title="Remove custom media item"
                         >
                           <Trash2 className="w-3 h-3" />
-                          <span>Remove Item</span>
+                          <span>Use Sample Media</span>
                         </button>
                       )}
                     </div>
@@ -1449,7 +2214,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
           </div>
         )}
 
-        {/* 6. CREATE BLANK PROJECT MODAL STEP */}
+        {/* 7. CREATE BLANK PROJECT MODAL STEP */}
         {isBlankProjectMode && (
           <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
             <div className="bg-[#FAF9F6] w-full max-w-md rounded-2xl border border-[#E6E2D3] shadow-2xl flex flex-col overflow-hidden">
@@ -1554,13 +2319,17 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                   />
                 </div>
 
+                {/* Choose from Library for Blank Project */}
                 {userMediaLibrary.length > 0 && (
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-[#2A2723] uppercase tracking-wider flex items-center justify-between">
-                      <span>Start with Library Media (Optional)</span>
-                      {blankProjectMedia && (
+                      <span>Start with Library Media ({userMediaLibrary.length} available)</span>
+                      {(blankProjectMedia || blankProjectSelectedMediaIds.length > 0) && (
                         <button
-                          onClick={() => setBlankProjectMedia(null)}
+                          onClick={() => {
+                            setBlankProjectMedia(null);
+                            setBlankProjectSelectedMediaIds([]);
+                          }}
                           className="text-[10px] text-[#7E7365] hover:text-[#2A2723] underline"
                         >
                           Clear selection
@@ -1569,14 +2338,24 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                     </label>
                     <div className="flex items-center gap-2 overflow-x-auto p-1.5 bg-white rounded-xl border border-[#E6E2D3] no-scrollbar">
                       {userMediaLibrary.map((media) => {
-                        const isSelected = blankProjectMedia?.id === media.id;
+                        const isSelected = blankProjectType === 'single'
+                          ? blankProjectMedia?.id === media.id
+                          : blankProjectSelectedMediaIds.includes(media.id);
                         const isVideo = media.type === 'video';
                         return (
                           <div
                             key={media.id}
                             onClick={() => {
                               soundFx.playHapticTick();
-                              setBlankProjectMedia(isSelected ? null : media);
+                              if (blankProjectType === 'single') {
+                                setBlankProjectMedia(isSelected ? null : media);
+                              } else {
+                                setBlankProjectSelectedMediaIds((prev) =>
+                                  prev.includes(media.id)
+                                    ? prev.filter((id) => id !== media.id)
+                                    : [...prev, media.id]
+                                );
+                              }
                             }}
                             className={`group/blankitem relative flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden cursor-pointer border transition-all ${
                               isSelected

@@ -4,7 +4,7 @@ import {
   Volume2, VolumeX, RotateCw, Trash2, Eye, Check, Frame,
   Plus, Edit3, Grid, Paperclip, BookOpen, Sun, Flame, Video, Camera, FolderPlus,
   ChevronDown, ChevronUp, Share2, Download, Film,
-  Move, Copy, ArrowUp, ArrowDown, AlignCenter, Maximize2, Minimize2
+  Move, Copy, ArrowUp, ArrowDown, AlignCenter, AlignLeft, AlignRight, Square, Pipette, Maximize2, Minimize2
 } from 'lucide-react';
 import {
   CollageTemplate, TemplateSlot, TemplateTextElement,
@@ -14,6 +14,33 @@ import {
 } from '../../types';
 import { soundFx } from '../../utils/audio';
 import { ProjectFilmstrip } from './ProjectFilmstrip';
+
+const TEXT_COLORS = [
+  { hex: '#2A2723', label: 'Charcoal' },
+  { hex: '#FFFFFF', label: 'White' },
+  { hex: '#FAF6EE', label: 'Warm Cream' },
+  { hex: '#7E7365', label: 'Editorial Taupe' },
+  { hex: '#D9534F', label: 'Crimson' },
+  { hex: '#E5A93C', label: 'Amber' },
+  { hex: '#0A84FF', label: 'Blue' },
+  { hex: '#2E7D32', label: 'Forest Green' },
+  { hex: '#9C27B0', label: 'Berry' },
+  { hex: '#E91E63', label: 'Rose' },
+];
+
+const TEXT_BG_COLORS = [
+  { hex: 'transparent', label: 'None' },
+  { hex: '#FFFFFF', label: 'Clean White' },
+  { hex: '#FAF6EE', label: 'Warm Ivory' },
+  { hex: '#2A2723', label: 'Charcoal' },
+  { hex: 'rgba(28, 28, 30, 0.85)', label: 'Frosted Dark' },
+  { hex: 'rgba(255, 255, 255, 0.85)', label: 'Frosted Light' },
+  { hex: '#FEF08A', label: 'Highlight Yellow' },
+  { hex: '#FEE2E2', label: 'Soft Rose' },
+  { hex: '#E0F2FE', label: 'AirDrop Blue' },
+  { hex: '#DCFCE7', label: 'Sage Mint' },
+  { hex: '#000000', label: 'Black' },
+];
 
 interface TemplateCustomizerBarProps {
   template: CollageTemplate;
@@ -638,42 +665,348 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
               </div>
 
               {selectedText && (
-                <div className="p-3 bg-[#FAF9F6] rounded-xl border border-[#E6E2D3] flex flex-col gap-2.5">
-                  <span className="text-xs font-bold text-[#2A2723]">Edit Text</span>
-                  <input
-                    type="text"
-                    value={selectedText.text}
-                    onChange={(e) => updateText(selectedText.id, { text: e.target.value })}
-                    className="w-full px-2.5 py-1.5 bg-white border border-[#E6E2D3] rounded-lg text-xs"
-                    placeholder="Enter text..."
-                  />
-                  <div className="grid grid-cols-3 gap-1">
-                    {(
-                      [
-                        'editorial-serif',
-                        'modern-sans',
-                        'typewriter',
-                        'handwritten',
-                        'monospaced',
-                        'display-syne',
-                      ] as TextFontFamily[]
-                    ).map((f) => (
+                <div className="p-3 bg-[#FAF9F6] rounded-xl border border-[#E6E2D3] flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#2A2723] flex items-center gap-1.5">
+                      <Edit3 className="w-3.5 h-3.5 text-[#2A2723]" />
+                      <span>Edit Text</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const filtered = template.textElements.filter((item) => item.id !== selectedText.id);
+                        onChangeTemplate({ ...template, textElements: filtered });
+                        onSelectText(null);
+                        soundFx.playHapticTick();
+                      }}
+                      className="text-[10px] text-rose-600 hover:underline flex items-center gap-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Delete</span>
+                    </button>
+                  </div>
+
+                  {/* Text Content Input */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase font-semibold text-[#7E7365]">Content</label>
+                    <textarea
+                      value={selectedText.text}
+                      onChange={(e) => updateText(selectedText.id, { text: e.target.value })}
+                      rows={selectedText.text.includes('\n') ? 3 : 2}
+                      className="w-full px-2.5 py-1.5 bg-white border border-[#E6E2D3] rounded-lg text-xs text-[#2A2723] focus:outline-none focus:border-[#2A2723] resize-none font-sans"
+                      placeholder="Enter text..."
+                    />
+                  </div>
+
+                  {/* Font Family Selection */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase font-semibold text-[#7E7365]">Font Style</label>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(
+                        [
+                          'editorial-serif',
+                          'modern-sans',
+                          'typewriter',
+                          'handwritten',
+                          'monospaced',
+                          'display-syne',
+                        ] as TextFontFamily[]
+                      ).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => {
+                            updateText(selectedText.id, { fontFamily: f });
+                            soundFx.playHapticTick();
+                          }}
+                          className={`py-1.5 px-1 text-[10px] rounded-md capitalize font-medium truncate transition-colors ${
+                            selectedText.fontFamily === f
+                              ? 'bg-[#2A2723] text-white shadow-xs'
+                              : 'bg-white text-[#7E7365] border border-[#E6E2D3] hover:text-[#2A2723]'
+                          }`}
+                        >
+                          {f.replace('-', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Text Color Selector */}
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-[#E6E2D3]">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] uppercase font-semibold text-[#7E7365] flex items-center gap-1">
+                        <Palette className="w-3 h-3 text-[#2A2723]" />
+                        <span>Text Color</span>
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-[#7E7365] uppercase">
+                          {selectedText.color || '#2A2723'}
+                        </span>
+                        <div
+                          className="w-3.5 h-3.5 rounded-full border border-black/20 shadow-xs"
+                          style={{ backgroundColor: selectedText.color || '#2A2723' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      {TEXT_COLORS.map((c) => {
+                        const isCurrent = (selectedText.color || '#2A2723').toLowerCase() === c.hex.toLowerCase();
+                        return (
+                          <button
+                            key={c.hex}
+                            type="button"
+                            onClick={() => {
+                              updateText(selectedText.id, { color: c.hex });
+                              soundFx.playHapticTick();
+                            }}
+                            title={c.label}
+                            className={`w-5 h-5 rounded-full border transition-all flex items-center justify-center ${
+                              isCurrent
+                                ? 'ring-2 ring-[#0A84FF] ring-offset-1 scale-110 border-black/30'
+                                : 'border-black/20 hover:scale-105'
+                            }`}
+                            style={{ backgroundColor: c.hex }}
+                          >
+                            {isCurrent && (
+                              <div
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  c.hex === '#FFFFFF' || c.hex === '#FAF6EE' ? 'bg-black' : 'bg-white'
+                                }`}
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+
+                      {/* Custom Color Input */}
+                      <label
+                        className="relative flex items-center justify-center w-5 h-5 rounded-full border border-dashed border-[#7E7365] bg-white cursor-pointer hover:border-[#2A2723]"
+                        title="Custom Text Color"
+                      >
+                        <Pipette className="w-2.5 h-2.5 text-[#7E7365]" />
+                        <input
+                          type="color"
+                          value={selectedText.color && selectedText.color.startsWith('#') ? selectedText.color : '#2A2723'}
+                          onChange={(e) => updateText(selectedText.id, { color: e.target.value })}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Text Box Background Color Selector */}
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-[#E6E2D3]">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] uppercase font-semibold text-[#7E7365] flex items-center gap-1">
+                        <Square className="w-3 h-3 text-[#2A2723]" />
+                        <span>Box Background Color</span>
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-[#7E7365] uppercase truncate max-w-[90px]">
+                          {selectedText.backgroundColor &&
+                          selectedText.backgroundColor !== 'transparent' &&
+                          selectedText.backgroundColor !== 'none'
+                            ? selectedText.backgroundColor
+                            : 'None'}
+                        </span>
+                        {selectedText.backgroundColor &&
+                          selectedText.backgroundColor !== 'transparent' &&
+                          selectedText.backgroundColor !== 'none' && (
+                            <div
+                              className="w-3.5 h-3.5 rounded border border-black/20 shadow-xs"
+                              style={{ backgroundColor: selectedText.backgroundColor }}
+                            />
+                          )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      {/* Transparent / None option */}
                       <button
-                        key={f}
                         type="button"
                         onClick={() => {
-                          updateText(selectedText.id, { fontFamily: f });
+                          updateText(selectedText.id, { backgroundColor: 'transparent' });
                           soundFx.playHapticTick();
                         }}
-                        className={`py-1 px-1 text-[10px] rounded-md capitalize font-medium truncate ${
-                          selectedText.fontFamily === f
-                            ? 'bg-[#2A2723] text-white'
-                            : 'bg-white text-[#7E7365] border border-[#E6E2D3]'
+                        title="No Background (Transparent)"
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium border flex items-center gap-1 transition-all ${
+                          !selectedText.backgroundColor ||
+                          selectedText.backgroundColor === 'transparent' ||
+                          selectedText.backgroundColor === 'none'
+                            ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-xs'
+                            : 'bg-white text-[#7E7365] border-[#E6E2D3] hover:text-[#2A2723]'
                         }`}
                       >
-                        {f.replace('-', ' ')}
+                        <span>None</span>
                       </button>
-                    ))}
+
+                      {TEXT_BG_COLORS.filter((bg) => bg.hex !== 'transparent').map((bg) => {
+                        const isCurrent =
+                          selectedText.backgroundColor?.toLowerCase() === bg.hex.toLowerCase();
+                        return (
+                          <button
+                            key={bg.hex}
+                            type="button"
+                            onClick={() => {
+                              updateText(selectedText.id, { backgroundColor: bg.hex });
+                              soundFx.playHapticTick();
+                            }}
+                            title={bg.label}
+                            className={`w-5 h-5 rounded border transition-all flex items-center justify-center ${
+                              isCurrent
+                                ? 'ring-2 ring-[#0A84FF] ring-offset-1 scale-110 border-black/30'
+                                : 'border-black/20 hover:scale-105'
+                            }`}
+                            style={{ backgroundColor: bg.hex }}
+                          >
+                            {isCurrent && (
+                              <div
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  bg.hex === '#FFFFFF' ||
+                                  bg.hex === '#FAF6EE' ||
+                                  bg.hex === '#FEF08A' ||
+                                  bg.hex === '#FEE2E2' ||
+                                  bg.hex === '#E0F2FE' ||
+                                  bg.hex === '#DCFCE7' ||
+                                  bg.hex.includes('255, 255, 255')
+                                    ? 'bg-black'
+                                    : 'bg-white'
+                                }`}
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+
+                      {/* Custom Background Color Input */}
+                      <label
+                        className="relative flex items-center justify-center w-5 h-5 rounded border border-dashed border-[#7E7365] bg-white cursor-pointer hover:border-[#2A2723]"
+                        title="Custom Background Color"
+                      >
+                        <Pipette className="w-2.5 h-2.5 text-[#7E7365]" />
+                        <input
+                          type="color"
+                          value={
+                            selectedText.backgroundColor && selectedText.backgroundColor.startsWith('#')
+                              ? selectedText.backgroundColor
+                              : '#FAF6EE'
+                          }
+                          onChange={(e) => updateText(selectedText.id, { backgroundColor: e.target.value })}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Font Size & Alignment */}
+                  <div className="flex flex-col gap-2 pt-2 border-t border-[#E6E2D3]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-semibold text-[#7E7365]">
+                        Size & Alignment
+                      </span>
+                      <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-[#E6E2D3]">
+                        {(['left', 'center', 'right'] as const).map((al) => (
+                          <button
+                            key={al}
+                            type="button"
+                            onClick={() => {
+                              updateText(selectedText.id, { align: al });
+                              soundFx.playHapticTick();
+                            }}
+                            className={`p-1 rounded text-[10px] ${
+                              selectedText.align === al
+                                ? 'bg-[#2A2723] text-white'
+                                : 'text-[#7E7365] hover:text-[#2A2723]'
+                            }`}
+                            title={`Align ${al}`}
+                          >
+                            {al === 'left' ? (
+                              <AlignLeft className="w-3 h-3" />
+                            ) : al === 'center' ? (
+                              <AlignCenter className="w-3 h-3" />
+                            ) : (
+                              <AlignRight className="w-3 h-3" />
+                            )}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateText(selectedText.id, { uppercase: !selectedText.uppercase });
+                            soundFx.playHapticTick();
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                            selectedText.uppercase
+                              ? 'bg-[#2A2723] text-white'
+                              : 'text-[#7E7365] hover:text-[#2A2723]'
+                          }`}
+                          title="Toggle Uppercase"
+                        >
+                          AA
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-[#7E7365] min-w-[32px]">Size:</span>
+                      <input
+                        type="range"
+                        min={8}
+                        max={64}
+                        value={selectedText.fontSize}
+                        onChange={(e) => updateText(selectedText.id, { fontSize: Number(e.target.value) })}
+                        className="flex-1 h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
+                      />
+                      <span className="text-[10px] font-mono text-[#2A2723] min-w-[28px] text-right">
+                        {selectedText.fontSize}px
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Position & Center */}
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-[#E6E2D3]">
+                    <div className="flex items-center justify-between text-[10px] text-[#7E7365]">
+                      <span className="uppercase font-semibold flex items-center gap-1">
+                        <Move className="w-3 h-3 text-[#2A2723]" />
+                        <span>Position</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateText(selectedText.id, { x: 50, y: 50 });
+                          soundFx.playHapticTick();
+                        }}
+                        className="text-[#0A84FF] font-semibold hover:underline"
+                      >
+                        Center on Canvas
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] text-[#7E7365]">X: {Math.round(selectedText.x)}%</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={Math.round(selectedText.x)}
+                          onChange={(e) => updateText(selectedText.id, { x: Number(e.target.value) })}
+                          className="w-full h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] text-[#7E7365]">Y: {Math.round(selectedText.y)}%</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={Math.round(selectedText.y)}
+                          onChange={(e) => updateText(selectedText.id, { y: Number(e.target.value) })}
+                          className="w-full h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1270,12 +1603,42 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
       {/* ---------------------------------------------------- */}
       {activeTab === 'text' && (
         <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-[#2A2723] flex items-center gap-1.5">
+              <Type className="w-3.5 h-3.5 text-[#2A2723]" />
+              <span>Text & Captions</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                soundFx.playHapticTick();
+                const newT: TemplateTextElement = {
+                  id: `text-${Date.now()}`,
+                  label: 'Caption',
+                  text: 'NEW CAPTION',
+                  x: 30,
+                  y: 75,
+                  fontFamily: 'editorial-serif',
+                  fontSize: 16,
+                  color: '#2A2723',
+                  align: 'center',
+                };
+                onChangeTemplate({ ...template, textElements: [...template.textElements, newT] });
+                onSelectText(newT.id);
+              }}
+              className="py-1 px-2.5 bg-[#2A2723] text-white hover:bg-black rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add Text Box</span>
+            </button>
+          </div>
+
           {template.textElements.length === 0 ? (
             <p className="text-xs text-[#7E7365] py-2">
-              This layout does not have predefined text fields. You can customize paper and media slots.
+              This layout does not have active text fields. Click "Add Text Box" above to add one.
             </p>
           ) : (
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-3">
               {template.textElements.map((txt) => {
                 const isSelected = selectedTextId === txt.id;
 
@@ -1290,17 +1653,18 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="text-xs font-semibold text-[#2A2723]">
-                        {txt.label}
+                        {txt.label || 'Text Box'}
                       </span>
 
                       {/* Font Family Selector */}
                       <div className="flex items-center gap-1">
                         {[
-                          { id: 'handwritten', label: 'Handwritten' },
-                          { id: 'typewriter', label: 'Typewriter' },
                           { id: 'editorial-serif', label: 'Editorial' },
                           { id: 'modern-sans', label: 'Sans' },
+                          { id: 'typewriter', label: 'Typewriter' },
+                          { id: 'handwritten', label: 'Script' },
                           { id: 'monospaced', label: 'Mono' },
+                          { id: 'display-syne', label: 'Display' },
                         ].map((f) => (
                           <button
                             key={f.id}
@@ -1309,7 +1673,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                               updateText(txt.id, { fontFamily: f.id as TextFontFamily });
                               soundFx.playHapticTick();
                             }}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
                               txt.fontFamily === f.id
                                 ? 'bg-[#2A2723] text-white'
                                 : 'bg-[#F0EEE6] text-[#7E7365] hover:text-[#2A2723]'
@@ -1318,6 +1682,19 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                             {f.label}
                           </button>
                         ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filtered = template.textElements.filter((item) => item.id !== txt.id);
+                            onChangeTemplate({ ...template, textElements: filtered });
+                            if (selectedTextId === txt.id) onSelectText(null);
+                            soundFx.playHapticTick();
+                          }}
+                          className="p-1 text-rose-600 hover:bg-rose-50 rounded-md ml-1"
+                          title="Delete text box"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
 
@@ -1330,29 +1707,56 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                         onSelectSlot(null);
                       }}
                       rows={txt.text.includes('\n') ? 2 : 1}
-                      className="w-full px-3 py-1.5 rounded-lg border border-[#E6E2D3] text-xs text-[#2A2723] bg-white focus:outline-none focus:border-[#2A2723] font-mono resize-none"
+                      className="w-full px-3 py-1.5 rounded-lg border border-[#E6E2D3] text-xs text-[#2A2723] bg-white focus:outline-none focus:border-[#2A2723] font-sans resize-none"
                     />
 
-                    {/* Text Color & Size Bar */}
-                    <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#F0EEE6]">
+                    {/* Text Color Selector */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-1.5 border-t border-[#F0EEE6]">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-[#7E7365]">Color:</span>
-                        {[
-                          '#FFFFFF',
-                          '#2A2723',
-                          '#7E7365',
-                          '#D9534F',
-                          '#0A84FF',
-                          '#E5A93C',
-                        ].map((col) => (
-                          <button
-                            key={col}
-                            type="button"
-                            onClick={() => updateText(txt.id, { color: col })}
-                            className="w-4 h-4 rounded-full border border-black/20 shadow-xs"
-                            style={{ backgroundColor: col }}
+                        <span className="text-[10px] font-semibold uppercase text-[#7E7365] flex items-center gap-1">
+                          <Palette className="w-3 h-3 text-[#2A2723]" />
+                          <span>Text Color:</span>
+                        </span>
+                        {TEXT_COLORS.map((c) => {
+                          const isCurrent = (txt.color || '#2A2723').toLowerCase() === c.hex.toLowerCase();
+                          return (
+                            <button
+                              key={c.hex}
+                              type="button"
+                              onClick={() => {
+                                updateText(txt.id, { color: c.hex });
+                                soundFx.playHapticTick();
+                              }}
+                              title={c.label}
+                              className={`w-4 h-4 rounded-full border transition-all flex items-center justify-center ${
+                                isCurrent
+                                  ? 'ring-2 ring-[#0A84FF] ring-offset-1 scale-110 border-black/30'
+                                  : 'border-black/20 hover:scale-105'
+                              }`}
+                              style={{ backgroundColor: c.hex }}
+                            >
+                              {isCurrent && (
+                                <div
+                                  className={`w-1 h-1 rounded-full ${
+                                    c.hex === '#FFFFFF' || c.hex === '#FAF6EE' ? 'bg-black' : 'bg-white'
+                                  }`}
+                                />
+                              )}
+                            </button>
+                          );
+                        })}
+                        <label
+                          className="relative flex items-center justify-center w-4 h-4 rounded-full border border-dashed border-[#7E7365] bg-white cursor-pointer hover:border-[#2A2723]"
+                          title="Custom Text Color"
+                        >
+                          <Pipette className="w-2 h-2 text-[#7E7365]" />
+                          <input
+                            type="color"
+                            value={txt.color && txt.color.startsWith('#') ? txt.color : '#2A2723'}
+                            onChange={(e) => updateText(txt.id, { color: e.target.value })}
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                           />
-                        ))}
+                        </label>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -1365,11 +1769,121 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                           onChange={(e) =>
                             updateText(txt.id, { fontSize: Number(e.target.value) })
                           }
-                          className="w-20"
+                          className="w-20 h-1.5 bg-[#E6E2D3] rounded-lg appearance-none cursor-pointer accent-[#2A2723]"
                         />
                         <span className="text-[10px] font-mono text-[#2A2723]">
                           {txt.fontSize}px
                         </span>
+                      </div>
+                    </div>
+
+                    {/* Text Box Background Color Selector */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-1.5 border-t border-[#F0EEE6]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold uppercase text-[#7E7365] flex items-center gap-1">
+                          <Square className="w-3 h-3 text-[#2A2723]" />
+                          <span>Box Bg:</span>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateText(txt.id, { backgroundColor: 'transparent' });
+                            soundFx.playHapticTick();
+                          }}
+                          title="No Background (Transparent)"
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium border flex items-center gap-1 transition-all ${
+                            !txt.backgroundColor ||
+                            txt.backgroundColor === 'transparent' ||
+                            txt.backgroundColor === 'none'
+                              ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-xs'
+                              : 'bg-white text-[#7E7365] border-[#E6E2D3] hover:text-[#2A2723]'
+                          }`}
+                        >
+                          <span>None</span>
+                        </button>
+
+                        {TEXT_BG_COLORS.filter((bg) => bg.hex !== 'transparent').map((bg) => {
+                          const isCurrent = txt.backgroundColor?.toLowerCase() === bg.hex.toLowerCase();
+                          return (
+                            <button
+                              key={bg.hex}
+                              type="button"
+                              onClick={() => {
+                                updateText(txt.id, { backgroundColor: bg.hex });
+                                soundFx.playHapticTick();
+                              }}
+                              title={bg.label}
+                              className={`w-4 h-4 rounded border transition-all flex items-center justify-center ${
+                                isCurrent
+                                  ? 'ring-2 ring-[#0A84FF] ring-offset-1 scale-110 border-black/30'
+                                  : 'border-black/20 hover:scale-105'
+                              }`}
+                              style={{ backgroundColor: bg.hex }}
+                            >
+                              {isCurrent && (
+                                <div
+                                  className={`w-1 h-1 rounded-full ${
+                                    bg.hex === '#FFFFFF' ||
+                                    bg.hex === '#FAF6EE' ||
+                                    bg.hex === '#FEF08A' ||
+                                    bg.hex === '#FEE2E2' ||
+                                    bg.hex === '#E0F2FE' ||
+                                    bg.hex === '#DCFCE7' ||
+                                    bg.hex.includes('255, 255, 255')
+                                      ? 'bg-black'
+                                      : 'bg-white'
+                                  }`}
+                                />
+                              )}
+                            </button>
+                          );
+                        })}
+
+                        <label
+                          className="relative flex items-center justify-center w-4 h-4 rounded border border-dashed border-[#7E7365] bg-white cursor-pointer hover:border-[#2A2723]"
+                          title="Custom Background Color"
+                        >
+                          <Pipette className="w-2 h-2 text-[#7E7365]" />
+                          <input
+                            type="color"
+                            value={
+                              txt.backgroundColor && txt.backgroundColor.startsWith('#')
+                                ? txt.backgroundColor
+                                : '#FAF6EE'
+                            }
+                            onChange={(e) => updateText(txt.id, { backgroundColor: e.target.value })}
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          />
+                        </label>
+                      </div>
+
+                      {/* Align & Center */}
+                      <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-[#E6E2D3]">
+                        {(['left', 'center', 'right'] as const).map((al) => (
+                          <button
+                            key={al}
+                            type="button"
+                            onClick={() => {
+                              updateText(txt.id, { align: al });
+                              soundFx.playHapticTick();
+                            }}
+                            className={`p-1 rounded text-[10px] ${
+                              txt.align === al
+                                ? 'bg-[#2A2723] text-white'
+                                : 'text-[#7E7365] hover:text-[#2A2723]'
+                            }`}
+                            title={`Align ${al}`}
+                          >
+                            {al === 'left' ? (
+                              <AlignLeft className="w-3 h-3" />
+                            ) : al === 'center' ? (
+                              <AlignCenter className="w-3 h-3" />
+                            ) : (
+                              <AlignRight className="w-3 h-3" />
+                            )}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
