@@ -4,11 +4,13 @@ import {
   Download, Eye, SplitSquareVertical, Sparkles, Upload,
   RotateCcw, Menu, X, ChevronLeft, ChevronRight, Sliders, Info, FolderOpen,
   Plus, ChevronDown, Video, LayoutGrid, FileText, Package, Layers, Share2,
-  Maximize2, Minimize2, Database, CheckCircle2, HardDrive, AlertCircle, Loader2, Clock
+  Maximize2, Minimize2, Database, CheckCircle2, HardDrive, AlertCircle, Loader2, Clock,
+  Cloud, CloudRain, LogIn, LogOut, User as UserIcon, ShieldCheck
 } from 'lucide-react';
 import { MediaItem, Project } from '../types';
 import { PROJECT_TEMPLATE_TAGS } from '../constants/projectTemplates';
 import { soundFx } from '../utils/audio';
+import { useAuth } from '../contexts/AuthContext';
 
 interface EditorHeaderProps {
   currentMedia: MediaItem | null;
@@ -39,6 +41,8 @@ interface EditorHeaderProps {
   totalProjectsCount?: number;
   onForceSave?: () => void;
   onReloadFromStorage?: () => void;
+  onOpenSignIn?: () => void;
+  onLogout?: () => void;
 }
 
 export const EditorHeader: React.FC<EditorHeaderProps> = ({
@@ -70,14 +74,20 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   totalProjectsCount = 1,
   onForceSave,
   onReloadFromStorage,
+  onOpenSignIn,
+  onLogout,
 }) => {
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
   const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
   const [isStorageMenuOpen, setIsStorageMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
   const storageMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
+
+  const { user, loading: isAuthLoading, signInWithGoogle, logout } = useAuth();
 
   // Close menus on outside click
   useEffect(() => {
@@ -88,12 +98,15 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
       if (storageMenuRef.current && !storageMenuRef.current.contains(e.target as Node)) {
         setIsStorageMenuOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
     };
-    if (isSaveMenuOpen || isStorageMenuOpen) {
+    if (isSaveMenuOpen || isStorageMenuOpen || isUserMenuOpen) {
       window.addEventListener('mousedown', handleOutsideClick);
     }
     return () => window.removeEventListener('mousedown', handleOutsideClick);
-  }, [isSaveMenuOpen, isStorageMenuOpen]);
+  }, [isSaveMenuOpen, isStorageMenuOpen, isUserMenuOpen]);
 
   // Desktop horizontal scroll management
   const desktopScrollRef = useRef<HTMLDivElement>(null);
@@ -352,22 +365,53 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 
                   {/* Storage Status Popover Dropdown */}
                   {isStorageMenuOpen && (
-                    <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-[#E6E2D3] rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150 text-[#2A2723]">
+                    <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-[#E6E2D3] rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150 text-[#2A2723]">
                       <div className="flex items-center justify-between pb-2 border-b border-[#F0EEE6]">
                         <div className="flex items-center gap-1.5">
                           <Database className="w-3.5 h-3.5 text-emerald-600" />
                           <span className="text-xs font-bold uppercase tracking-wider text-[#2A2723]">
-                            IndexedDB Storage
+                            Storage & Cloud Sync
                           </span>
                         </div>
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
-                          Auto-Saved
+                          IndexedDB Active
                         </span>
                       </div>
 
-                      <p className="text-[10px] text-[#7E7365] leading-tight">
-                        Project images, collage pages, multi-slide layouts & edits are saved automatically in your browser's persistent IndexedDB.
-                      </p>
+                      {/* Firebase Cloud Sync Row */}
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800">
+                            <Cloud className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-[#2A2723] text-[11px] flex items-center gap-1">
+                              <span>Firebase Firestore</span>
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 text-amber-950 font-mono">us-west1</span>
+                            </div>
+                            <div className="text-[10px] text-[#7E7365]">
+                              {user ? `Connected as ${user.displayName || user.email}` : 'Sign in to sync across devices'}
+                            </div>
+                          </div>
+                        </div>
+                        {user ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                            <Check className="w-2.5 h-2.5" />
+                            Live
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsStorageMenuOpen(false);
+                              signInWithGoogle();
+                            }}
+                            className="px-2 py-0.5 rounded-full bg-[#2A2723] hover:bg-black text-white text-[10px] font-bold transition-transform active:scale-95 cursor-pointer"
+                          >
+                            Sign In
+                          </button>
+                        )}
+                      </div>
 
                       <div className="flex flex-col gap-1.5 text-xs text-[#7E7365] bg-[#FAF9F6] p-2 rounded-xl border border-[#E6E2D3]/60">
                         <div className="flex justify-between items-center">
@@ -409,7 +453,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                             className="w-full py-1.5 px-3 rounded-xl bg-[#2A2723] hover:bg-black text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Force Save to DB Now</span>
+                            <span>Force Save & Sync Now</span>
                           </button>
                         )}
 
@@ -423,7 +467,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                             className="w-full py-1.5 px-3 rounded-xl bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#4A453E] hover:text-[#2A2723] text-xs font-medium flex items-center justify-center gap-1.5 border border-[#E6E2D3] transition-colors cursor-pointer"
                           >
                             <RotateCcw className="w-3.5 h-3.5 text-[#7E7365]" />
-                            <span>Reload Projects from DB</span>
+                            <span>Reload Projects from Storage</span>
                           </button>
                         )}
                       </div>
@@ -779,6 +823,147 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* Firebase User Profile / Google Sign-In Button */}
+                <div className="relative flex items-center gap-1.5" ref={userMenuRef}>
+                  {user ? (
+                    <>
+                      <button
+                        type="button"
+                        id="top-menu-user-dropdown-btn"
+                        onClick={() => {
+                          setIsUserMenuOpen(!isUserMenuOpen);
+                          soundFx.playHapticTick();
+                        }}
+                        className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-white hover:bg-[#FAF9F6] border border-[#E6E2D3] shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                        title={`Signed in as ${user.email || user.displayName}. Click to open menu`}
+                      >
+                        {user.photoURL ? (
+                          <img
+                            src={user.photoURL}
+                            alt={user.displayName || 'User'}
+                            className="w-5 h-5 rounded-full object-cover border border-[#E6E2D3]"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 font-bold text-[10px] flex items-center justify-center border border-amber-300">
+                            {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex flex-col items-start leading-none text-left">
+                          <span className="text-[11px] font-bold text-[#2A2723] max-w-[120px] sm:max-w-[150px] truncate">
+                            {user.email || user.displayName || 'Creator'}
+                          </span>
+                        </div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Cloud Sync Active" />
+                        <ChevronDown className={`w-3.5 h-3.5 text-[#7E7365] transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {/* Explicit Logout Icon Button (Visible only when logged in) */}
+                      <button
+                        type="button"
+                        id="top-header-logout-btn"
+                        onClick={() => {
+                          soundFx.playHapticTick();
+                          setIsUserMenuOpen(false);
+                          logout();
+                          if (onLogout) {
+                            onLogout();
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 text-rose-700 text-xs font-semibold shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                        title={`Log Out (${user.email || user.displayName || 'Account'})`}
+                        aria-label="Log Out"
+                      >
+                        <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                        <span className="hidden lg:inline text-[11px]">Log Out</span>
+                      </button>
+                    </>
+                  ) : null}
+
+                  {/* User Profile Dropdown */}
+                  {isUserMenuOpen && user && (
+                    <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-[#E6E2D3] rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150 text-[#2A2723]">
+                      <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#F0EEE6]">
+                        {user.photoURL ? (
+                          <img
+                            src={user.photoURL}
+                            alt={user.displayName || 'User'}
+                            className="w-9 h-9 rounded-full object-cover border border-[#E6E2D3]"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-amber-200 text-amber-900 font-bold text-sm flex items-center justify-center border border-amber-300">
+                            {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-[#2A2723] truncate">
+                            {user.displayName || 'LumenLab Creator'}
+                          </div>
+                          <div className="text-[11px] text-[#7E7365] truncate font-mono font-medium">
+                            {user.email}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Cloud Info */}
+                      <div className="p-2 rounded-xl bg-amber-50/60 border border-amber-200/70 text-xs flex flex-col gap-1">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-[#2A2723]">
+                          <span className="flex items-center gap-1">
+                            <Cloud className="w-3.5 h-3.5 text-amber-800" />
+                            Firebase Cloud Storage
+                          </span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-900 font-bold">
+                            Active
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-[#7E7365] flex items-center justify-between">
+                          <span>Region:</span>
+                          <span className="font-mono text-[#2A2723]">us-west1</span>
+                        </div>
+                        <div className="text-[10px] text-[#7E7365] flex items-center justify-between">
+                          <span>Firestore:</span>
+                          <span className="font-mono text-[#2A2723] truncate max-w-[120px]">ai-studio-lrstudio...</span>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex flex-col gap-1.5 pt-1">
+                        {onForceSave && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              onForceSave();
+                            }}
+                            className="w-full py-1.5 px-3 rounded-xl bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] text-xs font-semibold flex items-center justify-center gap-1.5 border border-[#E6E2D3] transition-colors cursor-pointer"
+                          >
+                            <Cloud className="w-3.5 h-3.5 text-amber-800" />
+                            <span>Sync Projects to Cloud</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          id="dropdown-logout-action-btn"
+                          onClick={() => {
+                            soundFx.playHapticTick();
+                            setIsUserMenuOpen(false);
+                            logout();
+                            if (onLogout) {
+                              onLogout();
+                            }
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-rose-50/70 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer active:scale-95 shadow-xs"
+                          title="Sign out of your account"
+                        >
+                          <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Log Out ({user.email ? user.email.split('@')[0] : 'Account'})</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -960,6 +1145,109 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            {/* Firebase Cloud User Account Card in Mobile Drawer */}
+            <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-200/80 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Cloud className="w-3.5 h-3.5 text-amber-800" />
+                  <span className="text-[11px] font-bold text-[#2A2723] uppercase tracking-wider">
+                    Firebase Cloud Storage
+                  </span>
+                </div>
+                {user ? (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200 flex items-center gap-1">
+                    <Check className="w-2.5 h-2.5 text-emerald-700" />
+                    Connected
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-950">
+                    Guest Mode
+                  </span>
+                )}
+              </div>
+
+              {user ? (
+                <div className="flex items-center justify-between pt-1 border-t border-amber-200/60">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt={user.displayName || 'User'}
+                        className="w-7 h-7 rounded-full object-cover border border-amber-300"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-amber-200 text-amber-900 font-bold text-xs flex items-center justify-center border border-amber-300">
+                        {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[#2A2723] truncate">
+                        {user.displayName || 'Creator'}
+                      </div>
+                      <div className="text-[10px] text-[#7E7365] truncate font-mono">
+                        {user.email}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      logout();
+                      if (onLogout) {
+                        onLogout();
+                      }
+                      closeHamburger();
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-semibold active:scale-95 transition-all shrink-0 cursor-pointer shadow-xs"
+                    title="Sign Out / Log Out"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="pt-1 flex flex-col gap-1.5">
+                  <p className="text-[10px] text-[#7E7365]">
+                    Sign in with Google or your email to sync your projects and custom presets to Firebase Firestore in real time.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenSignIn) {
+                        onOpenSignIn();
+                      } else {
+                        signInWithGoogle();
+                      }
+                      closeHamburger();
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-[#2A2723] hover:bg-black text-white text-xs font-semibold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xs cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                    <span>Sign In with Google</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* IndexedDB Auto-Save Status Card in Mobile Drawer */}

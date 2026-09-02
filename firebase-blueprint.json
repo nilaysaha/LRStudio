@@ -1,0 +1,228 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile document",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user ID matching auth.uid"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "User display name"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar URL"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Account creation timestamp"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last profile update timestamp"
+        }
+      },
+      "required": ["id", "email"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "LumenLab photo, film and collage project",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Unique project ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner auth UID"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Project title"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Project description"
+        },
+        "templateId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Associated template ID"
+        },
+        "templateTag": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Project template aesthetic tag"
+        },
+        "media": {
+          "type": "object",
+          "description": "Main media asset"
+        },
+        "adjustments": {
+          "type": "object",
+          "description": "Full photo grading adjustments"
+        },
+        "collages": {
+          "type": "array",
+          "description": "Multi-page slide templates"
+        },
+        "activeCollage": {
+          "type": "object",
+          "description": "Currently active collage canvas"
+        },
+        "activeCollageIndex": {
+          "type": "number",
+          "description": "Active slide index"
+        },
+        "aspectRatio": {
+          "type": "number",
+          "description": "Aspect ratio of canvas"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp ms"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last modification timestamp ms"
+        }
+      },
+      "required": ["id", "userId", "name", "createdAt", "updatedAt"]
+    },
+    "UserMedia": {
+      "title": "UserMedia",
+      "description": "User uploaded media asset in library",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Unique media ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner auth UID"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Asset name"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["image", "video"],
+          "description": "Media type"
+        },
+        "url": {
+          "type": "string",
+          "description": "Base64 or remote URL of media"
+        },
+        "aspectRatio": {
+          "type": "number",
+          "description": "Width / Height aspect ratio"
+        },
+        "width": {
+          "type": "number",
+          "description": "Native width in px"
+        },
+        "height": {
+          "type": "number",
+          "description": "Native height in px"
+        },
+        "duration": {
+          "type": "number",
+          "description": "Video duration in seconds"
+        },
+        "source": {
+          "type": "string",
+          "description": "Media source (camera, upload, etc.)"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Upload timestamp ms"
+        }
+      },
+      "required": ["id", "userId", "name", "type", "url"]
+    },
+    "Preset": {
+      "title": "Preset",
+      "description": "Custom color grading recipe or preset",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Unique preset ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner auth UID"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Preset name"
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Preset category"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Preset description"
+        },
+        "adjustments": {
+          "type": "object",
+          "description": "Color grading settings"
+        },
+        "isFavorite": {
+          "type": "boolean",
+          "description": "Favorite flag"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp ms"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last update timestamp ms"
+        }
+      },
+      "required": ["id", "userId", "name", "adjustments"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User account document"
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": "Project",
+      "description": "User photo and collage projects"
+    },
+    "/users/{userId}/media/{mediaId}": {
+      "schema": "UserMedia",
+      "description": "User personal media library assets"
+    },
+    "/users/{userId}/presets/{presetId}": {
+      "schema": "Preset",
+      "description": "User custom color grading presets and recipes"
+    }
+  }
+}

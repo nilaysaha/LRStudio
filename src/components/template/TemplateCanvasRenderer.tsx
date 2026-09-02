@@ -85,8 +85,13 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
 
   // AirDrop Interactive State
   const [airDropAccepted, setAirDropAccepted] = useState<boolean>(
-    template.overlays.airdropCard?.accepted || false
+    template.overlays?.airdropCard?.accepted || false
   );
+
+  const slots = template.slots || [];
+  const textElements = template.textElements || [];
+  const stickers = template.stickers || [];
+  const doodles = template.doodles || [];
 
   // Sync video elements playback
   const videoRefs = useRef<{ [slotId: string]: HTMLVideoElement | null }>({});
@@ -101,7 +106,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         }
       }
     });
-  }, [isPlayingMaster, template.slots]);
+  }, [isPlayingMaster, slots]);
 
   // Global window pointermove and pointerup listeners for butter-smooth dragging & resizing
   useEffect(() => {
@@ -157,7 +162,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         setSnapGuideY(snapY);
         setLiveTransformBadge(`X: ${Math.round(newX)}% • Y: ${Math.round(newY)}%`);
 
-        const updatedSlots = template.slots.map((s) =>
+        const updatedSlots = slots.map((s) =>
           s.id === targetId ? { ...s, x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 } : s
         );
         onChangeTemplate({ ...template, slots: updatedSlots });
@@ -179,7 +184,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         else if (Math.abs(deg + 45) < 3) deg = -45;
 
         setLiveTransformBadge(`Rotation: ${deg}°`);
-        const updatedSlots = template.slots.map((s) =>
+        const updatedSlots = slots.map((s) =>
           s.id === targetId ? { ...s, rotation: deg } : s
         );
         onChangeTemplate({ ...template, slots: updatedSlots });
@@ -218,7 +223,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         }
 
         setLiveTransformBadge(`W: ${Math.round(newW)}% • H: ${Math.round(newH)}%`);
-        const updatedSlots = template.slots.map((s) =>
+        const updatedSlots = slots.map((s) =>
           s.id === targetId
             ? {
                 ...s,
@@ -238,7 +243,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         newY = Math.max(0, Math.min(100, newY));
 
         setLiveTransformBadge(`Text X: ${Math.round(newX)}% • Y: ${Math.round(newY)}%`);
-        const updatedTexts = template.textElements.map((t) =>
+        const updatedTexts = textElements.map((t) =>
           t.id === targetId ? { ...t, x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 } : t
         );
         onChangeTemplate({ ...template, textElements: updatedTexts });
@@ -340,7 +345,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
   // Duplicate a Slot
   const handleDuplicateSlot = (slotId: string) => {
     soundFx.playHapticTick();
-    const sourceSlot = template.slots.find((s) => s.id === slotId);
+    const sourceSlot = slots.find((s) => s.id === slotId);
     if (!sourceSlot) return;
 
     const newSlot: TemplateSlot = {
@@ -352,14 +357,14 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       zIndex: (sourceSlot.zIndex || 2) + 1,
     };
 
-    onChangeTemplate({ ...template, slots: [...template.slots, newSlot] });
+    onChangeTemplate({ ...template, slots: [...slots, newSlot] });
     onSelectSlot(newSlot.id);
   };
 
   // Change Layer Order (Bring Forward / Send Backward)
   const handleAdjustSlotLayer = (slotId: string, delta: number) => {
     soundFx.playHapticTick();
-    const updatedSlots = template.slots.map((s) =>
+    const updatedSlots = slots.map((s) =>
       s.id === slotId ? { ...s, zIndex: Math.max(1, (s.zIndex || 2) + delta) } : s
     );
     onChangeTemplate({ ...template, slots: updatedSlots });
@@ -368,11 +373,11 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
   // Quick Center Slot
   const handleCenterSlot = (slotId: string) => {
     soundFx.playHapticTick();
-    const slot = template.slots.find((s) => s.id === slotId);
+    const slot = slots.find((s) => s.id === slotId);
     if (!slot) return;
     const newX = Math.round((50 - slot.width / 2) * 10) / 10;
     const newY = Math.round((50 - slot.height / 2) * 10) / 10;
-    const updated = template.slots.map((s) => (s.id === slotId ? { ...s, x: newX, y: newY } : s));
+    const updated = slots.map((s) => (s.id === slotId ? { ...s, x: newX, y: newY } : s));
     onChangeTemplate({ ...template, slots: updated });
   };
 
@@ -398,7 +403,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         height: 1920,
       };
 
-      const updatedSlots = template.slots.map((s) =>
+      const updatedSlots = slots.map((s) =>
         s.id === activeUploadSlotId ? { ...s, media: newMedia } : s
       );
       onChangeTemplate({ ...template, slots: updatedSlots });
@@ -414,7 +419,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
     if (files.length === 0) return;
 
     soundFx.playShutter();
-    const updatedSlots = [...template.slots];
+    const updatedSlots = [...slots];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -463,7 +468,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
   // Dynamically add a new media slot
   const handleAddNewSlot = () => {
     soundFx.playHapticTick();
-    const newIndex = template.slots.length + 1;
+    const newIndex = slots.length + 1;
     const newSlot: TemplateSlot = {
       id: `slot-user-${Date.now()}`,
       label: `Media Frame ${newIndex}`,
@@ -485,10 +490,10 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       borderStyle: 'polaroid',
       shadow: 'polaroid-deep',
       tape: 'top-corners',
-      zIndex: template.slots.length + 3,
+      zIndex: slots.length + 3,
     };
 
-    onChangeTemplate({ ...template, slots: [...template.slots, newSlot] });
+    onChangeTemplate({ ...template, slots: [...slots, newSlot] });
     onSelectSlot(newSlot.id);
   };
 
@@ -518,7 +523,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         height: 1920,
       };
 
-      const updatedSlots = template.slots.map((s) =>
+      const updatedSlots = slots.map((s) =>
         s.id === slotId ? { ...s, media: newMedia } : s
       );
       onChangeTemplate({ ...template, slots: updatedSlots });
@@ -526,7 +531,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
   };
 
   const handleUpdateText = (textId: string, newText: string) => {
-    const updated = template.textElements.map((t) =>
+    const updated = textElements.map((t) =>
       t.id === textId ? { ...t, text: newText } : t
     );
     onChangeTemplate({ ...template, textElements: updated });
@@ -534,7 +539,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
 
   // Determine paper texture class
   const getTextureClass = () => {
-    switch (template.overlays.paperTexture) {
+    switch (template.overlays?.paperTexture) {
       case 'linen-white':
         return 'bg-texture-linen';
       case 'warm-ivory':
@@ -561,7 +566,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       className="relative w-full max-w-[540px] max-h-full mx-auto select-none rounded-xl overflow-hidden shadow-2xl transition-all my-auto"
       style={{
         aspectRatio: `${template.aspectRatio}`,
-        backgroundColor: template.overlays.backgroundColor || '#FAF9F6',
+        backgroundColor: template.overlays?.backgroundColor || '#FAF9F6',
       }}
       onClick={(e) => {
         if (e.target === containerRef.current) {
@@ -603,7 +608,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
             title="Select multiple photos and videos at once to fill all collage frames"
           >
             <FolderPlus className="w-3.5 h-3.5 text-[#2A2723]" />
-            <span>Batch Fill ({template.slots.length})</span>
+            <span>Batch Fill ({slots.length})</span>
           </button>
 
           <button
@@ -688,7 +693,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       {/* ---------------------------------------------------- */}
       {/* 1. OVERLAY DECORATIONS: BINDER RINGS & HOLE PUNCHES  */}
       {/* ---------------------------------------------------- */}
-      {template.overlays.binderRings === 'left-spiral' && (
+      {template.overlays?.binderRings === 'left-spiral' && (
         <div className="absolute left-1 top-0 bottom-0 w-8 flex flex-col justify-around py-4 z-30 pointer-events-none">
           {Array.from({ length: 14 }).map((_, i) => (
             <div key={i} className="relative flex items-center">
@@ -701,7 +706,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         </div>
       )}
 
-      {template.overlays.binderRings === 'middle-spiral' && (
+      {template.overlays?.binderRings === 'middle-spiral' && (
         <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-8 flex justify-around px-4 z-30 pointer-events-none">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="relative flex flex-col items-center">
@@ -714,7 +719,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         </div>
       )}
 
-      {template.overlays.binderRings === 'left-4ring' && (
+      {template.overlays?.binderRings === 'left-4ring' && (
         <div className="absolute left-1 top-0 bottom-0 w-7 flex flex-col justify-between py-12 z-30 pointer-events-none">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="relative flex items-center">
@@ -727,7 +732,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         </div>
       )}
 
-      {template.overlays.binderRings === 'top-4ring' && (
+      {template.overlays?.binderRings === 'top-4ring' && (
         <div className="absolute top-1 left-0 right-0 h-7 flex justify-around px-10 z-30 pointer-events-none">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="relative flex flex-col items-center">
@@ -743,7 +748,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       {/* ---------------------------------------------------- */}
       {/* 2. TEMPLATE MEDIA SLOTS (Images & Videos)           */}
       {/* ---------------------------------------------------- */}
-      {template.slots.map((slot) => {
+      {slots.map((slot) => {
         const isSelected = selectedSlotId === slot.id;
         const isDraggingThis = dragOverSlotId === slot.id;
         const isVideo = slot.media.type === 'video';
@@ -1108,8 +1113,8 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                     type="button"
                     onClick={() => {
                       soundFx.playHapticTick();
-                      if (template.slots.length > 1) {
-                        const updated = template.slots.filter((s) => s.id !== slot.id);
+                      if (slots.length > 1) {
+                        const updated = slots.filter((s) => s.id !== slot.id);
                         onChangeTemplate({ ...template, slots: updated });
                         onSelectSlot(updated[0]?.id || null);
                       }
@@ -1139,7 +1144,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       {/* ---------------------------------------------------- */}
       {/* 3. AIRDROP POPUP MODAL OVERLAY (Inspired by IMG_4059) */}
       {/* ---------------------------------------------------- */}
-      {template.overlays.airdropCard?.enabled && (
+      {template.overlays?.airdropCard?.enabled && (
         <div className="absolute inset-0 flex items-center justify-center p-6 z-25 pointer-events-none">
           <div className="w-full max-w-[280px] bg-[#1C1C1E]/85 backdrop-blur-2xl rounded-2xl p-4 flex flex-col items-center shadow-2xl border border-white/10 pointer-events-auto transition-all animate-in zoom-in-95">
             {/* Header */}
@@ -1191,7 +1196,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       {/* ---------------------------------------------------- */}
       {/* 4. EDITABLE TEXT OVERLAYS                           */}
       {/* ---------------------------------------------------- */}
-      {template.textElements.map((txt) => {
+      {textElements.map((txt) => {
         const isSelected = selectedTextId === txt.id;
 
         // Font Class

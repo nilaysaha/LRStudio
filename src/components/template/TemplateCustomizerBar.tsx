@@ -103,12 +103,15 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
     slideCount > 1 ? 'filmstrip' : 'slots'
   );
 
-  const selectedSlot = template.slots.find((s) => s.id === selectedSlotId);
-  const selectedText = template.textElements.find((t) => t.id === selectedTextId);
+  const slots = template.slots || [];
+  const textElements = template.textElements || [];
+
+  const selectedSlot = slots.find((s) => s.id === selectedSlotId);
+  const selectedText = textElements.find((t) => t.id === selectedTextId);
 
   // Update selected slot helper
   const updateSlot = (slotId: string, updates: Partial<TemplateSlot>) => {
-    const updated = template.slots.map((s) =>
+    const updated = slots.map((s) =>
       s.id === slotId ? { ...s, ...updates } : s
     );
     onChangeTemplate({ ...template, slots: updated });
@@ -116,7 +119,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
 
   // Update text helper
   const updateText = (textId: string, updates: Partial<TemplateTextElement>) => {
-    const updated = template.textElements.map((t) =>
+    const updated = textElements.map((t) =>
       t.id === textId ? { ...t, ...updates } : t
     );
     onChangeTemplate({ ...template, textElements: updated });
@@ -125,7 +128,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
   // Add new media frame helper
   const handleAddNewSlot = () => {
     soundFx.playHapticTick();
-    const newIndex = template.slots.length + 1;
+    const newIndex = slots.length + 1;
     const newSlot: TemplateSlot = {
       id: `slot-user-${Date.now()}`,
       label: `Media Slot ${newIndex}`,
@@ -145,10 +148,10 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
       fit: 'cover',
       borderRadius: 8,
       shadow: 'card',
-      zIndex: template.slots.length + 2,
+      zIndex: slots.length + 2,
     };
 
-    onChangeTemplate({ ...template, slots: [...template.slots, newSlot] });
+    onChangeTemplate({ ...template, slots: [...slots, newSlot] });
     onSelectSlot(newSlot.id);
   };
 
@@ -242,7 +245,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     if (onBatchUploadMultipleMedia) {
                       onBatchUploadMultipleMedia();
                     } else {
-                      onTriggerSlotUpload(template.slots[0]?.id || 'slot-1');
+                      onTriggerSlotUpload(slots[0]?.id || 'slot-1');
                     }
                     soundFx.playHapticTick();
                   }}
@@ -250,7 +253,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                   title="Select multiple photos & videos from your device to populate all slots"
                 >
                   <FolderPlus className="w-3.5 h-3.5" />
-                  <span>Batch Fill Media ({template.slots.length} Frames)</span>
+                  <span>Batch Fill Media ({slots.length} Frames)</span>
                 </button>
 
                 <button
@@ -266,10 +269,10 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
               {/* Slots List */}
               <div className="flex flex-col gap-2">
                 <span className="text-[11px] text-[#A69480] uppercase tracking-wider font-semibold">
-                  Frames ({template.slots.length})
+                  Frames ({slots.length})
                 </span>
                 <div className="grid grid-cols-2 gap-2">
-                  {template.slots.map((slot, index) => {
+                  {slots.map((slot, index) => {
                     const isSelected = selectedSlotId === slot.id;
                     const isVideo = slot.media.type === 'video';
 
@@ -341,7 +344,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const filtered = template.slots.filter((s) => s.id !== selectedSlot.id);
+                        const filtered = slots.filter((s) => s.id !== selectedSlot.id);
                         onChangeTemplate({ ...template, slots: filtered });
                         onSelectSlot(null);
                         soundFx.playHapticTick();
@@ -586,7 +589,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                             y: Math.min(70, selectedSlot.y + 5),
                             zIndex: (selectedSlot.zIndex || 2) + 1,
                           };
-                          onChangeTemplate({ ...template, slots: [...template.slots, newSlot] });
+                          onChangeTemplate({ ...template, slots: [...slots, newSlot] });
                           onSelectSlot(newSlot.id);
                           soundFx.playShutter();
                         }}
@@ -620,7 +623,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     color: '#2A2723',
                     align: 'center',
                   };
-                  onChangeTemplate({ ...template, textElements: [...template.textElements, newT] });
+                  onChangeTemplate({ ...template, textElements: [...textElements, newT] });
                   onSelectText(newT.id);
                 }}
                 className="w-full py-2 bg-[#2A2723] text-white hover:bg-black rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs"
@@ -630,7 +633,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
               </button>
 
               <div className="flex flex-col gap-2">
-                {template.textElements.map((t, idx) => (
+                {textElements.map((t, idx) => (
                   <div
                     key={t.id}
                     onClick={() => {
@@ -651,7 +654,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        const filtered = template.textElements.filter((item) => item.id !== t.id);
+                        const filtered = textElements.filter((item) => item.id !== t.id);
                         onChangeTemplate({ ...template, textElements: filtered });
                         if (selectedTextId === t.id) onSelectText(null);
                         soundFx.playHapticTick();
@@ -674,7 +677,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const filtered = template.textElements.filter((item) => item.id !== selectedText.id);
+                        const filtered = textElements.filter((item) => item.id !== selectedText.id);
                         onChangeTemplate({ ...template, textElements: filtered });
                         onSelectText(null);
                         soundFx.playHapticTick();
@@ -1026,7 +1029,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                         if (selectedSlot) {
                           updateSlot(selectedSlot.id, { tape });
                         } else {
-                          const updatedSlots = template.slots.map((s) => ({ ...s, tape }));
+                          const updatedSlots = slots.map((s) => ({ ...s, tape }));
                           onChangeTemplate({ ...template, slots: updatedSlots });
                         }
                         soundFx.playHapticTick();
@@ -1061,7 +1064,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     onClick={() => {
                       onChangeTemplate({
                         ...template,
-                        overlays: { ...template.overlays, paperTexture: tex },
+                        overlays: { ...(template.overlays || {}), paperTexture: tex },
                       });
                       soundFx.playHapticTick();
                     }}
@@ -1276,7 +1279,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                   if (onBatchUploadMultipleMedia) {
                     onBatchUploadMultipleMedia();
                   } else {
-                    onTriggerSlotUpload(template.slots[0]?.id || 'slot-1');
+                    onTriggerSlotUpload(slots[0]?.id || 'slot-1');
                   }
                   soundFx.playHapticTick();
                 }}
@@ -1284,7 +1287,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                 title="Select multiple photos & videos from your device to populate all slots"
               >
                 <FolderPlus className="w-3.5 h-3.5" />
-                <span>Batch Fill Media ({template.slots.length} Frames)</span>
+                <span>Batch Fill Media ({slots.length} Frames)</span>
               </button>
 
               <button
@@ -1304,7 +1307,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
 
           {/* Slots List Thumbnails Carousel */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-            {template.slots.map((slot, index) => {
+            {slots.map((slot, index) => {
               const isSelected = selectedSlotId === slot.id;
               const isVideo = slot.media.type === 'video';
 
@@ -1581,7 +1584,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                         y: Math.min(70, selectedSlot.y + 5),
                         zIndex: (selectedSlot.zIndex || 2) + 1,
                       };
-                      onChangeTemplate({ ...template, slots: [...template.slots, newSlot] });
+                      onChangeTemplate({ ...template, slots: [...slots, newSlot] });
                       onSelectSlot(newSlot.id);
                       soundFx.playShutter();
                     }}
@@ -1623,7 +1626,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                   color: '#2A2723',
                   align: 'center',
                 };
-                onChangeTemplate({ ...template, textElements: [...template.textElements, newT] });
+                onChangeTemplate({ ...template, textElements: [...textElements, newT] });
                 onSelectText(newT.id);
               }}
               className="py-1 px-2.5 bg-[#2A2723] text-white hover:bg-black rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs"
@@ -1633,13 +1636,13 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
             </button>
           </div>
 
-          {template.textElements.length === 0 ? (
+          {textElements.length === 0 ? (
             <p className="text-xs text-[#7E7365] py-2">
               This layout does not have active text fields. Click "Add Text Box" above to add one.
             </p>
           ) : (
             <div className="flex flex-col gap-3">
-              {template.textElements.map((txt) => {
+              {textElements.map((txt) => {
                 const isSelected = selectedTextId === txt.id;
 
                 return (
@@ -1685,7 +1688,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            const filtered = template.textElements.filter((item) => item.id !== txt.id);
+                            const filtered = textElements.filter((item) => item.id !== txt.id);
                             onChangeTemplate({ ...template, textElements: filtered });
                             if (selectedTextId === txt.id) onSelectText(null);
                             soundFx.playHapticTick();
@@ -1919,14 +1922,14 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     onChangeTemplate({
                       ...template,
                       overlays: {
-                        ...template.overlays,
+                        ...(template.overlays || {}),
                         binderRings: r.id as BinderRingType,
                       },
                     });
                     soundFx.playHapticTick();
                   }}
                   className={`p-2 rounded-xl border text-center text-xs font-medium transition-all ${
-                    (template.overlays.binderRings || 'none') === r.id
+                    ((template.overlays?.binderRings) || 'none') === r.id
                       ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-xs'
                       : 'bg-white border-[#E6E2D3] text-[#7E7365] hover:text-[#2A2723]'
                   }`}
@@ -1938,7 +1941,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
           </div>
 
           {/* AirDrop Card Settings (if enabled) */}
-          {template.overlays.airdropCard && (
+          {template.overlays?.airdropCard && (
             <div className="p-3 bg-[#FAF8F5] rounded-xl border border-[#E6E2D3] flex flex-col gap-2">
               <span className="text-xs font-semibold text-[#2A2723]">
                 AirDrop Dialog Settings
@@ -1947,14 +1950,14 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                 <input
                   type="text"
                   placeholder="Device Name (e.g. iPhone de Sophie)"
-                  value={template.overlays.airdropCard.deviceName}
+                  value={template.overlays.airdropCard.deviceName || ''}
                   onChange={(e) =>
                     onChangeTemplate({
                       ...template,
                       overlays: {
-                        ...template.overlays,
+                        ...(template.overlays || {}),
                         airdropCard: {
-                          ...template.overlays.airdropCard!,
+                          ...(template.overlays?.airdropCard || { enabled: true, title: 'AirDrop', deviceName: 'iPhone' }),
                           deviceName: e.target.value,
                         },
                       },
@@ -1965,14 +1968,14 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                 <input
                   type="text"
                   placeholder="Sender Title (e.g. AirDrop)"
-                  value={template.overlays.airdropCard.title}
+                  value={template.overlays.airdropCard.title || ''}
                   onChange={(e) =>
                     onChangeTemplate({
                       ...template,
                       overlays: {
-                        ...template.overlays,
+                        ...(template.overlays || {}),
                         airdropCard: {
-                          ...template.overlays.airdropCard!,
+                          ...(template.overlays?.airdropCard || { enabled: true, title: 'AirDrop', deviceName: 'iPhone' }),
                           title: e.target.value,
                         },
                       },
@@ -2007,7 +2010,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                   onChangeTemplate({
                     ...template,
                     overlays: {
-                      ...template.overlays,
+                      ...(template.overlays || {}),
                       paperTexture: tex.id as PaperTextureType,
                       backgroundColor: tex.bg,
                     },
@@ -2015,7 +2018,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                   soundFx.playHapticTick();
                 }}
                 className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
-                  template.overlays.paperTexture === tex.id
+                  template.overlays?.paperTexture === tex.id
                     ? 'border-[#2A2723] ring-2 ring-[#2A2723]/30 shadow-xs'
                     : 'border-[#E6E2D3] hover:border-[#A69480]'
                 }`}

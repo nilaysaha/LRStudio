@@ -1,4 +1,5 @@
 import { Adjustments, DateStampSettings, HSLAdjustments, ToneCurves } from '../types';
+import { safeClone } from '../utils/safeClone';
 
 export const defaultHSL: HSLAdjustments = {
   red: { hue: 0, saturation: 0, luminance: 0 },
@@ -94,5 +95,5 @@ export const defaultAdjustments: Adjustments = {
 };
 
 export const createAdjustmentsCopy = (adj: Adjustments): Adjustments => {
-  return JSON.parse(JSON.stringify(adj));
+  return safeClone(adj);
 };

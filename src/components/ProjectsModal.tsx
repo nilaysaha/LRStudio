@@ -5,8 +5,9 @@ import {
   Layers, Heart, Sun, Eye, Zap, Compass, PenTool, Flame,
   Smartphone, BookOpen, Paperclip, Grid, LayoutGrid, LayoutTemplate,
   Sliders, Image as ImageIcon, CheckCircle2, HardDrive, CheckSquare,
-  Square, Wand2, Filter, Clock, ArrowUpRight, Shuffle
+  Square, Wand2, Filter, Clock, ArrowUpRight, Shuffle, Cloud, LogIn, LogOut, User as UserIcon
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Project, ProjectTemplate, ProjectTemplateTag, MediaItem, Adjustments,
   CollageTemplate, TemplateSlot, TemplateTextElement
@@ -15,6 +16,7 @@ import { PROJECT_TEMPLATE_TAGS, LUMENLAB_PROJECT_TEMPLATES } from '../constants/
 import { COLLAGE_TEMPLATES } from '../constants/collageTemplates';
 import { soundFx } from '../utils/audio';
 import { defaultAdjustments, createAdjustmentsCopy } from '../constants/defaultAdjustments';
+import { safeClone } from '../utils/safeClone';
 
 interface ProjectsModalProps {
   isOpen: boolean;
@@ -45,7 +47,7 @@ interface ProjectsModalProps {
 export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   isOpen,
   onClose,
-  projects,
+  projects = [],
   currentProjectId,
   initialTab,
   userMediaLibrary = [],
@@ -60,6 +62,8 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   onOpenCamera,
   onRecordVideo,
 }) => {
+  const { user, signInWithGoogle, logout } = useAuth();
+
   // Modal active tab: 'my-projects' | 'templates' | 'library'
   const [activeTab, setActiveTab] = useState<'my-projects' | 'templates' | 'library'>(
     initialTab || (projects.length === 0 ? 'templates' : 'my-projects')
@@ -134,7 +138,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
     // Filter by slot count if collage
     if (slotCountFilter !== 'all' && isCollage && tpl.collageData) {
-      if (tpl.collageData.slots.length.toString() !== slotCountFilter) return false;
+      if ((tpl.collageData.slots?.length || 0).toString() !== slotCountFilter) return false;
     }
 
     // Filter by search query
@@ -172,7 +176,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
 
     if (tpl.collageData) {
       // Clone collage data for custom editing
-      const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(tpl.collageData));
+      const clonedCollage: CollageTemplate = safeClone(tpl.collageData);
       if (activeTemplateUserMedia && clonedCollage.slots[0]) {
         clonedCollage.slots[0].media = activeTemplateUserMedia;
       }
@@ -222,7 +226,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   const handleApplyTemplateToLibraryMedia = (media: MediaItem, tpl: ProjectTemplate) => {
     soundFx.playShutter();
     if (tpl.collageData) {
-      const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(tpl.collageData));
+      const clonedCollage: CollageTemplate = safeClone(tpl.collageData);
       if (clonedCollage.slots[0]) {
         clonedCollage.slots[0].media = media;
       }
@@ -265,7 +269,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
       baseCollage = COLLAGE_TEMPLATES.find((t) => t.slots.length === 9) || COLLAGE_TEMPLATES[0];
     }
 
-    const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(baseCollage));
+    const clonedCollage: CollageTemplate = safeClone(baseCollage);
     // Assign selected items into slots in order
     clonedCollage.slots = clonedCollage.slots.map((slot, index) => {
       const assignedMedia = selectedItems[index % selectedItems.length];
@@ -328,7 +332,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
         baseTemplate = COLLAGE_TEMPLATES.find((t) => t.slots.length === 9) || COLLAGE_TEMPLATES[0];
       }
 
-      const clonedCollage: CollageTemplate = JSON.parse(JSON.stringify(baseTemplate));
+      const clonedCollage: CollageTemplate = safeClone(baseTemplate);
       
       // If user selected multiple library items in blank creator, fill them in
       if (blankProjectSelectedMediaIds.length > 0) {
@@ -633,17 +637,41 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
             </div>
           </div>
 
-          {/* Close button */}
-          <button
-            onClick={() => {
-              soundFx.playHapticTick();
-              onClose();
-            }}
-            className="p-2 rounded-full text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors cursor-pointer"
-            title="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* Right Actions: Close */}
+          <div className="flex items-center gap-2">
+            {user && (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF9F6] border border-[#E6E2D3] text-xs text-[#2A2723] mr-1">
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName || 'User'}
+                    className="w-4 h-4 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-4 h-4 rounded-full bg-emerald-200 text-emerald-900 font-bold text-[9px] flex items-center justify-center">
+                    {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                  </div>
+                )}
+                <span className="max-w-[120px] truncate text-[11px] font-semibold">
+                  {user.displayName ? user.displayName.split(' ')[0] : (user.email ? user.email.split('@')[0] : 'Creator')}
+                </span>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Cloud Synced" />
+              </div>
+            )}
+
+            {/* Close button */}
+            <button
+              onClick={() => {
+                soundFx.playHapticTick();
+                onClose();
+              }}
+              className="p-2 rounded-full text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors cursor-pointer"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* 2. TAB CONTROLS & TOP ACTIONS BAR */}
@@ -799,6 +827,60 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
             ) : (
               /* Projects Grid */
               <div className="flex flex-col gap-3.5">
+                {user ? (
+                  <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {user.photoURL ? (
+                        <img
+                          src={user.photoURL}
+                          alt={user.displayName || 'User'}
+                          className="w-8 h-8 rounded-xl object-cover border border-emerald-300 shrink-0"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-xl bg-emerald-200 text-emerald-900 font-bold text-xs flex items-center justify-center border border-emerald-300 shrink-0">
+                          {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-bold text-[#2A2723] flex items-center gap-1.5">
+                          <span className="truncate">{user.displayName || 'Creator Account'}</span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-200 text-emerald-950 font-bold font-mono">
+                            Connected
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#7E7365] truncate font-mono">
+                          {user.email} &bull; Firestore Cloud Sync Active
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
+                        <Cloud className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-[#2A2723]">Multi-Project Cloud Sync</div>
+                        <div className="text-[11px] text-[#7E7365]">
+                          {projects.length > 1
+                            ? 'Sign in with Google to sync and access all your projects across devices.'
+                            : 'Guest mode includes 1 project. Sign in with Google to create unlimited synced projects.'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => signInWithGoogle()}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#2A2723] hover:bg-black text-white font-semibold text-xs transition-colors cursor-pointer shrink-0 shadow-xs flex items-center gap-1.5"
+                    >
+                      <LogIn className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Sign In with Google</span>
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-[#2A2723]">Your Saved Projects</span>
@@ -807,8 +889,8 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-[#7E7365]">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span>Stored in IndexedDB</span>
+                    <div className={`w-1.5 h-1.5 rounded-full ${user ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    <span>{user ? 'Synced with Firestore Cloud' : 'Stored in IndexedDB (Guest Mode)'}</span>
                   </div>
                 </div>
 
@@ -864,12 +946,12 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                           {proj.collages && proj.collages.length > 1 ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-600 text-white shadow-xs flex items-center gap-1 backdrop-blur-md">
                               <Layers className="w-3 h-3" />
-                              <span>{proj.collages.length} Slides ({proj.activeCollage?.slots.length || 0}F)</span>
+                              <span>{proj.collages.length} Slides ({proj.activeCollage?.slots?.length || 0}F)</span>
                             </span>
                           ) : isCollage ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-600 text-white shadow-xs flex items-center gap-1 backdrop-blur-md">
                               <LayoutGrid className="w-3 h-3" />
-                              <span>Collage ({proj.activeCollage?.slots.length} Frames)</span>
+                              <span>Collage ({proj.activeCollage?.slots?.length || 0} Frames)</span>
                             </span>
                           ) : proj.templateTag && proj.templateTag !== 'custom' && tagInfo ? (
                             <span
@@ -957,7 +1039,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                             <span>{new Date(proj.updatedAt).toLocaleDateString()}</span>
                             <span>•</span>
                             <span className="uppercase font-mono">
-                              {isCollage ? `${proj.activeCollage?.slots.length} Slots` : proj.media.type}
+                              {isCollage ? `${proj.activeCollage?.slots?.length || 0} Slots` : proj.media?.type || 'media'}
                             </span>
                             {proj.adjustments.presetId && proj.adjustments.presetId !== 'none' && (
                               <>

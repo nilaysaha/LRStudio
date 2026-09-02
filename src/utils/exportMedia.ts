@@ -398,10 +398,10 @@ export async function exportTemplate(
   if (!ctx) throw new Error('Could not get 2d context for template export');
 
   // 1. Draw Background Color & Paper Texture
-  ctx.fillStyle = template.overlays.backgroundColor || '#FAF9F6';
+  ctx.fillStyle = template.overlays?.backgroundColor || '#FAF9F6';
   ctx.fillRect(0, 0, targetW, targetH);
 
-  const texture = template.overlays.paperTexture;
+  const texture = template.overlays?.paperTexture;
   if (texture === 'warm-ivory') {
     ctx.fillStyle = 'rgba(247, 244, 236, 0.9)';
     ctx.fillRect(0, 0, targetW, targetH);
@@ -439,7 +439,7 @@ export async function exportTemplate(
   await Promise.all(imagePromises);
 
   // 3. Render Binder Rings if any
-  if (template.overlays.binderRings === 'left-spiral') {
+  if (template.overlays?.binderRings === 'left-spiral') {
     const numSpirals = 14;
     const holeRadius = Math.round(targetW * 0.015);
     const spiralW = Math.round(targetW * 0.05);
@@ -469,7 +469,7 @@ export async function exportTemplate(
       ctx.fill();
       ctx.restore();
     }
-  } else if (template.overlays.binderRings === 'middle-spiral') {
+  } else if (template.overlays?.binderRings === 'middle-spiral') {
     const numSpirals = 12;
     const holeRadius = Math.round(targetW * 0.014);
     const spiralW = Math.round(targetW * 0.015);
@@ -632,7 +632,7 @@ export async function exportTemplate(
   }
 
   // 5. Draw AirDrop Card Overlay if enabled
-  if (template.overlays.airdropCard && template.overlays.airdropCard.enabled) {
+  if (template.overlays?.airdropCard && template.overlays.airdropCard.enabled) {
     const cardW = targetW * 0.75;
     const cardH = targetH * 0.16;
     const cardX = (targetW - cardW) / 2;
@@ -663,7 +663,7 @@ export async function exportTemplate(
 
     ctx.fillStyle = '#86868B';
     ctx.font = `500 ${Math.round(cardH * 0.13)}px -apple-system, BlinkMacSystemFont, 'Inter', sans-serif`;
-    ctx.fillText(`${template.overlays.airdropCard.senderName || 'iPhone User'} wants to share`, cardX + cardW * 0.24, cardY + cardH * 0.48);
+    ctx.fillText(`${template.overlays.airdropCard.senderName || template.overlays.airdropCard.deviceName || 'iPhone User'} wants to share`, cardX + cardW * 0.24, cardY + cardH * 0.48);
 
     // Accept / Decline Buttons
     const btnW = cardW * 0.42;

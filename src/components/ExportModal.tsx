@@ -67,7 +67,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const isVideo = !effectiveTemplate && effectiveMedia?.type === 'video';
 
   const defaultCaption = effectiveTemplate
-    ? `Created with LumenLab 🎞️ "${effectiveTemplate.name}" Collage (${effectiveTemplate.slots.length} frames) • ${effectiveTemplate.subtitle || 'Film Aesthetic'} 📸 #lumenlab #filmlayout #photocollage #aesthetic #polaroid #editorial #filmwave`
+    ? `Created with LumenLab 🎞️ "${effectiveTemplate.name}" Collage (${effectiveTemplate.slots?.length || 0} frames) • ${effectiveTemplate.subtitle || 'Film Aesthetic'} 📸 #lumenlab #filmlayout #photocollage #aesthetic #polaroid #editorial #filmwave`
     : `Captured & graded on LumenLab Pro 🎞️ Preset: ${presetLabel} ${isVideo ? '🎬' : '📸'} #lumenlab #analogphotography #35mmfilm #cinematic #filmwave #kodakportra #aesthetic`;
 
   const [customCaption, setCustomCaption] = useState(defaultCaption);

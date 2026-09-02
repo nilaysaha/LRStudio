@@ -8,6 +8,7 @@ import { BUILT_IN_PRESETS, SAMPLE_MEDIA_GALLERY } from './constants/presets';
 import { LUMENLAB_PROJECT_TEMPLATES } from './constants/projectTemplates';
 import { COLLAGE_TEMPLATES } from './constants/collageTemplates';
 import { defaultAdjustments, createAdjustmentsCopy } from './constants/defaultAdjustments';
+import { safeJsonStringify } from './utils/safeClone';
 import { HistorySnapshot, createHistorySnapshot, cloneMediaItem, cloneCollageTemplate } from './utils/history';
 import {
   isIndexedDBAvailable,
@@ -19,6 +20,18 @@ import {
   loadAppStateItem,
 } from './utils/indexedDB';
 import { EditorHeader } from './components/EditorHeader';
+import { useAuth } from './contexts/AuthContext';
+import {
+  saveProjectToFirestore,
+  subscribeToProjects,
+  deleteProjectFromFirestore,
+  saveMediaToFirestore,
+  subscribeToMedia,
+  deleteMediaFromFirestore,
+  savePresetToFirestore,
+  subscribeToPresets,
+  deletePresetFromFirestore,
+} from './lib/firestoreService';
 import { ViewportCanvas } from './components/ViewportCanvas';
 import { AdjustmentsBar } from './components/AdjustmentsBar';
 import { CameraView } from './components/CameraView';
@@ -26,6 +39,7 @@ import { MediaLibraryModal } from './components/MediaLibraryModal';
 import { SavePresetModal } from './components/SavePresetModal';
 import { ExportModal } from './components/ExportModal';
 import { ProjectsModal } from './components/ProjectsModal';
+import { SignInGatePage } from './components/SignInGatePage';
 import { TemplateCanvasRenderer } from './components/template/TemplateCanvasRenderer';
 import { TemplateCustomizerBar } from './components/template/TemplateCustomizerBar';
 import { TemplateSelectorDrawer } from './components/template/TemplateSelectorDrawer';
@@ -44,7 +58,7 @@ const STORAGE_KEY_PROJECTS = 'lumenlab_user_projects_v2';
 const STORAGE_KEY_CURRENT_PROJECT_ID = 'lumenlab_current_project_id_v2';
 const STORAGE_KEY_USER_MEDIA = 'lumenlab_user_media_library_v2';
 
-// Seed initial default projects from LumenLabs templates if storage is empty
+// Seed initial default single project from LumenLabs templates if storage is empty
 const INITIAL_SEEDED_PROJECTS: Project[] = [
   {
     id: 'proj-default-sunbath',
@@ -56,28 +70,6 @@ const INITIAL_SEEDED_PROJECTS: Project[] = [
     media: LUMENLAB_PROJECT_TEMPLATES[2].sampleMedia,
     adjustments: createAdjustmentsCopy(LUMENLAB_PROJECT_TEMPLATES[2].adjustments),
     thumbnailUrl: LUMENLAB_PROJECT_TEMPLATES[2].sampleMedia.url,
-  },
-  {
-    id: 'proj-default-clean',
-    name: 'Clean Minimalist Journal',
-    templateId: 'tpl-clean-crisp',
-    templateTag: 'clean',
-    createdAt: Date.now() - 86400000 * 4,
-    updatedAt: Date.now() - 86400000 * 1,
-    media: LUMENLAB_PROJECT_TEMPLATES[0].sampleMedia,
-    adjustments: createAdjustmentsCopy(LUMENLAB_PROJECT_TEMPLATES[0].adjustments),
-    thumbnailUrl: LUMENLAB_PROJECT_TEMPLATES[0].sampleMedia.url,
-  },
-  {
-    id: 'proj-default-editorial',
-    name: 'Vogue Sepia Editorial',
-    templateId: 'tpl-editorial-vogue',
-    templateTag: 'editorial',
-    createdAt: Date.now() - 86400000 * 7,
-    updatedAt: Date.now() - 86400000 * 3,
-    media: LUMENLAB_PROJECT_TEMPLATES[6].sampleMedia,
-    adjustments: createAdjustmentsCopy(LUMENLAB_PROJECT_TEMPLATES[6].adjustments),
-    thumbnailUrl: LUMENLAB_PROJECT_TEMPLATES[6].sampleMedia.url,
   },
 ];
 
@@ -200,6 +192,8 @@ export default function App() {
   const [isSlidePreviewOpen, setIsSlidePreviewOpen] = useState(false);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [projectsModalTab, setProjectsModalTab] = useState<'my-projects' | 'templates' | 'library'>('my-projects');
+  const [isGuestMode, setIsGuestMode] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
 
   const handleOpenExportWithOptions = (options?: { scope?: 'all-slides' | 'current'; singleFileType?: 'pdf' | 'strip' | 'zip' }) => {
     setExportInitialScope(options?.scope);
@@ -222,12 +216,53 @@ export default function App() {
   });
 
   // -------------------------------------------------------------
-  // 4. IndexedDB Persistence & Auto-Save Engine
+  // 4. Firebase Cloud & IndexedDB Persistence & Auto-Save Engine
   // -------------------------------------------------------------
+  const { user } = useAuth();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(Date.now());
   const [isStorageInitialized, setIsStorageInitialized] = useState<boolean>(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Real-time Firestore Cloud Project Synchronization
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubscribe = subscribeToProjects(user.uid, (cloudProjects) => {
+      if (cloudProjects && cloudProjects.length > 0) {
+        setProjects(cloudProjects);
+        setCurrentProjectId((prevId) => {
+          if (prevId && cloudProjects.some((p) => p.id === prevId)) return prevId;
+          return cloudProjects[0].id;
+        });
+      } else if (projects.length > 0) {
+        // First-time sync: Upload existing local projects to Firestore
+        projects.forEach((proj) => {
+          saveProjectToFirestore(user.uid, proj).catch((e) =>
+            console.warn('First-time Firestore project sync warning:', e)
+          );
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  // Real-time Firestore Cloud Preset Synchronization
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubscribe = subscribeToPresets(user.uid, (cloudPresets) => {
+      if (cloudPresets && cloudPresets.length > 0) {
+        setPresets((prev) => {
+          const builtIn = prev.filter((p) => !p.isCustom);
+          return [...builtIn, ...cloudPresets];
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   // Initial load from IndexedDB on startup
   useEffect(() => {
@@ -339,17 +374,27 @@ export default function App() {
 
         // Keep localStorage as auxiliary backup
         try {
-          localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
-          localStorage.setItem(STORAGE_KEY_USER_MEDIA, JSON.stringify(userMediaLibrary));
+          localStorage.setItem(STORAGE_KEY_PROJECTS, safeJsonStringify(projects));
+          localStorage.setItem(STORAGE_KEY_USER_MEDIA, safeJsonStringify(userMediaLibrary));
           if (currentProjectId) {
             localStorage.setItem(STORAGE_KEY_CURRENT_PROJECT_ID, currentProjectId);
           }
         } catch {}
 
+        // Sync active project to Firebase Firestore if logged in
+        if (user?.uid && projects.length > 0) {
+          const activeProj = projects.find((p) => p.id === currentProjectId) || projects[0];
+          if (activeProj) {
+            saveProjectToFirestore(user.uid, activeProj).catch((e) =>
+              console.warn('Firestore cloud auto-save warning:', e)
+            );
+          }
+        }
+
         setLastSavedAt(Date.now());
         setSaveStatus('saved');
       } catch (err) {
-        console.warn('Auto-save to IndexedDB error:', err);
+        console.warn('Auto-save to IndexedDB/Cloud error:', err);
         setSaveStatus('error');
       }
     }, 450);
@@ -382,7 +427,7 @@ export default function App() {
     );
   }, [adjustments, currentMedia, currentProjectId, activeCollage]);
 
-  // Manual Force Save to IndexedDB
+  // Manual Force Save to IndexedDB and Cloud
   const handleForceSaveToIndexedDB = useCallback(async () => {
     setSaveStatus('saving');
     try {
@@ -395,6 +440,14 @@ export default function App() {
       if (currentProjectId) {
         await saveAppStateItem('currentProjectId', currentProjectId);
       }
+
+      // Sync all projects to Firestore if authenticated
+      if (user?.uid && projects.length > 0) {
+        for (const proj of projects) {
+          await saveProjectToFirestore(user.uid, proj);
+        }
+      }
+
       setLastSavedAt(Date.now());
       setSaveStatus('saved');
       soundFx.playHapticTick();
@@ -402,7 +455,7 @@ export default function App() {
       console.warn('Manual force save failed:', err);
       setSaveStatus('error');
     }
-  }, [projects, userMediaLibrary, currentProjectId]);
+  }, [projects, userMediaLibrary, currentProjectId, user?.uid]);
 
   // Manual Reload from IndexedDB
   const handleReloadFromIndexedDB = useCallback(async () => {
@@ -447,8 +500,8 @@ export default function App() {
     try {
       const customPresets = presets.filter((p) => p.isCustom);
       const favIds = presets.filter((p) => p.isFavorite).map((p) => p.id);
-      localStorage.setItem(STORAGE_KEY_CUSTOM_PRESETS, JSON.stringify(customPresets));
-      localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(favIds));
+      localStorage.setItem(STORAGE_KEY_CUSTOM_PRESETS, safeJsonStringify(customPresets));
+      localStorage.setItem(STORAGE_KEY_FAVORITES, safeJsonStringify(favIds));
     } catch {
       // Storage unavailable
     }
@@ -1104,12 +1157,13 @@ export default function App() {
     // If no collage is currently active, pick an appropriate collage template
     let targetCollage = activeCollage;
     if (!targetCollage) {
-      const match = COLLAGE_TEMPLATES.find((t) => t.slots.length >= fileArray.length) || COLLAGE_TEMPLATES[0];
+      const match = COLLAGE_TEMPLATES.find((t) => (t.slots?.length || 0) >= fileArray.length) || COLLAGE_TEMPLATES[0];
       targetCollage = { ...match };
     }
 
     const batchMediaItems: MediaItem[] = [];
-    const updatedSlots = targetCollage.slots.map((slot, index) => {
+    const collageSlots = targetCollage.slots || [];
+    const updatedSlots = collageSlots.map((slot, index) => {
       if (index < fileArray.length) {
         const file = fileArray[index];
         const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
@@ -1167,6 +1221,13 @@ export default function App() {
     const remaining = projects.filter((p) => p.id !== projectId);
     setProjects(remaining);
 
+    // Delete from Firestore if authenticated
+    if (user?.uid) {
+      deleteProjectFromFirestore(user.uid, projectId).catch((e) =>
+        console.warn('Firestore delete project error:', e)
+      );
+    }
+
     // If deleting the active project, switch to the first remaining or create a new blank one
     if (currentProjectId === projectId) {
       if (remaining.length > 0) {
@@ -1219,11 +1280,21 @@ export default function App() {
   // Save Custom Preset
   const handleSaveCustomPreset = (newPreset: Preset) => {
     setPresets((prev) => [...prev, newPreset]);
+    if (user?.uid) {
+      savePresetToFirestore(user.uid, newPreset).catch((e) =>
+        console.warn('Firestore save preset error:', e)
+      );
+    }
   };
 
   // Delete Custom Preset
   const handleDeleteCustomPreset = (presetId: string) => {
     setPresets((prev) => prev.filter((p) => p.id !== presetId));
+    if (user?.uid) {
+      deletePresetFromFirestore(user.uid, presetId).catch((e) =>
+        console.warn('Firestore delete preset error:', e)
+      );
+    }
   };
 
   // Import / Export JSON Presets
@@ -1499,6 +1570,11 @@ export default function App() {
         totalProjectsCount={projects.length}
         onForceSave={handleForceSaveToIndexedDB}
         onReloadFromStorage={handleReloadFromIndexedDB}
+        onOpenSignIn={() => setShowSignInModal(true)}
+        onLogout={() => {
+          setIsGuestMode(false);
+          setShowSignInModal(true);
+        }}
       />
 
       {/* Hidden File Input for Customizing Active Template Slot */}
@@ -1977,6 +2053,27 @@ export default function App() {
           setIsExportOpen(true);
         }}
       />
+
+      {/* Sign-In Page Gateway / Login Screen: Displayed whenever the user is not logged in */}
+      {!user && (
+        <SignInGatePage
+          projects={projects}
+          onKeepSingleProject={(keepId) => {
+            const chosen = projects.find((p) => p.id === keepId) || projects[0];
+            setProjects([chosen]);
+            setCurrentProjectId(chosen.id);
+            handleSelectProject(chosen);
+          }}
+          onContinueAsGuest={() => {
+            if (projects.length > 1) {
+              const first = projects[0];
+              setProjects([first]);
+              setCurrentProjectId(first.id);
+              handleSelectProject(first);
+            }
+          }}
+        />
+      )}
     </main>
   );
 }

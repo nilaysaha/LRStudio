@@ -37,7 +37,7 @@ export const TemplateSelectorDrawer: React.FC<TemplateSelectorDrawerProps> = ({
     const matchesCategory =
       selectedCategory === 'all' || tpl.category === selectedCategory;
     const matchesSlot =
-      slotFilter === 'all' || tpl.slots.length.toString() === slotFilter;
+      slotFilter === 'all' || (tpl.slots?.length || 0).toString() === slotFilter;
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
@@ -194,7 +194,7 @@ export const TemplateSelectorDrawer: React.FC<TemplateSelectorDrawerProps> = ({
 
                   {/* Slot Count Badge */}
                   <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-xs text-[#2A2723] text-[9px] font-semibold px-2 py-0.5 rounded-full shadow-xs">
-                    {tpl.slots.length} Media {tpl.slots.length === 1 ? 'Slot' : 'Slots'}
+                    {tpl.slots?.length || 0} Media {(tpl.slots?.length || 0) === 1 ? 'Slot' : 'Slots'}
                   </div>
 
                   {isSelected && (
