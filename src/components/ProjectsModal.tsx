@@ -890,7 +890,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-[#7E7365]">
                     <div className={`w-1.5 h-1.5 rounded-full ${user ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                    <span>{user ? 'Synced with Firestore Cloud' : 'Stored in IndexedDB (Guest Mode)'}</span>
+                    <span>{user ? `Direct Firebase Cloud (${user.email || user.displayName || 'Connected'})` : 'Guest Session (Sign in to save directly to Firebase)'}</span>
                   </div>
                 </div>
 

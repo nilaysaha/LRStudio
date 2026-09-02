@@ -324,7 +324,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   </button>
                 )}
 
-                {/* Auto-Save & IndexedDB Status Indicator Pill */}
+                {/* Auto-Save & Firebase Cloud Status Indicator Pill */}
                 <div className="relative flex-shrink-0" ref={storageMenuRef}>
                   <button
                     type="button"
@@ -339,7 +339,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                         ? 'bg-rose-50 text-rose-800 border-rose-300'
                         : 'bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#4A453E] border-[#E6E2D3]'
                     }`}
-                    title="Local IndexedDB Persistence Status (Click for details & force sync)"
+                    title={user ? `Firebase Cloud Synced (${user.email || user.displayName})` : 'Guest Session (Sign in to sync with Firebase)'}
                   >
                     {saveStatus === 'saving' ? (
                       <>
@@ -353,10 +353,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                       </>
                     ) : (
                       <>
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-xs" />
-                        <Database className="w-3 h-3 text-emerald-700" />
+                        <div className={`w-1.5 h-1.5 rounded-full shadow-xs ${user ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        <Cloud className={`w-3 h-3 ${user ? 'text-emerald-700' : 'text-amber-700'}`} />
                         <span className="text-[11px] text-[#2A2723] font-semibold">
-                          Saved ..
+                          {user ? 'Cloud Synced' : 'Guest Mode'}
                         </span>
                       </>
                     )}
@@ -368,13 +368,17 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                     <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-[#E6E2D3] rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150 text-[#2A2723]">
                       <div className="flex items-center justify-between pb-2 border-b border-[#F0EEE6]">
                         <div className="flex items-center gap-1.5">
-                          <Database className="w-3.5 h-3.5 text-emerald-600" />
+                          <Cloud className={`w-3.5 h-3.5 ${user ? 'text-emerald-600' : 'text-amber-600'}`} />
                           <span className="text-xs font-bold uppercase tracking-wider text-[#2A2723]">
-                            Storage & Cloud Sync
+                            Firebase Cloud Storage
                           </span>
                         </div>
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
-                          IndexedDB Active
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                          user
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-200'
+                            : 'bg-amber-100 text-amber-900 border-amber-200'
+                        }`}>
+                          {user ? 'Firestore Connected' : 'Guest (Session Only)'}
                         </span>
                       </div>
 
@@ -387,10 +391,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                           <div>
                             <div className="font-bold text-[#2A2723] text-[11px] flex items-center gap-1">
                               <span>Firebase Firestore</span>
-                              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 text-amber-950 font-mono">us-west1</span>
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 text-amber-950 font-mono">microservices-dev-360610</span>
                             </div>
                             <div className="text-[10px] text-[#7E7365]">
-                              {user ? `Connected as ${user.displayName || user.email}` : 'Sign in to sync across devices'}
+                              {user ? `User: ${user.email || user.displayName || user.uid.substring(0, 8)}` : 'Sign in to map projects to your user account'}
                             </div>
                           </div>
                         </div>
@@ -435,7 +439,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span>Last Synced:</span>
+                          <span>Last Cloud Sync:</span>
                           <span className="font-semibold text-[#2A2723] font-mono text-[11px]">
                             {lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Just now'}
                           </span>
@@ -453,11 +457,11 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                             className="w-full py-1.5 px-3 rounded-xl bg-[#2A2723] hover:bg-black text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Force Save & Sync Now</span>
+                            <span>Force Save to Firebase Cloud</span>
                           </button>
                         )}
 
-                        {onReloadFromStorage && (
+                        {onReloadFromStorage && user && (
                           <button
                             type="button"
                             onClick={() => {
@@ -467,7 +471,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                             className="w-full py-1.5 px-3 rounded-xl bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#4A453E] hover:text-[#2A2723] text-xs font-medium flex items-center justify-center gap-1.5 border border-[#E6E2D3] transition-colors cursor-pointer"
                           >
                             <RotateCcw className="w-3.5 h-3.5 text-[#7E7365]" />
-                            <span>Reload Projects from Storage</span>
+                            <span>Reload Projects from Firebase</span>
                           </button>
                         )}
                       </div>
@@ -1020,7 +1024,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   ? 'bg-rose-50 text-rose-800 border-rose-300'
                   : 'bg-[#FAF9F6] text-[#4A453E] border-[#E6E2D3]'
               }`}
-              title="Auto-saved to local IndexedDB"
+              title={user ? 'Direct Firebase Cloud Sync' : 'Guest Mode (Sign in to sync)'}
             >
               {saveStatus === 'saving' ? (
                 <>
@@ -1034,9 +1038,9 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 </>
               ) : (
                 <>
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-xs" />
-                  <Database className="w-2.5 h-2.5 text-emerald-700" />
-                  <span className="text-[9px] font-semibold text-[#2A2723]">Saved</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${user ? 'bg-emerald-500' : 'bg-amber-500'} shadow-xs`} />
+                  <Cloud className={`w-2.5 h-2.5 ${user ? 'text-emerald-700' : 'text-amber-700'}`} />
+                  <span className="text-[9px] font-semibold text-[#2A2723]">{user ? 'Synced' : 'Guest'}</span>
                 </>
               )}
             </div>
@@ -1250,22 +1254,28 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               )}
             </div>
 
-            {/* IndexedDB Auto-Save Status Card in Mobile Drawer */}
+            {/* Firebase Cloud Auto-Save Status Card in Mobile Drawer */}
             <div className="bg-[#FAF9F6] p-3 rounded-2xl border border-[#E6E2D3] flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <Database className="w-3.5 h-3.5 text-emerald-600" />
+                  <Cloud className={`w-3.5 h-3.5 ${user ? 'text-emerald-600' : 'text-amber-600'}`} />
                   <span className="text-[11px] font-bold text-[#2A2723] uppercase tracking-wider">
-                    IndexedDB Local Storage
+                    {user ? 'Firebase Cloud Storage' : 'Guest Mode'}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200 text-[9px] font-bold">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <span>Auto-Saved</span>
+                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold ${
+                  user
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-200'
+                    : 'bg-amber-100 text-amber-900 border-amber-200'
+                }`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${user ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  <span>{user ? 'Cloud Live' : 'Session Only'}</span>
                 </div>
               </div>
               <p className="text-[10px] text-[#7E7365]">
-                Projects, photos, videos & slide edits are stored in your browser's persistent IndexedDB.
+                {user
+                  ? `Projects & media are saved directly to Firebase Firestore for ${user.displayName || user.email || 'your account'}.`
+                  : 'Sign in with Google or Studio Account to sync your projects and media directly to Firebase.'}
               </p>
               <div className="flex items-center justify-between text-[11px] text-[#4A453E] pt-1 border-t border-[#E6E2D3]/60">
                 <span>Last Synced:</span>

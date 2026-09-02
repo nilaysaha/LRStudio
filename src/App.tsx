@@ -10,27 +10,21 @@ import { COLLAGE_TEMPLATES } from './constants/collageTemplates';
 import { defaultAdjustments, createAdjustmentsCopy } from './constants/defaultAdjustments';
 import { safeJsonStringify } from './utils/safeClone';
 import { HistorySnapshot, createHistorySnapshot, cloneMediaItem, cloneCollageTemplate } from './utils/history';
-import {
-  isIndexedDBAvailable,
-  loadProjectsFromIndexedDB,
-  saveProjectsToIndexedDB,
-  loadUserMediaFromIndexedDB,
-  saveUserMediaToIndexedDB,
-  saveAppStateItem,
-  loadAppStateItem,
-} from './utils/indexedDB';
 import { EditorHeader } from './components/EditorHeader';
 import { useAuth } from './contexts/AuthContext';
 import {
   saveProjectToFirestore,
   subscribeToProjects,
   deleteProjectFromFirestore,
+  fetchProjectsFromFirestore,
   saveMediaToFirestore,
   subscribeToMedia,
   deleteMediaFromFirestore,
+  fetchMediaFromFirestore,
   savePresetToFirestore,
   subscribeToPresets,
   deletePresetFromFirestore,
+  fetchPresetsFromFirestore,
 } from './lib/firestoreService';
 import { ViewportCanvas } from './components/ViewportCanvas';
 import { AdjustmentsBar } from './components/AdjustmentsBar';
@@ -216,143 +210,111 @@ export default function App() {
   });
 
   // -------------------------------------------------------------
-  // 4. Firebase Cloud & IndexedDB Persistence & Auto-Save Engine
+  // 4. Firebase Cloud Direct Persistence & Real-Time Sync Engine
   // -------------------------------------------------------------
   const { user } = useAuth();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(Date.now());
-  const [isStorageInitialized, setIsStorageInitialized] = useState<boolean>(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Real-time Firestore Cloud Project Synchronization
+  // Real-time Firestore Cloud Project Synchronization (Linked to user.uid)
   useEffect(() => {
     if (!user?.uid) return;
 
-    const unsubscribe = subscribeToProjects(user.uid, (cloudProjects) => {
-      if (cloudProjects && cloudProjects.length > 0) {
-        setProjects(cloudProjects);
-        setCurrentProjectId((prevId) => {
-          if (prevId && cloudProjects.some((p) => p.id === prevId)) return prevId;
-          return cloudProjects[0].id;
-        });
-      } else if (projects.length > 0) {
-        // First-time sync: Upload existing local projects to Firestore
-        projects.forEach((proj) => {
-          saveProjectToFirestore(user.uid, proj).catch((e) =>
-            console.warn('First-time Firestore project sync warning:', e)
-          );
-        });
-      }
-    });
-
-    return () => unsubscribe();
-  }, [user?.uid]);
-
-  // Real-time Firestore Cloud Preset Synchronization
-  useEffect(() => {
-    if (!user?.uid) return;
-
-    const unsubscribe = subscribeToPresets(user.uid, (cloudPresets) => {
-      if (cloudPresets && cloudPresets.length > 0) {
-        setPresets((prev) => {
-          const builtIn = prev.filter((p) => !p.isCustom);
-          return [...builtIn, ...cloudPresets];
-        });
-      }
-    });
-
-    return () => unsubscribe();
-  }, [user?.uid]);
-
-  // Initial load from IndexedDB on startup
-  useEffect(() => {
-    let isMounted = true;
-    async function loadFromDB() {
-      try {
-        if (!isIndexedDBAvailable()) {
-          setIsStorageInitialized(true);
-          return;
-        }
-
-        const dbProjects = await loadProjectsFromIndexedDB();
-        const dbUserMedia = await loadUserMediaFromIndexedDB();
-        const savedProjectId = await loadAppStateItem<string>('currentProjectId');
-
-        if (isMounted) {
-          if (dbProjects && dbProjects.length > 0) {
-            setProjects(dbProjects);
-            const activeId = savedProjectId && dbProjects.some((p) => p.id === savedProjectId)
-              ? savedProjectId
-              : dbProjects[0].id;
-            setCurrentProjectId(activeId);
-
-            const activeProj = dbProjects.find((p) => p.id === activeId) || dbProjects[0];
-            if (activeProj) {
-              setCurrentMedia(activeProj.media);
-              setAdjustments(createAdjustmentsCopy(activeProj.adjustments));
-              const activeCol =
-                activeProj.activeCollage ||
-                (activeProj.collages && activeProj.collages[activeProj.activeCollageIndex || 0]) ||
-                null;
-              setActiveCollage(activeCol);
-            }
-          } else {
-            // If IndexedDB has no projects yet, seed from localStorage or initial templates
-            try {
-              const legacyProjects = localStorage.getItem(STORAGE_KEY_PROJECTS);
-              if (legacyProjects) {
-                const parsed = JSON.parse(legacyProjects);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  setProjects(parsed);
-                  await saveProjectsToIndexedDB(parsed);
-                } else {
-                  await saveProjectsToIndexedDB(INITIAL_SEEDED_PROJECTS);
-                }
-              } else {
-                await saveProjectsToIndexedDB(INITIAL_SEEDED_PROJECTS);
-              }
-            } catch {
-              await saveProjectsToIndexedDB(INITIAL_SEEDED_PROJECTS);
-            }
+    const unsubscribe = subscribeToProjects(
+      user.uid,
+      (cloudProjects) => {
+        if (cloudProjects && cloudProjects.length > 0) {
+          setProjects(cloudProjects);
+          setCurrentProjectId((prevId) => {
+            if (prevId && cloudProjects.some((p) => p.id === prevId)) return prevId;
+            return cloudProjects[0].id;
+          });
+          const activeProj =
+            (currentProjectId && cloudProjects.find((p) => p.id === currentProjectId)) ||
+            cloudProjects[0];
+          if (activeProj) {
+            setCurrentMedia(activeProj.media);
+            setAdjustments(createAdjustmentsCopy(activeProj.adjustments));
+            const activeCol =
+              activeProj.activeCollage ||
+              (activeProj.collages && activeProj.collages[activeProj.activeCollageIndex || 0]) ||
+              null;
+            setActiveCollage(activeCol);
           }
-
-          if (dbUserMedia && dbUserMedia.length > 0) {
-            setUserMediaLibrary(dbUserMedia);
-          } else {
-            try {
-              const legacyMedia = localStorage.getItem(STORAGE_KEY_USER_MEDIA);
-              if (legacyMedia) {
-                const parsed = JSON.parse(legacyMedia);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  setUserMediaLibrary(parsed);
-                  await saveUserMediaToIndexedDB(parsed);
-                }
-              }
-            } catch {}
-          }
-
           setLastSavedAt(Date.now());
           setSaveStatus('saved');
-          setIsStorageInitialized(true);
+        } else if (projects.length > 0) {
+          // Sync existing initial session projects directly to this user's Firestore
+          projects.forEach((proj) => {
+            saveProjectToFirestore(user.uid, proj).catch((e) =>
+              console.warn('First-time Firestore project sync error:', e)
+            );
+          });
         }
-      } catch (err) {
-        console.warn('Initial IndexedDB load failed, continuing with memory state:', err);
-        if (isMounted) {
-          setIsStorageInitialized(true);
-          setSaveStatus('saved');
-        }
+      },
+      (err) => {
+        console.warn('Firestore real-time subscription notice:', err);
       }
-    }
+    );
 
-    loadFromDB();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    return () => unsubscribe();
+  }, [user?.uid]);
 
-  // Debounced auto-save to IndexedDB whenever projects, userMediaLibrary, or currentProjectId change
+  // Real-time Firestore Cloud Media Synchronization (Linked to user.uid)
   useEffect(() => {
-    if (!isStorageInitialized) return;
+    if (!user?.uid) return;
+
+    const unsubscribe = subscribeToMedia(
+      user.uid,
+      (cloudMedia) => {
+        if (cloudMedia && cloudMedia.length > 0) {
+          setUserMediaLibrary(cloudMedia);
+        } else if (userMediaLibrary.length > 0) {
+          // Sync existing session media to user's Firestore
+          userMediaLibrary.forEach((media) => {
+            saveMediaToFirestore(user.uid, media).catch((e) =>
+              console.warn('Firestore initial media sync error:', e)
+            );
+          });
+        }
+      },
+      (err) => {
+        console.warn('Firestore media subscription notice:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  // Real-time Firestore Cloud Preset Synchronization (Linked to user.uid)
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubscribe = subscribeToPresets(
+      user.uid,
+      (cloudPresets) => {
+        if (cloudPresets && cloudPresets.length > 0) {
+          setPresets((prev) => {
+            const builtIn = prev.filter((p) => !p.isCustom);
+            return [...builtIn, ...cloudPresets];
+          });
+        }
+      },
+      (err) => {
+        console.warn('Firestore preset subscription notice:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  // Direct Firebase Cloud Auto-Save (whenever projects or adjustments change for logged-in user)
+  useEffect(() => {
+    if (!user?.uid) {
+      setSaveStatus('saved');
+      return;
+    }
 
     setSaveStatus('saving');
 
@@ -363,38 +325,15 @@ export default function App() {
     autoSaveTimeoutRef.current = setTimeout(async () => {
       try {
         if (projects.length > 0) {
-          await saveProjectsToIndexedDB(projects);
-        }
-        if (userMediaLibrary.length > 0) {
-          await saveUserMediaToIndexedDB(userMediaLibrary);
-        }
-        if (currentProjectId) {
-          await saveAppStateItem('currentProjectId', currentProjectId);
-        }
-
-        // Keep localStorage as auxiliary backup
-        try {
-          localStorage.setItem(STORAGE_KEY_PROJECTS, safeJsonStringify(projects));
-          localStorage.setItem(STORAGE_KEY_USER_MEDIA, safeJsonStringify(userMediaLibrary));
-          if (currentProjectId) {
-            localStorage.setItem(STORAGE_KEY_CURRENT_PROJECT_ID, currentProjectId);
-          }
-        } catch {}
-
-        // Sync active project to Firebase Firestore if logged in
-        if (user?.uid && projects.length > 0) {
           const activeProj = projects.find((p) => p.id === currentProjectId) || projects[0];
           if (activeProj) {
-            saveProjectToFirestore(user.uid, activeProj).catch((e) =>
-              console.warn('Firestore cloud auto-save warning:', e)
-            );
+            await saveProjectToFirestore(user.uid, activeProj);
           }
         }
-
         setLastSavedAt(Date.now());
         setSaveStatus('saved');
       } catch (err) {
-        console.warn('Auto-save to IndexedDB/Cloud error:', err);
+        console.warn('Direct Firebase auto-save error:', err);
         setSaveStatus('error');
       }
     }, 450);
@@ -404,7 +343,7 @@ export default function App() {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [projects, userMediaLibrary, currentProjectId, isStorageInitialized]);
+  }, [projects, currentProjectId, user?.uid]);
 
   // Sync active project state whenever currentMedia, adjustments, or activeCollage change
   useEffect(() => {
@@ -427,53 +366,47 @@ export default function App() {
     );
   }, [adjustments, currentMedia, currentProjectId, activeCollage]);
 
-  // Manual Force Save to IndexedDB and Cloud
-  const handleForceSaveToIndexedDB = useCallback(async () => {
+  // Manual Force Save Direct to Firebase Cloud
+  const handleForceSaveToCloud = useCallback(async () => {
+    if (!user?.uid) {
+      soundFx.playHapticTick();
+      return;
+    }
     setSaveStatus('saving');
     try {
       if (projects.length > 0) {
-        await saveProjectsToIndexedDB(projects);
-      }
-      if (userMediaLibrary.length > 0) {
-        await saveUserMediaToIndexedDB(userMediaLibrary);
-      }
-      if (currentProjectId) {
-        await saveAppStateItem('currentProjectId', currentProjectId);
-      }
-
-      // Sync all projects to Firestore if authenticated
-      if (user?.uid && projects.length > 0) {
         for (const proj of projects) {
           await saveProjectToFirestore(user.uid, proj);
         }
       }
-
+      if (userMediaLibrary.length > 0) {
+        for (const media of userMediaLibrary) {
+          await saveMediaToFirestore(user.uid, media);
+        }
+      }
       setLastSavedAt(Date.now());
       setSaveStatus('saved');
       soundFx.playHapticTick();
     } catch (err) {
-      console.warn('Manual force save failed:', err);
+      console.warn('Manual force save to Firebase failed:', err);
       setSaveStatus('error');
     }
-  }, [projects, userMediaLibrary, currentProjectId, user?.uid]);
+  }, [projects, userMediaLibrary, user?.uid]);
 
-  // Manual Reload from IndexedDB
-  const handleReloadFromIndexedDB = useCallback(async () => {
+  // Manual Reload directly from Firebase Cloud
+  const handleReloadFromCloud = useCallback(async () => {
+    if (!user?.uid) return;
     setSaveStatus('saving');
     try {
-      const dbProjects = await loadProjectsFromIndexedDB();
-      const dbUserMedia = await loadUserMediaFromIndexedDB();
-      const savedProjectId = await loadAppStateItem<string>('currentProjectId');
+      const cloudProjects = await fetchProjectsFromFirestore(user.uid);
+      const cloudMedia = await fetchMediaFromFirestore(user.uid);
+      const cloudPresets = await fetchPresetsFromFirestore(user.uid);
 
-      if (dbProjects && dbProjects.length > 0) {
-        setProjects(dbProjects);
-        const activeId = savedProjectId && dbProjects.some((p) => p.id === savedProjectId)
-          ? savedProjectId
-          : dbProjects[0].id;
-        setCurrentProjectId(activeId);
-
-        const activeProj = dbProjects.find((p) => p.id === activeId) || dbProjects[0];
+      if (cloudProjects && cloudProjects.length > 0) {
+        setProjects(cloudProjects);
+        const activeProj = cloudProjects.find((p) => p.id === currentProjectId) || cloudProjects[0];
         if (activeProj) {
+          setCurrentProjectId(activeProj.id);
           setCurrentMedia(activeProj.media);
           setAdjustments(createAdjustmentsCopy(activeProj.adjustments));
           const activeCol =
@@ -483,17 +416,23 @@ export default function App() {
           setActiveCollage(activeCol);
         }
       }
-      if (dbUserMedia) {
-        setUserMediaLibrary(dbUserMedia);
+      if (cloudMedia && cloudMedia.length > 0) {
+        setUserMediaLibrary(cloudMedia);
+      }
+      if (cloudPresets && cloudPresets.length > 0) {
+        setPresets((prev) => {
+          const builtIn = prev.filter((p) => !p.isCustom);
+          return [...builtIn, ...cloudPresets];
+        });
       }
       setLastSavedAt(Date.now());
       setSaveStatus('saved');
       soundFx.playHapticTick();
     } catch (err) {
-      console.warn('Manual reload from IndexedDB failed:', err);
+      console.warn('Manual reload from Firebase failed:', err);
       setSaveStatus('error');
     }
-  }, []);
+  }, [user?.uid, currentProjectId]);
 
   // Sync favorites & custom presets to localStorage
   useEffect(() => {
@@ -566,6 +505,32 @@ export default function App() {
       }
     },
     [currentMedia, activeCollage, selectedSlotId, selectedTextId, currentProject, recordHistory]
+  );
+
+  // Add user media and auto-sync to Firestore for authenticated users
+  const handleAddUserMedia = useCallback(
+    (newMedia: MediaItem) => {
+      setUserMediaLibrary((prev) => [newMedia, ...prev]);
+      if (user?.uid) {
+        saveMediaToFirestore(user.uid, newMedia).catch((e) =>
+          console.warn('Firestore save media error:', e)
+        );
+      }
+    },
+    [user?.uid]
+  );
+
+  // Delete user media and remove from Firestore for authenticated users
+  const handleDeleteUserMedia = useCallback(
+    (mediaId: string) => {
+      setUserMediaLibrary((prev) => prev.filter((m) => m.id !== mediaId));
+      if (user?.uid) {
+        deleteMediaFromFirestore(user.uid, mediaId).catch((e) =>
+          console.warn('Firestore delete media error:', e)
+        );
+      }
+    },
+    [user?.uid]
   );
 
   // Undo
@@ -1190,7 +1155,7 @@ export default function App() {
     });
 
     if (batchMediaItems.length > 0) {
-      setUserMediaLibrary((prev) => [...batchMediaItems, ...prev]);
+      batchMediaItems.forEach((item) => handleAddUserMedia(item));
     }
 
     handleUpdateActiveCollage({ ...targetCollage, slots: updatedSlots }, true, true);
@@ -1350,7 +1315,7 @@ export default function App() {
 
     const finishImport = (newMedia: MediaItem) => {
       setCurrentMedia(newMedia);
-      setUserMediaLibrary((prev) => [newMedia, ...prev]);
+      handleAddUserMedia(newMedia);
       const snapshot = createHistorySnapshot(
         adjustments,
         newMedia,
@@ -1439,7 +1404,7 @@ export default function App() {
     };
 
     // Store in persistent user media library
-    setUserMediaLibrary((prev) => [capturedMedia, ...prev]);
+    handleAddUserMedia(capturedMedia);
 
     if (targetSlotId && activeCollage) {
       // Direct insertion into specific collage frame
@@ -1568,8 +1533,8 @@ export default function App() {
         saveStatus={saveStatus}
         lastSavedAt={lastSavedAt}
         totalProjectsCount={projects.length}
-        onForceSave={handleForceSaveToIndexedDB}
-        onReloadFromStorage={handleReloadFromIndexedDB}
+        onForceSave={handleForceSaveToCloud}
+        onReloadFromStorage={handleReloadFromCloud}
         onOpenSignIn={() => setShowSignInModal(true)}
         onLogout={() => {
           setIsGuestMode(false);
@@ -1931,12 +1896,8 @@ export default function App() {
         onDuplicateProject={handleDuplicateProject}
         onDeleteProject={handleDeleteProject}
         onRenameProject={handleRenameProject}
-        onDeleteUserMedia={(mediaId) => {
-          setUserMediaLibrary((prev) => prev.filter((m) => m.id !== mediaId));
-        }}
-        onAddUserMedia={(newMedia) => {
-          setUserMediaLibrary((prev) => [newMedia, ...prev]);
-        }}
+        onDeleteUserMedia={handleDeleteUserMedia}
+        onAddUserMedia={handleAddUserMedia}
         onOpenCamera={() => {
           setCameraInitialMode('photo');
           setCameraTargetSlotId(null);
@@ -2001,12 +1962,8 @@ export default function App() {
           }
           soundFx.playHapticTick();
         }}
-        onDeleteMedia={(mediaId) => {
-          setUserMediaLibrary((prev) => prev.filter((m) => m.id !== mediaId));
-        }}
-        onAddMedia={(newMedia) => {
-          setUserMediaLibrary((prev) => [newMedia, ...prev]);
-        }}
+        onDeleteMedia={handleDeleteUserMedia}
+        onAddMedia={handleAddUserMedia}
         onOpenCamera={() => {
           setCameraInitialMode('photo');
           setCameraTargetSlotId(libraryTargetSlotId);
