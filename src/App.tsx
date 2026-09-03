@@ -1794,7 +1794,7 @@ export default function App() {
               onChangeAdjustments={(newAdj) => updateAdjustments(newAdj, true, false)}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center p-1 sm:p-4 pt-12 sm:pt-14 overflow-y-auto">
+            <div className="w-full h-full flex items-center justify-center p-2 sm:p-5 pt-3 sm:pt-4 overflow-y-auto">
               <TemplateCanvasRenderer
                 template={activeCollage}
                 onChangeTemplate={handleUpdateActiveCollage}

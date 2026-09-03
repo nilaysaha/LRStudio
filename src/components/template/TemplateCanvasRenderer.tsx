@@ -581,19 +581,21 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         onChange={handleBatchFilesChange}
       />
 
-      {/* Slide Quick Action Menu (Placed Cleanly ABOVE the slide so it never blocks or overlays media) */}
+      {/* Slide Quick Action Menu & Title (Centered Nicely Above Canvas) */}
       {!isPreview && (
-        <div className="w-full flex items-center justify-between gap-2 mb-2 px-1 z-30 flex-wrap animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[11px] font-semibold text-[#4A453E] truncate">
+        <div className="w-full flex flex-col items-center justify-center gap-2 mb-3.5 px-2 z-30 animate-in fade-in slide-in-from-top-1 duration-200">
+          {/* Centered Title & Aspect Badge */}
+          <div className="flex items-center justify-center gap-2 text-center">
+            <span className="text-xs font-serif font-bold text-[#2A2723] uppercase tracking-wider">
               {template.name || 'Slide Canvas'}
             </span>
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white text-[#7E7365] border border-[#E6E2D3] shadow-2xs">
+            <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-white text-[#7E7365] border border-[#E6E2D3] shadow-xs">
               {template.aspectLabel || '4:5'}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-white/90 hover:bg-white backdrop-blur-md px-2 py-1 rounded-full border border-[#E6E2D3] shadow-sm transition-all ml-auto">
+          {/* Centered Editing Actions Pill Bar */}
+          <div className="flex items-center justify-center gap-1.5 bg-white/95 hover:bg-white backdrop-blur-md px-2 py-1 rounded-full border border-[#E6E2D3] shadow-md transition-all max-w-full overflow-x-auto no-scrollbar">
             <button
               type="button"
               onClick={(e) => {
@@ -601,10 +603,10 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                 if (batchFileInputRef.current) batchFileInputRef.current.click();
                 soundFx.playHapticTick();
               }}
-              className="flex items-center gap-1 px-2.5 py-1 bg-[#2A2723] hover:bg-black text-white rounded-full text-[11px] font-semibold shadow-xs transition-transform active:scale-95 whitespace-nowrap cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1 bg-[#2A2723] hover:bg-black text-white rounded-full text-xs font-semibold shadow-xs transition-all active:scale-95 whitespace-nowrap cursor-pointer group"
               title="Select multiple photos and videos at once to fill all collage frames"
             >
-              <FolderPlus className="w-3.5 h-3.5 text-amber-300" />
+              <FolderPlus className="w-3.5 h-3.5 text-amber-300 group-hover:scale-110 transition-transform" />
               <span>Batch Fill ({slots.length})</span>
             </button>
 
@@ -614,10 +616,10 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                 e.stopPropagation();
                 handleAddNewSlot();
               }}
-              className="flex items-center gap-1 px-2 py-1 bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] rounded-full text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1 bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] rounded-full text-xs font-medium transition-all active:scale-95 whitespace-nowrap cursor-pointer"
               title="Add another photo/video frame to this collage"
             >
-              <Plus className="w-3 h-3" />
+              <Plus className="w-3.5 h-3.5 text-[#7E7365]" />
               <span>Add Slot</span>
             </button>
 
@@ -629,10 +631,10 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                   onOpenTemplateSelector();
                   soundFx.playHapticTick();
                 }}
-                className="flex items-center gap-1 px-2 py-1 bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] rounded-full text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] rounded-full text-xs font-medium transition-all active:scale-95 whitespace-nowrap cursor-pointer"
                 title="Choose a different collage format"
               >
-                <Layers className="w-3 h-3" />
+                <Layers className="w-3.5 h-3.5 text-[#7E7365]" />
                 <span>Templates</span>
               </button>
             )}
@@ -645,10 +647,10 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                   onOpenExport();
                   soundFx.playHapticTick();
                 }}
-                className="flex items-center gap-1 px-2.5 py-1 bg-[#D97706] hover:bg-[#B45309] text-white rounded-full text-[11px] font-semibold shadow-xs transition-transform active:scale-95 whitespace-nowrap cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1 bg-[#D97706] hover:bg-[#B45309] text-white rounded-full text-xs font-semibold shadow-xs transition-all active:scale-95 whitespace-nowrap cursor-pointer group"
                 title="Export & Share Collage"
               >
-                <Share2 className="w-3 h-3" />
+                <Share2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
                 <span>Export</span>
               </button>
             )}
