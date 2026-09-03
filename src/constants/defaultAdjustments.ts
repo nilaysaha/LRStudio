@@ -94,6 +94,17 @@ export const defaultAdjustments: Adjustments = {
   flipV: false,
 };
 
-export const createAdjustmentsCopy = (adj: Adjustments): Adjustments => {
-  return safeClone(adj);
+export const createAdjustmentsCopy = (adj?: Adjustments | null): Adjustments => {
+  if (!adj) return safeClone(defaultAdjustments);
+  const cloned = safeClone({
+    ...defaultAdjustments,
+    ...adj,
+    cropBox: { ...defaultCropBox, ...(adj.cropBox || {}) },
+    hsl: safeClone(adj.hsl || defaultAdjustments.hsl),
+    curves: safeClone(adj.curves || defaultAdjustments.curves),
+    blurCenter: (Array.isArray(adj.blurCenter) && adj.blurCenter.length >= 2
+      ? [adj.blurCenter[0], adj.blurCenter[1]]
+      : [0.5, 0.5]) as [number, number],
+  });
+  return cloned;
 };

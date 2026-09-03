@@ -199,15 +199,16 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   };
 
   const handlePointerMove = useCallback((e: MouseEvent | TouchEvent) => {
+    const touch = 'touches' in e ? e.touches?.[0] : null;
+    const clientX = touch ? touch.clientX : ('clientX' in e ? (e as MouseEvent).clientX : 0);
+    const clientY = touch ? touch.clientY : ('clientY' in e ? (e as MouseEvent).clientY : 0);
+
     if (isDraggingSplit && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const x = (clientX - rect.left) / rect.width;
       const clamped = Math.max(0.01, Math.min(0.99, x));
       setSplitPos(clamped);
     } else if (isPanning) {
-      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
       const dx = clientX - panStartRef.current.x;
       const dy = clientY - panStartRef.current.y;
       setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));

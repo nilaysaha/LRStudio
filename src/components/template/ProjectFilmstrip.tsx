@@ -182,7 +182,7 @@ export const ProjectFilmstrip: React.FC<ProjectFilmstripProps> = ({
             const isBeingDragged = draggedIndex === index;
             const isDropTarget = dragOverIndex === index;
             const previewImg =
-              slide.slots[0]?.media?.url ||
+              slide.slots?.[0]?.media?.url ||
               slide.previewThumbnail ||
               'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=600&auto=format&fit=crop';
             const frameCount = slide.slots?.length || 1;

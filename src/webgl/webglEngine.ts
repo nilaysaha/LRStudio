@@ -296,8 +296,11 @@ export class WebGLFilterEngine {
     // Blur / Tilt Shift
     const blurModes = { 'none': 0, 'radial': 1, 'linear': 2 };
     gl.uniform1i(this.uniformLocations.u_blur_mode, blurModes[adjustments.blurMode] || 0);
-    gl.uniform1f(this.uniformLocations.u_blur_amount, adjustments.blurAmount);
-    gl.uniform2f(this.uniformLocations.u_blur_center, adjustments.blurCenter[0], adjustments.blurCenter[1]);
+    gl.uniform1f(this.uniformLocations.u_blur_amount, adjustments.blurAmount || 0);
+    const safeBlurCenter = Array.isArray(adjustments.blurCenter) && adjustments.blurCenter.length >= 2
+      ? adjustments.blurCenter
+      : [0.5, 0.5];
+    gl.uniform2f(this.uniformLocations.u_blur_center, safeBlurCenter[0], safeBlurCenter[1]);
 
     // VHS
     gl.uniform1f(this.uniformLocations.u_vhs_amount, adjustments.vhsAmount);

@@ -721,7 +721,7 @@ export default function App() {
     collageData?: CollageTemplate
   ) => {
     const collageToUse = collageData || template?.collageData || null;
-    const newMedia = customMedia || collageToUse?.slots[0]?.media || template?.sampleMedia || SAMPLE_MEDIA_GALLERY[0];
+    const newMedia = customMedia || collageToUse?.slots?.[0]?.media || template?.sampleMedia || SAMPLE_MEDIA_GALLERY[0];
     const newAdj = customAdjustments
       ? createAdjustmentsCopy(customAdjustments)
       : collageToUse

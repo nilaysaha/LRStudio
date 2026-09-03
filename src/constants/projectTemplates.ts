@@ -1120,7 +1120,7 @@ export const LUMENLAB_PROJECT_TEMPLATES: ProjectTemplate[] = [
       badge: col.badge,
       moodKeywords: col.moodKeywords,
       previewThumbnail: col.previewThumbnail,
-      sampleMedia: col.slots[0]?.media || {
+      sampleMedia: col.slots?.[0]?.media || {
         id: `media-${col.id}`,
         name: col.name,
         type: 'image',

@@ -337,7 +337,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 max-w-full sm:max-w-md">
           {slides.map((slide, idx) => {
             const isSelected = idx === currentIndex;
-            const thumbImg = slide.slots[0]?.media?.url || slide.previewThumbnail;
+            const thumbImg = slide.slots?.[0]?.media?.url || slide.previewThumbnail;
             return (
               <button
                 key={slide.id || idx}

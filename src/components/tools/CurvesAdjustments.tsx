@@ -320,8 +320,8 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
     if (dragIndex === null) return;
 
     const handleGlobalMove = (e: MouseEvent | TouchEvent) => {
-      const clientX = 'touches' in e ? e.touches[0]?.clientX : (e as MouseEvent).clientX;
-      const clientY = 'touches' in e ? e.touches[0]?.clientY : (e as MouseEvent).clientY;
+      const clientX = 'touches' in e ? e.touches?.[0]?.clientX : (e as MouseEvent).clientX;
+      const clientY = 'touches' in e ? e.touches?.[0]?.clientY : (e as MouseEvent).clientY;
       if (clientX === undefined || clientY === undefined) return;
 
       const { xNorm, yNorm } = getCanvasCoords(clientX, clientY);
@@ -423,7 +423,7 @@ export const CurvesAdjustments: React.FC<CurvesAdjustmentsProps> = ({
           height={180}
           onMouseDown={(e) => handlePointerDown(e.clientX, e.clientY)}
           onTouchStart={(e) => {
-            if (e.touches[0]) handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
+            if (e.touches?.[0]) handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
           }}
           className="rounded-lg cursor-crosshair shadow-inner border border-[#E6E2D3] max-w-full touch-none"
         />

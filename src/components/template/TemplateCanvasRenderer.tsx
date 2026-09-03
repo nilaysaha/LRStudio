@@ -422,7 +422,9 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
     soundFx.playHapticTick();
     const currentIdx = slots.findIndex((s) => s.id === selectedSlotId);
     if (currentIdx === -1) {
-      onSelectSlot(slots[0].id);
+      if (slots.length > 0 && slots[0]?.id) {
+        onSelectSlot(slots[0].id);
+      }
       return;
     }
     const nextIdx =
