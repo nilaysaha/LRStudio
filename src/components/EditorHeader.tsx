@@ -883,7 +883,25 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                         <span className="hidden lg:inline text-[11px]">Log Out</span>
                       </button>
                     </>
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      id="top-menu-signin-btn"
+                      onClick={() => {
+                        soundFx.playHapticTick();
+                        if (onOpenSignIn) {
+                          onOpenSignIn();
+                        } else {
+                          signInWithGoogle();
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#2A2723] hover:bg-black text-white text-xs font-semibold shadow-sm active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                      title="Sign in to sync your projects and media across devices"
+                    >
+                      <LogIn className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Sign In</span>
+                    </button>
+                  )}
 
                   {/* User Profile Dropdown */}
                   {isUserMenuOpen && user && (
@@ -1094,6 +1112,27 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               <Download className="w-3.5 h-3.5 stroke-[2.2]" />
               <span className="text-[11px]">Save</span>
             </button>
+
+            {/* Mobile Top Bar Sign In Button (When not logged in) */}
+            {!user && (
+              <button
+                type="button"
+                id="mobile-top-bar-signin-btn"
+                onClick={() => {
+                  soundFx.playHapticTick();
+                  if (onOpenSignIn) {
+                    onOpenSignIn();
+                  } else {
+                    signInWithGoogle();
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#2A2723] hover:bg-black text-white text-xs font-semibold shadow-xs active:scale-95 transition-transform cursor-pointer"
+                title="Sign In to sync projects"
+              >
+                <LogIn className="w-3 h-3 text-amber-400" />
+                <span className="text-[10px]">Sign In</span>
+              </button>
+            )}
 
             {/* Collapsed Hamburger Menu Trigger */}
             <button

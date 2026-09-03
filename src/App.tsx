@@ -209,6 +209,29 @@ export default function App() {
     return [];
   });
 
+  // Helper to compute deterministic project signature for change detection
+  const computeProjectSignature = (project: Project | null | undefined): string => {
+    if (!project) return '';
+    return JSON.stringify({
+      id: project.id,
+      name: project.name,
+      templateId: project.templateId,
+      templateTag: project.templateTag,
+      media: project.media
+        ? {
+            id: project.media.id,
+            url: project.media.url,
+            type: project.media.type,
+            aspectRatio: project.media.aspectRatio,
+          }
+        : null,
+      adjustments: project.adjustments,
+      activeCollageIndex: project.activeCollageIndex ?? 0,
+      activeCollage: project.activeCollage || null,
+      collages: project.collages || [],
+    });
+  };
+
   // -------------------------------------------------------------
   // 4. Firebase Cloud Direct Persistence & Real-Time Sync Engine
   // -------------------------------------------------------------
@@ -216,37 +239,67 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(Date.now());
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedProjectSignaturesRef = useRef<Map<string, string>>(new Map());
+  const initialCloudProjectSyncDoneRef = useRef<boolean>(false);
 
   // Real-time Firestore Cloud Project Synchronization (Linked to user.uid)
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      initialCloudProjectSyncDoneRef.current = false;
+      return;
+    }
 
     const unsubscribe = subscribeToProjects(
       user.uid,
       (cloudProjects) => {
         if (cloudProjects && cloudProjects.length > 0) {
+          // Register signatures of all cloud projects so auto-save won't redundantly re-save them
+          cloudProjects.forEach((p) => {
+            lastSavedProjectSignaturesRef.current.set(p.id, computeProjectSignature(p));
+          });
+
           setProjects(cloudProjects);
           setCurrentProjectId((prevId) => {
             if (prevId && cloudProjects.some((p) => p.id === prevId)) return prevId;
             return cloudProjects[0].id;
           });
+
           const activeProj =
             (currentProjectId && cloudProjects.find((p) => p.id === currentProjectId)) ||
             cloudProjects[0];
+
           if (activeProj) {
-            setCurrentMedia(activeProj.media);
-            setAdjustments(createAdjustmentsCopy(activeProj.adjustments));
+            setCurrentMedia((prevM) => {
+              if (prevM?.id === activeProj.media?.id && prevM?.url === activeProj.media?.url) {
+                return prevM;
+              }
+              return activeProj.media;
+            });
+            setAdjustments((prevAdj) => {
+              if (JSON.stringify(prevAdj) === JSON.stringify(activeProj.adjustments)) {
+                return prevAdj;
+              }
+              return createAdjustmentsCopy(activeProj.adjustments);
+            });
             const activeCol =
               activeProj.activeCollage ||
               (activeProj.collages && activeProj.collages[activeProj.activeCollageIndex || 0]) ||
               null;
-            setActiveCollage(activeCol);
+            setActiveCollage((prevCol) => {
+              if (JSON.stringify(prevCol || null) === JSON.stringify(activeCol || null)) {
+                return prevCol;
+              }
+              return activeCol;
+            });
           }
           setLastSavedAt(Date.now());
           setSaveStatus('saved');
-        } else if (projects.length > 0) {
-          // Sync existing initial session projects directly to this user's Firestore
+          initialCloudProjectSyncDoneRef.current = true;
+        } else if (projects.length > 0 && !initialCloudProjectSyncDoneRef.current) {
+          // Initial first-time sync: Upload existing local projects to Firestore once
+          initialCloudProjectSyncDoneRef.current = true;
           projects.forEach((proj) => {
+            lastSavedProjectSignaturesRef.current.set(proj.id, computeProjectSignature(proj));
             saveProjectToFirestore(user.uid, proj).catch((e) =>
               console.warn('First-time Firestore project sync error:', e)
             );
@@ -264,14 +317,15 @@ export default function App() {
   // Real-time Firestore Cloud Media Synchronization (Linked to user.uid)
   useEffect(() => {
     if (!user?.uid) return;
+    let initialMediaSyncDone = false;
 
     const unsubscribe = subscribeToMedia(
       user.uid,
       (cloudMedia) => {
         if (cloudMedia && cloudMedia.length > 0) {
           setUserMediaLibrary(cloudMedia);
-        } else if (userMediaLibrary.length > 0) {
-          // Sync existing session media to user's Firestore
+        } else if (userMediaLibrary.length > 0 && !initialMediaSyncDone) {
+          initialMediaSyncDone = true;
           userMediaLibrary.forEach((media) => {
             saveMediaToFirestore(user.uid, media).catch((e) =>
               console.warn('Firestore initial media sync error:', e)
@@ -309,13 +363,27 @@ export default function App() {
     return () => unsubscribe();
   }, [user?.uid]);
 
-  // Direct Firebase Cloud Auto-Save (whenever projects or adjustments change for logged-in user)
+  // Direct Firebase Cloud Auto-Save (TRIGGERS ONLY WHEN REAL USER CHANGES OCCUR)
   useEffect(() => {
-    if (!user?.uid) {
+    if (!user?.uid || !currentProjectId) {
       setSaveStatus('saved');
       return;
     }
 
+    const activeProj = projects.find((p) => p.id === currentProjectId);
+    if (!activeProj) {
+      return;
+    }
+
+    const currentSig = computeProjectSignature(activeProj);
+    const lastSavedSig = lastSavedProjectSignaturesRef.current.get(activeProj.id);
+
+    // If signature hasn't changed since last save/load, NO ACTION IS NEEDED
+    if (lastSavedSig === currentSig) {
+      return;
+    }
+
+    // A real change has occurred
     setSaveStatus('saving');
 
     if (autoSaveTimeoutRef.current) {
@@ -324,19 +392,15 @@ export default function App() {
 
     autoSaveTimeoutRef.current = setTimeout(async () => {
       try {
-        if (projects.length > 0) {
-          const activeProj = projects.find((p) => p.id === currentProjectId) || projects[0];
-          if (activeProj) {
-            await saveProjectToFirestore(user.uid, activeProj);
-          }
-        }
+        await saveProjectToFirestore(user.uid, activeProj);
+        lastSavedProjectSignaturesRef.current.set(activeProj.id, currentSig);
         setLastSavedAt(Date.now());
         setSaveStatus('saved');
       } catch (err) {
         console.warn('Direct Firebase auto-save error:', err);
         setSaveStatus('error');
       }
-    }, 450);
+    }, 600);
 
     return () => {
       if (autoSaveTimeoutRef.current) {
@@ -349,21 +413,35 @@ export default function App() {
   useEffect(() => {
     if (!currentProjectId || !currentMedia) return;
 
-    setProjects((prev) =>
-      prev.map((proj) => {
-        if (proj.id === currentProjectId) {
-          return {
-            ...proj,
-            updatedAt: Date.now(),
-            media: currentMedia,
-            adjustments: createAdjustmentsCopy(adjustments),
-            thumbnailUrl: activeCollage ? activeCollage.previewThumbnail : currentMedia.url,
-            activeCollage: activeCollage || undefined,
-          };
-        }
-        return proj;
-      })
-    );
+    setProjects((prev) => {
+      const idx = prev.findIndex((p) => p.id === currentProjectId);
+      if (idx === -1) return prev;
+
+      const currentP = prev[idx];
+      const isMediaSame =
+        currentP.media?.id === currentMedia.id &&
+        currentP.media?.url === currentMedia.url &&
+        currentP.media?.aspectRatio === currentMedia.aspectRatio;
+      const isAdjSame = JSON.stringify(currentP.adjustments) === JSON.stringify(adjustments);
+      const isCollageSame =
+        JSON.stringify(currentP.activeCollage || null) === JSON.stringify(activeCollage || null);
+
+      if (isMediaSame && isAdjSame && isCollageSame) {
+        // No functional change, preserve same array/object reference to prevent cascading effect runs
+        return prev;
+      }
+
+      const updated = [...prev];
+      updated[idx] = {
+        ...currentP,
+        updatedAt: Date.now(),
+        media: currentMedia,
+        adjustments: createAdjustmentsCopy(adjustments),
+        thumbnailUrl: activeCollage ? activeCollage.previewThumbnail : currentMedia.url,
+        activeCollage: activeCollage || undefined,
+      };
+      return updated;
+    });
   }, [adjustments, currentMedia, currentProjectId, activeCollage]);
 
   // Manual Force Save Direct to Firebase Cloud
@@ -377,6 +455,7 @@ export default function App() {
       if (projects.length > 0) {
         for (const proj of projects) {
           await saveProjectToFirestore(user.uid, proj);
+          lastSavedProjectSignaturesRef.current.set(proj.id, computeProjectSignature(proj));
         }
       }
       if (userMediaLibrary.length > 0) {
@@ -403,6 +482,9 @@ export default function App() {
       const cloudPresets = await fetchPresetsFromFirestore(user.uid);
 
       if (cloudProjects && cloudProjects.length > 0) {
+        cloudProjects.forEach((p) => {
+          lastSavedProjectSignaturesRef.current.set(p.id, computeProjectSignature(p));
+        });
         setProjects(cloudProjects);
         const activeProj = cloudProjects.find((p) => p.id === currentProjectId) || cloudProjects[0];
         if (activeProj) {
@@ -1188,6 +1270,7 @@ export default function App() {
 
     // Delete from Firestore if authenticated
     if (user?.uid) {
+      lastSavedProjectSignaturesRef.current.delete(projectId);
       deleteProjectFromFirestore(user.uid, projectId).catch((e) =>
         console.warn('Firestore delete project error:', e)
       );
@@ -2011,24 +2094,14 @@ export default function App() {
         }}
       />
 
-      {/* Sign-In Page Gateway / Login Screen: Displayed whenever the user is not logged in */}
-      {!user && (
+      {/* Sign-In Page Gateway / Login Screen: Displayed when not logged in unless guest mode is active */}
+      {!user && (!isGuestMode || showSignInModal) && (
         <SignInGatePage
-          projects={projects}
-          onKeepSingleProject={(keepId) => {
-            const chosen = projects.find((p) => p.id === keepId) || projects[0];
-            setProjects([chosen]);
-            setCurrentProjectId(chosen.id);
-            handleSelectProject(chosen);
-          }}
           onContinueAsGuest={() => {
-            if (projects.length > 1) {
-              const first = projects[0];
-              setProjects([first]);
-              setCurrentProjectId(first.id);
-              handleSelectProject(first);
-            }
+            setIsGuestMode(true);
+            setShowSignInModal(false);
           }}
+          onClose={isGuestMode ? () => setShowSignInModal(false) : undefined}
         />
       )}
     </main>
