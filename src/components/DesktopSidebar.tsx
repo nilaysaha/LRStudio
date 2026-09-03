@@ -3,7 +3,7 @@ import { ActiveTab, Adjustments, Preset, CollageTemplate, Project } from '../typ
 import {
   Sparkles, Sliders, Palette, Flame, Activity, Frame,
   Crop as CropIcon, ChevronLeft, ChevronRight, Share2, Grid, Film, Layers, Type, Paperclip,
-  Download, RotateCcw
+  Download, RotateCcw, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import { PresetsBar } from './PresetsBar';
 import { BasicAdjustments } from './tools/BasicAdjustments';
@@ -99,120 +99,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onToggleCollapse,
 }) => {
   if (isCollapsed) {
-    return (
-      <aside
-        id="desktop-sidebar-collapsed"
-        className="hidden md:flex flex-col items-center justify-between w-14 h-full bg-white/95 backdrop-blur-xl border-l border-[#E6E2D3] py-4 shadow-sm z-20 flex-shrink-0 relative select-none transition-all duration-300 ease-in-out"
-      >
-        {/* Edge Toggle Handle to Expand */}
-        <button
-          type="button"
-          onClick={() => {
-            onToggleCollapse();
-            soundFx.playHapticTick();
-          }}
-          className="absolute -left-3.5 top-1/2 -translate-y-1/2 w-7 h-12 rounded-l-xl bg-white hover:bg-[#FAF9F6] border-y border-l border-[#E6E2D3] shadow-md flex items-center justify-center text-[#7E7365] hover:text-[#2A2723] hover:scale-105 active:scale-95 transition-all z-30 cursor-pointer group"
-          title="Expand Right Sidebar (\)"
-          aria-label="Expand Sidebar"
-        >
-          <ChevronLeft className="w-4 h-4 stroke-[2.5] group-hover:-translate-x-0.5 transition-transform" />
-        </button>
-
-        {/* Top Expand Button */}
-        <div className="flex flex-col items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              onToggleCollapse();
-              soundFx.playHapticTick();
-            }}
-            className="w-9 h-9 rounded-xl bg-[#FAF9F6] hover:bg-[#2A2723] hover:text-white border border-[#E6E2D3] flex items-center justify-center text-[#2A2723] hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-xs group"
-            title="Expand Pro Editing Sidebar (\)"
-            aria-label="Expand Sidebar"
-          >
-            <ChevronLeft className="w-4 h-4 stroke-[2.2] group-hover:-translate-x-0.5 transition-transform" />
-          </button>
-        </div>
-
-        {/* Quick Vertical Icon Indicators (Click to switch tab and auto-expand) */}
-        <div className="flex flex-col items-center gap-2">
-          {activeCollage ? (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  onToggleCollapse();
-                  soundFx.playHapticTick();
-                }}
-                className="w-9 h-9 rounded-xl text-[#7E7365] hover:text-[#2A2723] flex items-center justify-center hover:bg-[#FAF9F6] hover:scale-105 transition-all cursor-pointer group relative"
-                title="Filmstrip & Slides"
-              >
-                <Film className="w-4 h-4 text-amber-600" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onToggleCollapse();
-                  soundFx.playHapticTick();
-                }}
-                className="w-9 h-9 rounded-xl text-[#7E7365] hover:text-[#2A2723] flex items-center justify-center hover:bg-[#FAF9F6] hover:scale-105 transition-all cursor-pointer group relative"
-                title="Media Frames & Slots"
-              >
-                <Layers className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onToggleCollapse();
-                  soundFx.playHapticTick();
-                }}
-                className="w-9 h-9 rounded-xl text-[#7E7365] hover:text-[#2A2723] flex items-center justify-center hover:bg-[#FAF9F6] hover:scale-105 transition-all cursor-pointer group relative"
-                title="Typography & Labels"
-              >
-                <Type className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            ADJUSTMENT_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(t.id);
-                  onToggleCollapse();
-                  soundFx.playHapticTick();
-                }}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer hover:scale-105 ${
-                  activeTab === t.id
-                    ? 'bg-[#2A2723] text-white shadow-xs'
-                    : 'text-[#7E7365] hover:text-[#2A2723] hover:bg-[#FAF9F6]'
-                }`}
-                title={`Open ${t.label}`}
-              >
-                {t.icon}
-              </button>
-            ))
-          )}
-        </div>
-
-        {/* Bottom Quick Actions */}
-        <div className="flex flex-col items-center gap-2">
-          {onOpenExport && (
-            <button
-              type="button"
-              onClick={() => {
-                onOpenExport();
-                soundFx.playHapticTick();
-              }}
-              className="w-9 h-9 rounded-xl bg-[#2A2723] hover:bg-black text-white flex items-center justify-center shadow-sm active:scale-95 transition-all cursor-pointer"
-              title="Export & Download"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </aside>
-    );
+    return null;
   }
 
   return (
@@ -235,20 +122,20 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       </button>
 
       {/* Sidebar Header with Collapse Toggle & Title */}
-      <div className="px-4 py-3 border-b border-[#F0EEE6] flex items-center justify-between flex-shrink-0 bg-[#FAF9F6]">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#2A2723]" />
-          <span className="text-xs font-serif font-bold text-[#2A2723] uppercase tracking-wider">
+      <div className="px-3.5 py-2.5 border-b border-[#F0EEE6] flex items-center justify-between flex-shrink-0 bg-[#FAF9F6] gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-2 h-2 rounded-full bg-[#2A2723] flex-shrink-0" />
+          <span className="text-xs font-serif font-bold text-[#2A2723] uppercase tracking-wider truncate">
             {activeCollage ? 'Collage Studio' : 'Pro Laboratory'}
           </span>
           {activeCollage && currentProject && (
-            <span className="text-[10px] bg-[#EFECE6] text-[#7E7365] px-2 py-0.5 rounded-md font-mono">
-              Slide {(currentProject.activeCollageIndex ?? 0) + 1}/{currentProject.collages.length || 1}
+            <span className="text-[10px] bg-[#EFECE6] text-[#7E7365] px-1.5 py-0.5 rounded font-mono flex-shrink-0">
+              {(currentProject.activeCollageIndex ?? 0) + 1}/{currentProject.collages.length || 1}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           {onOpenExport && (
             <button
               type="button"
@@ -264,19 +151,21 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             </button>
           )}
 
-          {/* Explicit Collapse Button */}
+          {/* Prominent Collapse Sidebar Button */}
           <button
             type="button"
+            id="desktop-sidebar-collapse-btn"
             onClick={() => {
               onToggleCollapse();
               soundFx.playHapticTick();
             }}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[#7E7365] hover:text-[#2A2723] hover:bg-[#EBE7DD] transition-all cursor-pointer text-xs font-semibold"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white hover:bg-[#F0EEE6] text-[#4A453E] hover:text-[#2A2723] border border-[#E6E2D3] shadow-xs hover:border-[#D8D2C0] transition-all cursor-pointer text-xs font-semibold group active:scale-95"
             title="Collapse Sidebar for Max Canvas Space (\)"
             aria-label="Collapse Sidebar"
           >
-            <ChevronRight className="w-4 h-4 stroke-[2.2]" />
-            <span className="text-[11px] hidden xl:inline">Collapse</span>
+            <PanelRightClose className="w-3.5 h-3.5 text-[#7E7365] group-hover:text-[#2A2723] transition-colors" />
+            <span className="text-[11px]">Collapse</span>
+            <span className="text-[9px] text-[#A39989] font-mono bg-[#FAF9F6] border border-[#E6E2D3] px-1 py-0.2 rounded">\</span>
           </button>
         </div>
       </div>

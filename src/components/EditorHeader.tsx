@@ -1010,7 +1010,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                     {isSidebarCollapsed ? (
                       <>
                         <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Show Tools</span>
+                        <span>Design Tools</span>
                         <span className="text-[10px] text-amber-300 font-mono bg-white/10 px-1 rounded">\</span>
                       </>
                     ) : (
