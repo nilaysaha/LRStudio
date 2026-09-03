@@ -78,7 +78,7 @@ export const SignInGatePage: React.FC<SignInGatePageProps> = ({
             Sign in to LumenLab
           </h1>
           <p className="text-xs sm:text-sm text-[#7E7365] max-w-xs">
-            Sync your projects, media library, and custom presets securely to Firebase Cloud.
+            Sync your projects, media library, and custom presets securely to Studio Cloud.
           </p>
         </div>
 
@@ -263,7 +263,7 @@ export const SignInGatePage: React.FC<SignInGatePageProps> = ({
         {/* Security / Cloud Badge */}
         <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#A39989]">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Secured with Firebase Authentication & Firestore</span>
+          <span>Secured with Cloud Authentication & Encryption</span>
         </div>
       </div>
     </div>

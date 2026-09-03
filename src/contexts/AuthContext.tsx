@@ -59,15 +59,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
         setIsFallbackSession(false);
-        try {
-          await syncUserProfile(currentUser as any);
-        } catch (err) {
-          console.warn('Could not sync user profile to Firestore:', err);
-        }
+        // Synchronize user profile in background without blocking state
+        syncUserProfile(currentUser as any).catch(() => {});
       } else if (initialLocalUser) {
         setUser(initialLocalUser);
         setIsFallbackSession(true);

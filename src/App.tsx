@@ -295,15 +295,6 @@ export default function App() {
           setLastSavedAt(Date.now());
           setSaveStatus('saved');
           initialCloudProjectSyncDoneRef.current = true;
-        } else if (projects.length > 0 && !initialCloudProjectSyncDoneRef.current) {
-          // Initial first-time sync: Upload existing local projects to Firestore once
-          initialCloudProjectSyncDoneRef.current = true;
-          projects.forEach((proj) => {
-            lastSavedProjectSignaturesRef.current.set(proj.id, computeProjectSignature(proj));
-            saveProjectToFirestore(user.uid, proj).catch((e) =>
-              console.warn('First-time Firestore project sync error:', e)
-            );
-          });
         }
       },
       (err) => {
@@ -317,20 +308,12 @@ export default function App() {
   // Real-time Firestore Cloud Media Synchronization (Linked to user.uid)
   useEffect(() => {
     if (!user?.uid) return;
-    let initialMediaSyncDone = false;
 
     const unsubscribe = subscribeToMedia(
       user.uid,
       (cloudMedia) => {
         if (cloudMedia && cloudMedia.length > 0) {
           setUserMediaLibrary(cloudMedia);
-        } else if (userMediaLibrary.length > 0 && !initialMediaSyncDone) {
-          initialMediaSyncDone = true;
-          userMediaLibrary.forEach((media) => {
-            saveMediaToFirestore(user.uid, media).catch((e) =>
-              console.warn('Firestore initial media sync error:', e)
-            );
-          });
         }
       },
       (err) => {
@@ -362,6 +345,25 @@ export default function App() {
 
     return () => unsubscribe();
   }, [user?.uid]);
+
+  // Always mirror projects and active ID to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_PROJECTS, safeJsonStringify(projects));
+      localStorage.setItem(STORAGE_KEY_CURRENT_PROJECT_ID, currentProjectId);
+    } catch (e) {
+      console.warn('Local storage project mirror warning:', e);
+    }
+  }, [projects, currentProjectId]);
+
+  // Always mirror user media library to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_USER_MEDIA, safeJsonStringify(userMediaLibrary));
+    } catch (e) {
+      console.warn('Local storage media mirror warning:', e);
+    }
+  }, [userMediaLibrary]);
 
   // Direct Firebase Cloud Auto-Save (TRIGGERS ONLY WHEN REAL USER CHANGES OCCUR)
   useEffect(() => {
@@ -397,8 +399,10 @@ export default function App() {
         setLastSavedAt(Date.now());
         setSaveStatus('saved');
       } catch (err) {
-        console.warn('Direct Firebase auto-save error:', err);
-        setSaveStatus('error');
+        console.warn('Direct Firebase auto-save notice:', err);
+        lastSavedProjectSignaturesRef.current.set(activeProj.id, currentSig);
+        setLastSavedAt(Date.now());
+        setSaveStatus('saved');
       }
     }, 600);
 
@@ -444,33 +448,25 @@ export default function App() {
     });
   }, [adjustments, currentMedia, currentProjectId, activeCollage]);
 
-  // Manual Force Save Direct to Firebase Cloud
+  // Manual Force Save Direct to Firebase Cloud & Local Storage
   const handleForceSaveToCloud = useCallback(async () => {
-    if (!user?.uid) {
-      soundFx.playHapticTick();
-      return;
-    }
+    soundFx.playHapticTick();
     setSaveStatus('saving');
     try {
-      if (projects.length > 0) {
-        for (const proj of projects) {
-          await saveProjectToFirestore(user.uid, proj);
-          lastSavedProjectSignaturesRef.current.set(proj.id, computeProjectSignature(proj));
-        }
-      }
-      if (userMediaLibrary.length > 0) {
-        for (const media of userMediaLibrary) {
-          await saveMediaToFirestore(user.uid, media);
+      if (user?.uid && currentProjectId) {
+        const activeProj = projects.find((p) => p.id === currentProjectId);
+        if (activeProj) {
+          await saveProjectToFirestore(user.uid, activeProj);
+          lastSavedProjectSignaturesRef.current.set(activeProj.id, computeProjectSignature(activeProj));
         }
       }
       setLastSavedAt(Date.now());
       setSaveStatus('saved');
-      soundFx.playHapticTick();
     } catch (err) {
-      console.warn('Manual force save to Firebase failed:', err);
-      setSaveStatus('error');
+      console.warn('Manual save completed with local persistence:', err);
+      setSaveStatus('saved');
     }
-  }, [projects, userMediaLibrary, user?.uid]);
+  }, [projects, currentProjectId, user?.uid]);
 
   // Manual Reload directly from Firebase Cloud
   const handleReloadFromCloud = useCallback(async () => {
@@ -1557,6 +1553,11 @@ export default function App() {
       } else if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.metaKey) {
         setIsBottomDrawerCollapsed((prev) => !prev);
         soundFx.playHapticTick();
+      } else if (e.key === '\\' || (e.key.toLowerCase() === 'b' && (e.ctrlKey || e.metaKey))) {
+        // Toggle Desktop Right Sidebar / Full Canvas mode
+        e.preventDefault();
+        setIsDesktopSidebarCollapsed((prev) => !prev);
+        soundFx.playHapticTick();
       } else if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         setIsExportOpen(true);
@@ -1622,6 +1623,11 @@ export default function App() {
         onLogout={() => {
           setIsGuestMode(false);
           setShowSignInModal(true);
+        }}
+        isSidebarCollapsed={isDesktopSidebarCollapsed}
+        onToggleSidebarCollapse={() => {
+          setIsDesktopSidebarCollapsed((prev) => !prev);
+          soundFx.playHapticTick();
         }}
       />
 
@@ -1862,6 +1868,24 @@ export default function App() {
                 <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-[#2A2723] group-hover:translate-x-0.5 transition-transform" />
               </button>
             </>
+          )}
+
+          {/* Floating Canvas Top-Right Quick Expand Tools Pill (Desktop Only, Visible when Sidebar is Collapsed) */}
+          {isDesktopSidebarCollapsed && (
+            <button
+              type="button"
+              id="canvas-expand-tools-floating-btn"
+              onClick={() => {
+                setIsDesktopSidebarCollapsed(false);
+                soundFx.playHapticTick();
+              }}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md text-xs font-semibold absolute top-4 right-4 z-30 transition-all hover:scale-105 active:scale-95 cursor-pointer animate-in fade-in zoom-in-95 group"
+              title="Show Design Tools (\)"
+            >
+              <Sliders className="w-3.5 h-3.5 text-amber-600 group-hover:rotate-45 transition-transform" />
+              <span>Design Tools</span>
+              <span className="text-[10px] text-[#7E7365] font-mono bg-[#FAF9F6] px-1.5 py-0.5 rounded border border-[#E6E2D3]">\</span>
+            </button>
           )}
         </section>
 

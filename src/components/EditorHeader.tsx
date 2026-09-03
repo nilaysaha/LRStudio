@@ -43,6 +43,8 @@ interface EditorHeaderProps {
   onReloadFromStorage?: () => void;
   onOpenSignIn?: () => void;
   onLogout?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebarCollapse?: () => void;
 }
 
 export const EditorHeader: React.FC<EditorHeaderProps> = ({
@@ -76,6 +78,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onReloadFromStorage,
   onOpenSignIn,
   onLogout,
+  isSidebarCollapsed = false,
+  onToggleSidebarCollapse,
 }) => {
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
@@ -324,7 +328,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   </button>
                 )}
 
-                {/* Auto-Save & Firebase Cloud Status Indicator Pill */}
+                {/* Auto-Save & Cloud Status Indicator Pill */}
                 <div className="relative flex-shrink-0" ref={storageMenuRef}>
                   <button
                     type="button"
@@ -339,7 +343,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                         ? 'bg-rose-50 text-rose-800 border-rose-300'
                         : 'bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#4A453E] border-[#E6E2D3]'
                     }`}
-                    title={user ? `Firebase Cloud Synced (${user.email || user.displayName})` : 'Guest Session (Sign in to sync with Firebase)'}
+                    title={user ? `Cloud Synced (${user.email || user.displayName})` : 'Guest Session (Sign in to sync with Cloud)'}
                   >
                     {saveStatus === 'saving' ? (
                       <>
@@ -370,7 +374,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                         <div className="flex items-center gap-1.5">
                           <Cloud className={`w-3.5 h-3.5 ${user ? 'text-emerald-600' : 'text-amber-600'}`} />
                           <span className="text-xs font-bold uppercase tracking-wider text-[#2A2723]">
-                            Firebase Cloud Storage
+                            Studio Cloud Storage
                           </span>
                         </div>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
@@ -378,11 +382,11 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                             ? 'bg-emerald-100 text-emerald-900 border-emerald-200'
                             : 'bg-amber-100 text-amber-900 border-amber-200'
                         }`}>
-                          {user ? 'Firestore Connected' : 'Guest (Session Only)'}
+                          {user ? 'Cloud Connected' : 'Guest (Session Only)'}
                         </span>
                       </div>
 
-                      {/* Firebase Cloud Sync Row */}
+                      {/* Cloud Sync Row */}
                       <div className="flex items-center justify-between p-2 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800">
@@ -390,8 +394,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                           </div>
                           <div>
                             <div className="font-bold text-[#2A2723] text-[11px] flex items-center gap-1">
-                              <span>Firebase Firestore</span>
-                              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 text-amber-950 font-mono">microservices-dev-360610</span>
+                              <span>Studio Cloud Sync</span>
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 text-amber-950 font-mono">Live</span>
                             </div>
                             <div className="text-[10px] text-[#7E7365]">
                               {user ? `User: ${user.email || user.displayName || user.uid.substring(0, 8)}` : 'Sign in to map projects to your user account'}
@@ -457,7 +461,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                             className="w-full py-1.5 px-3 rounded-xl bg-[#2A2723] hover:bg-black text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Force Save to Firebase Cloud</span>
+                            <span>Force Save to Cloud</span>
                           </button>
                         )}
 
@@ -471,7 +475,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                             className="w-full py-1.5 px-3 rounded-xl bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#4A453E] hover:text-[#2A2723] text-xs font-medium flex items-center justify-center gap-1.5 border border-[#E6E2D3] transition-colors cursor-pointer"
                           >
                             <RotateCcw className="w-3.5 h-3.5 text-[#7E7365]" />
-                            <span>Reload Projects from Firebase</span>
+                            <span>Reload Projects from Cloud</span>
                           </button>
                         )}
                       </div>
@@ -934,19 +938,19 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                         <div className="flex items-center justify-between text-[11px] font-bold text-[#2A2723]">
                           <span className="flex items-center gap-1">
                             <Cloud className="w-3.5 h-3.5 text-amber-800" />
-                            Firebase Cloud Storage
+                            Studio Cloud Storage
                           </span>
                           <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-900 font-bold">
                             Active
                           </span>
                         </div>
                         <div className="text-[10px] text-[#7E7365] flex items-center justify-between">
-                          <span>Region:</span>
-                          <span className="font-mono text-[#2A2723]">us-west1</span>
+                          <span>Status:</span>
+                          <span className="font-mono text-[#2A2723]">Live Connected</span>
                         </div>
                         <div className="text-[10px] text-[#7E7365] flex items-center justify-between">
-                          <span>Firestore:</span>
-                          <span className="font-mono text-[#2A2723] truncate max-w-[120px]">ai-studio-lrstudio...</span>
+                          <span>Sync Mode:</span>
+                          <span className="font-mono text-[#2A2723] truncate max-w-[120px]">Real-Time Cloud</span>
                         </div>
                       </div>
 
@@ -986,6 +990,38 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* Collapsible Right Sidebar / Canvas Space Toggle Button */}
+                {onToggleSidebarCollapse && (
+                  <button
+                    type="button"
+                    id="top-header-toggle-sidebar-btn"
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      onToggleSidebarCollapse();
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95 ${
+                      isSidebarCollapsed
+                        ? 'bg-[#2A2723] text-white border-black hover:bg-black'
+                        : 'bg-[#FAF9F6] text-[#4A453E] border-[#E6E2D3] hover:bg-[#F0EEE6] hover:text-[#2A2723]'
+                    }`}
+                    title={isSidebarCollapsed ? "Expand Tools Panel (\\)" : "Collapse Sidebar for Full Canvas Design (\\)"}
+                  >
+                    {isSidebarCollapsed ? (
+                      <>
+                        <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Show Tools</span>
+                        <span className="text-[10px] text-amber-300 font-mono bg-white/10 px-1 rounded">\</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="w-3.5 h-3.5 text-[#7E7365]" />
+                        <span className="hidden lg:inline">Max Canvas</span>
+                        <span className="text-[10px] text-[#A39989] font-mono bg-[#EFECE6] px-1 rounded">\</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1042,7 +1078,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   ? 'bg-rose-50 text-rose-800 border-rose-300'
                   : 'bg-[#FAF9F6] text-[#4A453E] border-[#E6E2D3]'
               }`}
-              title={user ? 'Direct Firebase Cloud Sync' : 'Guest Mode (Sign in to sync)'}
+              title={user ? 'Direct Cloud Sync' : 'Guest Mode (Sign in to sync)'}
             >
               {saveStatus === 'saving' ? (
                 <>
@@ -1190,13 +1226,13 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               </button>
             </div>
 
-            {/* Firebase Cloud User Account Card in Mobile Drawer */}
+            {/* Cloud User Account Card in Mobile Drawer */}
             <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-200/80 flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Cloud className="w-3.5 h-3.5 text-amber-800" />
                   <span className="text-[11px] font-bold text-[#2A2723] uppercase tracking-wider">
-                    Firebase Cloud Storage
+                    Studio Cloud Storage
                   </span>
                 </div>
                 {user ? (
@@ -1255,7 +1291,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               ) : (
                 <div className="pt-1 flex flex-col gap-1.5">
                   <p className="text-[10px] text-[#7E7365]">
-                    Sign in with Google or your email to sync your projects and custom presets to Firebase Firestore in real time.
+                    Sign in with Google or your email to sync your projects and custom presets to Studio Cloud in real time.
                   </p>
                   <button
                     type="button"
@@ -1293,13 +1329,13 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               )}
             </div>
 
-            {/* Firebase Cloud Auto-Save Status Card in Mobile Drawer */}
+            {/* Cloud Auto-Save Status Card in Mobile Drawer */}
             <div className="bg-[#FAF9F6] p-3 rounded-2xl border border-[#E6E2D3] flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Cloud className={`w-3.5 h-3.5 ${user ? 'text-emerald-600' : 'text-amber-600'}`} />
                   <span className="text-[11px] font-bold text-[#2A2723] uppercase tracking-wider">
-                    {user ? 'Firebase Cloud Storage' : 'Guest Mode'}
+                    {user ? 'Studio Cloud Storage' : 'Guest Mode'}
                   </span>
                 </div>
                 <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold ${
@@ -1313,8 +1349,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               </div>
               <p className="text-[10px] text-[#7E7365]">
                 {user
-                  ? `Projects & media are saved directly to Firebase Firestore for ${user.displayName || user.email || 'your account'}.`
-                  : 'Sign in with Google or Studio Account to sync your projects and media directly to Firebase.'}
+                  ? `Projects & media are saved directly to Studio Cloud for ${user.displayName || user.email || 'your account'}.`
+                  : 'Sign in with Google or Studio Account to sync your projects and media directly to the Cloud.'}
               </p>
               <div className="flex items-center justify-between text-[11px] text-[#4A453E] pt-1 border-t border-[#E6E2D3]/60">
                 <span>Last Synced:</span>
