@@ -3,7 +3,7 @@ import {
   Upload, Sparkles, Volume2, VolumeX, Move, ZoomIn, ZoomOut,
   Trash2, RotateCw, RotateCcw, Heart, Check, X, Eye, Play, Pause, Plus, RefreshCw,
   Video, Camera, Layers, FolderPlus, Download, Share2, Copy, Maximize2, Minimize2,
-  ArrowUp, ArrowDown, AlignCenter
+  ArrowUp, ArrowDown, AlignCenter, Info
 } from 'lucide-react';
 import { CollageTemplate, TemplateSlot, TemplateTextElement, MediaItem, Adjustments } from '../../types';
 import { soundFx } from '../../utils/audio';
@@ -581,21 +581,30 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         onChange={handleBatchFilesChange}
       />
 
-      {/* Slide Quick Action Menu & Title (Centered Nicely Above Canvas) */}
+      {/* Slide Quick Action Menu (Centered Nicely Above Canvas) */}
       {!isPreview && (
-        <div className="w-full flex flex-col items-center justify-center gap-2 mb-3.5 px-2 z-30 animate-in fade-in slide-in-from-top-1 duration-200">
-          {/* Centered Title & Aspect Badge */}
-          <div className="flex items-center justify-center gap-2 text-center">
-            <span className="text-xs font-serif font-bold text-[#2A2723] uppercase tracking-wider">
-              {template.name || 'Slide Canvas'}
-            </span>
-            <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-white text-[#7E7365] border border-[#E6E2D3] shadow-xs">
-              {template.aspectLabel || '4:5'}
-            </span>
-          </div>
-
+        <div className="w-full flex items-center justify-center mb-3 px-2 z-30 animate-in fade-in slide-in-from-top-1 duration-200">
           {/* Centered Editing Actions Pill Bar */}
           <div className="flex items-center justify-center gap-1.5 bg-white/95 hover:bg-white backdrop-blur-md px-2 py-1 rounded-full border border-[#E6E2D3] shadow-md transition-all max-w-full overflow-x-auto no-scrollbar">
+            {/* Info Icon with Tooltip for Template Details */}
+            <div
+              className="flex items-center justify-center w-7 h-7 rounded-full text-[#7E7365] hover:text-[#2A2723] hover:bg-[#FAF9F6] transition-colors cursor-help group relative"
+              title={`Template: ${template.name || 'Custom Slide'} (${template.aspectLabel || '4:5'})`}
+              aria-label={`Template: ${template.name || 'Custom Slide'}`}
+            >
+              <Info className="w-3.5 h-3.5" />
+              {/* Optional Hover Tooltip Card */}
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:flex flex-col items-center pointer-events-none z-50">
+                <div className="bg-[#2A2723] text-white text-[11px] font-sans px-2.5 py-1 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 border border-white/10">
+                  <span className="font-semibold">{template.name || 'Custom Slide'}</span>
+                  <span className="text-[10px] text-amber-300 font-mono bg-white/10 px-1.5 py-0.2 rounded">{template.aspectLabel || '4:5'}</span>
+                </div>
+                <div className="w-2 h-1 border-x-4 border-x-transparent border-t-4 border-t-[#2A2723]" />
+              </div>
+            </div>
+
+            <div className="w-[1px] h-4 bg-[#E6E2D3]" />
+
             <button
               type="button"
               onClick={(e) => {
@@ -632,7 +641,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
                   soundFx.playHapticTick();
                 }}
                 className="flex items-center gap-1 px-2.5 py-1 bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] rounded-full text-xs font-medium transition-all active:scale-95 whitespace-nowrap cursor-pointer"
-                title="Choose a different collage format"
+                title={`Choose a different collage format (Current: ${template.name || 'Custom'})`}
               >
                 <Layers className="w-3.5 h-3.5 text-[#7E7365]" />
                 <span>Templates</span>

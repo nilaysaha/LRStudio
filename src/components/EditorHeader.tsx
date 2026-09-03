@@ -990,38 +990,6 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                     </div>
                   )}
                 </div>
-
-                {/* Collapsible Right Sidebar / Canvas Space Toggle Button */}
-                {onToggleSidebarCollapse && (
-                  <button
-                    type="button"
-                    id="top-header-toggle-sidebar-btn"
-                    onClick={() => {
-                      soundFx.playHapticTick();
-                      onToggleSidebarCollapse();
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95 ${
-                      isSidebarCollapsed
-                        ? 'bg-[#2A2723] text-white border-black hover:bg-black'
-                        : 'bg-[#FAF9F6] text-[#4A453E] border-[#E6E2D3] hover:bg-[#F0EEE6] hover:text-[#2A2723]'
-                    }`}
-                    title={isSidebarCollapsed ? "Expand Tools Panel (\\)" : "Collapse Sidebar for Full Canvas Design (\\)"}
-                  >
-                    {isSidebarCollapsed ? (
-                      <>
-                        <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Design Tools</span>
-                        <span className="text-[10px] text-amber-300 font-mono bg-white/10 px-1 rounded">\</span>
-                      </>
-                    ) : (
-                      <>
-                        <Maximize2 className="w-3.5 h-3.5 text-[#7E7365]" />
-                        <span className="hidden lg:inline">Max Canvas</span>
-                        <span className="text-[10px] text-[#A39989] font-mono bg-[#EFECE6] px-1 rounded">\</span>
-                      </>
-                    )}
-                  </button>
-                )}
               </div>
             </div>
           </div>
