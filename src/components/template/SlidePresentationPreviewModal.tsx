@@ -285,7 +285,7 @@ export const SlidePresentationPreviewModal: React.FC<SlidePresentationPreviewMod
               onTakePhotoForSlot={() => {}}
               onOpenTemplateSelector={() => {}}
               onOpenExport={onOpenExportModal || (() => {})}
-              onImportFileForSlot={() => {}}
+              onImportFileForSlot={async () => {}}
               isPreview={true}
             />
           </div>

@@ -199,7 +199,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   };
 
   const handlePointerMove = useCallback((e: MouseEvent | TouchEvent) => {
-    const touch = 'touches' in e ? e.touches?.[0] : null;
+    const touch = 'touches' in e && e.touches && e.touches.length > 0 ? e.touches[0] : null;
     const clientX = touch ? touch.clientX : ('clientX' in e ? (e as MouseEvent).clientX : 0);
     const clientY = touch ? touch.clientY : ('clientY' in e ? (e as MouseEvent).clientY : 0);
 

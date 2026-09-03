@@ -245,7 +245,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     if (onBatchUploadMultipleMedia) {
                       onBatchUploadMultipleMedia();
                     } else {
-                      onTriggerSlotUpload(slots[0]?.id || 'slot-1');
+                      onTriggerSlotUpload(slots?.[0]?.id || 'slot-1');
                     }
                     soundFx.playHapticTick();
                   }}
@@ -1279,7 +1279,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                   if (onBatchUploadMultipleMedia) {
                     onBatchUploadMultipleMedia();
                   } else {
-                    onTriggerSlotUpload(slots[0]?.id || 'slot-1');
+                    onTriggerSlotUpload(slots?.[0]?.id || 'slot-1');
                   }
                   soundFx.playHapticTick();
                 }}
@@ -1957,7 +1957,14 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                       overlays: {
                         ...(template.overlays || {}),
                         airdropCard: {
-                          ...(template.overlays?.airdropCard || { enabled: true, title: 'AirDrop', deviceName: 'iPhone' }),
+                          ...(template.overlays?.airdropCard || {
+                            enabled: true,
+                            title: 'AirDrop',
+                            deviceName: 'iPhone',
+                            senderName: 'Sophie',
+                            declineLabel: 'Decline',
+                            acceptLabel: 'Accept',
+                          }),
                           deviceName: e.target.value,
                         },
                       },
@@ -1975,7 +1982,14 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                       overlays: {
                         ...(template.overlays || {}),
                         airdropCard: {
-                          ...(template.overlays?.airdropCard || { enabled: true, title: 'AirDrop', deviceName: 'iPhone' }),
+                          ...(template.overlays?.airdropCard || {
+                            enabled: true,
+                            title: 'AirDrop',
+                            deviceName: 'iPhone',
+                            senderName: 'Sophie',
+                            declineLabel: 'Decline',
+                            acceptLabel: 'Accept',
+                          }),
                           title: e.target.value,
                         },
                       },

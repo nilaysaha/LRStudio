@@ -94,17 +94,35 @@ export const defaultAdjustments: Adjustments = {
   flipV: false,
 };
 
-export const createAdjustmentsCopy = (adj?: Adjustments | null): Adjustments => {
+export const normalizeAdjustments = (adj?: Partial<Adjustments> | null): Adjustments => {
   if (!adj) return safeClone(defaultAdjustments);
-  const cloned = safeClone({
-    ...defaultAdjustments,
+  const base = safeClone(defaultAdjustments);
+  return {
+    ...base,
     ...adj,
-    cropBox: { ...defaultCropBox, ...(adj.cropBox || {}) },
-    hsl: safeClone(adj.hsl || defaultAdjustments.hsl),
-    curves: safeClone(adj.curves || defaultAdjustments.curves),
-    blurCenter: (Array.isArray(adj.blurCenter) && adj.blurCenter.length >= 2
-      ? [adj.blurCenter[0], adj.blurCenter[1]]
-      : [0.5, 0.5]) as [number, number],
-  });
-  return cloned;
+    hsl: {
+      ...base.hsl,
+      ...(adj.hsl || {}),
+    },
+    curves: {
+      ...base.curves,
+      ...(adj.curves || {}),
+    },
+    dateStamp: {
+      ...base.dateStamp,
+      ...(adj.dateStamp || {}),
+    },
+    cropBox: {
+      ...base.cropBox,
+      ...(adj.cropBox || {}),
+    },
+    blurCenter:
+      Array.isArray(adj.blurCenter) && adj.blurCenter.length >= 2
+        ? [adj.blurCenter[0], adj.blurCenter[1]]
+        : [0.5, 0.5],
+  };
+};
+
+export const createAdjustmentsCopy = (adj?: Adjustments | null): Adjustments => {
+  return normalizeAdjustments(adj);
 };

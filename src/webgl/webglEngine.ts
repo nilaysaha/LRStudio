@@ -236,15 +236,33 @@ export class WebGLFilterEngine {
     gl.uniform1f(this.uniformLocations.u_preset_strength, adjustments.presetStrength);
 
     // HSL Uniforms
-    const hsl = adjustments.hsl;
-    gl.uniform3f(this.uniformLocations.u_hsl_red, hsl.red.hue, hsl.red.saturation, hsl.red.luminance);
-    gl.uniform3f(this.uniformLocations.u_hsl_orange, hsl.orange.hue, hsl.orange.saturation, hsl.orange.luminance);
-    gl.uniform3f(this.uniformLocations.u_hsl_yellow, hsl.yellow.hue, hsl.yellow.saturation, hsl.yellow.luminance);
-    gl.uniform3f(this.uniformLocations.u_hsl_green, hsl.green.hue, hsl.green.saturation, hsl.green.luminance);
-    gl.uniform3f(this.uniformLocations.u_hsl_cyan, hsl.cyan.hue, hsl.cyan.saturation, hsl.cyan.luminance);
-    gl.uniform3f(this.uniformLocations.u_hsl_blue, hsl.blue.hue, hsl.blue.saturation, hsl.blue.luminance);
-    gl.uniform3f(this.uniformLocations.u_hsl_purple, hsl.purple.hue, hsl.purple.saturation, hsl.purple.luminance);
-    gl.uniform3f(this.uniformLocations.u_hsl_magenta, hsl.magenta.hue, hsl.magenta.saturation, hsl.magenta.luminance);
+    const hsl = adjustments.hsl || {
+      red: { hue: 0, saturation: 0, luminance: 0 },
+      orange: { hue: 0, saturation: 0, luminance: 0 },
+      yellow: { hue: 0, saturation: 0, luminance: 0 },
+      green: { hue: 0, saturation: 0, luminance: 0 },
+      cyan: { hue: 0, saturation: 0, luminance: 0 },
+      blue: { hue: 0, saturation: 0, luminance: 0 },
+      purple: { hue: 0, saturation: 0, luminance: 0 },
+      magenta: { hue: 0, saturation: 0, luminance: 0 },
+    };
+    const r = hsl.red || { hue: 0, saturation: 0, luminance: 0 };
+    const o = hsl.orange || { hue: 0, saturation: 0, luminance: 0 };
+    const y = hsl.yellow || { hue: 0, saturation: 0, luminance: 0 };
+    const g = hsl.green || { hue: 0, saturation: 0, luminance: 0 };
+    const c = hsl.cyan || { hue: 0, saturation: 0, luminance: 0 };
+    const b = hsl.blue || { hue: 0, saturation: 0, luminance: 0 };
+    const p = hsl.purple || { hue: 0, saturation: 0, luminance: 0 };
+    const m = hsl.magenta || { hue: 0, saturation: 0, luminance: 0 };
+
+    gl.uniform3f(this.uniformLocations.u_hsl_red, r.hue || 0, r.saturation || 0, r.luminance || 0);
+    gl.uniform3f(this.uniformLocations.u_hsl_orange, o.hue || 0, o.saturation || 0, o.luminance || 0);
+    gl.uniform3f(this.uniformLocations.u_hsl_yellow, y.hue || 0, y.saturation || 0, y.luminance || 0);
+    gl.uniform3f(this.uniformLocations.u_hsl_green, g.hue || 0, g.saturation || 0, g.luminance || 0);
+    gl.uniform3f(this.uniformLocations.u_hsl_cyan, c.hue || 0, c.saturation || 0, c.luminance || 0);
+    gl.uniform3f(this.uniformLocations.u_hsl_blue, b.hue || 0, b.saturation || 0, b.luminance || 0);
+    gl.uniform3f(this.uniformLocations.u_hsl_purple, p.hue || 0, p.saturation || 0, p.luminance || 0);
+    gl.uniform3f(this.uniformLocations.u_hsl_magenta, m.hue || 0, m.saturation || 0, m.luminance || 0);
 
     // Tone Curves LUT (Upload 256x1 RGBA data to Texture Unit 1)
     if (this.curveTexture) {
@@ -267,40 +285,41 @@ export class WebGLFilterEngine {
     }
 
     // Film Effects
-    gl.uniform1f(this.uniformLocations.u_grain_amount, adjustments.grainAmount);
-    gl.uniform1f(this.uniformLocations.u_grain_size, adjustments.grainSize);
-    gl.uniform1f(this.uniformLocations.u_grain_roughness, adjustments.grainRoughness);
+    gl.uniform1f(this.uniformLocations.u_grain_amount, adjustments.grainAmount || 0);
+    gl.uniform1f(this.uniformLocations.u_grain_size, adjustments.grainSize || 1.0);
+    gl.uniform1f(this.uniformLocations.u_grain_roughness, adjustments.grainRoughness || 0.5);
 
     // Dust
     const dustTypes = { 'none': 0, 'fine-specks': 1, 'film-scratches': 2, 'vintage-dust': 3, 'heavy-grunge': 4 };
     gl.uniform1i(this.uniformLocations.u_dust_type, dustTypes[adjustments.dustType] || 0);
-    gl.uniform1f(this.uniformLocations.u_dust_amount, adjustments.dustAmount);
+    gl.uniform1f(this.uniformLocations.u_dust_amount, adjustments.dustAmount || 0);
 
     // Light Leak
     const leakTypes = { 'none': 0, 'sunset': 1, 'side-flare': 2, 'prism-beam': 3, 'corner-burn': 4, 'retro-streak': 5 };
     gl.uniform1i(this.uniformLocations.u_leak_type, leakTypes[adjustments.lightLeakType] || 0);
-    gl.uniform1f(this.uniformLocations.u_leak_amount, adjustments.lightLeakAmount);
-    gl.uniform1f(this.uniformLocations.u_leak_warmth, adjustments.lightLeakWarmth);
+    gl.uniform1f(this.uniformLocations.u_leak_amount, adjustments.lightLeakAmount || 0);
+    gl.uniform1f(this.uniformLocations.u_leak_warmth, adjustments.lightLeakWarmth || 0.8);
 
     // Glow / Halation
-    gl.uniform1f(this.uniformLocations.u_glow_amount, adjustments.glowAmount);
-    gl.uniform1f(this.uniformLocations.u_glow_radius, adjustments.glowRadius);
+    gl.uniform1f(this.uniformLocations.u_glow_amount, adjustments.glowAmount || 0);
+    gl.uniform1f(this.uniformLocations.u_glow_radius, adjustments.glowRadius || 0.5);
 
     // Prism / Chromatic Aberration
-    gl.uniform1f(this.uniformLocations.u_prism_amount, adjustments.prismAmount);
+    gl.uniform1f(this.uniformLocations.u_prism_amount, adjustments.prismAmount || 0);
 
     // Vignette
-    gl.uniform1f(this.uniformLocations.u_vignette_amount, adjustments.vignetteAmount);
-    gl.uniform1f(this.uniformLocations.u_vignette_roundness, adjustments.vignetteRoundness);
+    gl.uniform1f(this.uniformLocations.u_vignette_amount, adjustments.vignetteAmount || 0);
+    gl.uniform1f(this.uniformLocations.u_vignette_roundness, adjustments.vignetteRoundness || 0.8);
 
     // Blur / Tilt Shift
     const blurModes = { 'none': 0, 'radial': 1, 'linear': 2 };
     gl.uniform1i(this.uniformLocations.u_blur_mode, blurModes[adjustments.blurMode] || 0);
     gl.uniform1f(this.uniformLocations.u_blur_amount, adjustments.blurAmount || 0);
-    const safeBlurCenter = Array.isArray(adjustments.blurCenter) && adjustments.blurCenter.length >= 2
-      ? adjustments.blurCenter
-      : [0.5, 0.5];
-    gl.uniform2f(this.uniformLocations.u_blur_center, safeBlurCenter[0], safeBlurCenter[1]);
+    const blurCenter =
+      Array.isArray(adjustments.blurCenter) && adjustments.blurCenter.length >= 2
+        ? adjustments.blurCenter
+        : [0.5, 0.5];
+    gl.uniform2f(this.uniformLocations.u_blur_center, blurCenter[0], blurCenter[1]);
 
     // VHS
     gl.uniform1f(this.uniformLocations.u_vhs_amount, adjustments.vhsAmount);

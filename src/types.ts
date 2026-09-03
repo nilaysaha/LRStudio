@@ -411,6 +411,8 @@ export interface CollageTemplate {
   overlays: TemplateOverlayConfig;
   adjustments: Adjustments;
   moodKeywords: string[];
+  stickers?: any[];
+  doodles?: TemplateDoodle[];
 }
 
 export interface ProjectTemplate {

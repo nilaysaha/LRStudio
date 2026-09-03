@@ -3,10 +3,11 @@ import {
   Upload, Sparkles, Volume2, VolumeX, Move, ZoomIn, ZoomOut,
   Trash2, RotateCw, RotateCcw, Heart, Check, X, Eye, Play, Pause, Plus, RefreshCw,
   Video, Camera, Layers, FolderPlus, Download, Share2, Copy, Maximize2, Minimize2,
-  ArrowUp, ArrowDown, AlignCenter, Info, ChevronUp, ChevronDown, ArrowLeftRight
+  ArrowUp, ArrowDown, AlignCenter, Info
 } from 'lucide-react';
 import { CollageTemplate, TemplateSlot, TemplateTextElement, MediaItem, Adjustments } from '../../types';
 import { soundFx } from '../../utils/audio';
+import { TemplateCanvasSideMenu } from './TemplateCanvasSideMenu';
 
 interface TemplateCanvasRendererProps {
   template: CollageTemplate;
@@ -90,13 +91,8 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
 
   const slots = template.slots || [];
   const textElements = template.textElements || [];
-  const stickers = template.stickers || [];
-  const doodles = template.doodles || [];
-
-  // Side positioning for the canvas slot editing menu ('right' or 'left')
-  const [menuSide, setMenuSide] = useState<'right' | 'left'>('right');
-  const selectedSlot = slots.find((s) => s.id === selectedSlotId);
-  const selectedSlotIndex = slots.findIndex((s) => s.id === selectedSlotId);
+  const stickers = (template as any).stickers || [];
+  const doodles = (template as any).doodles || template.overlays?.doodles || [];
 
   // Sync video elements playback
   const videoRefs = useRef<{ [slotId: string]: HTMLVideoElement | null }>({});
@@ -386,27 +382,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
     onChangeTemplate({ ...template, slots: updated });
   };
 
-  // Rotate Slot by 90 degrees
-  const handleRotateSlotQuarter = (slotId: string) => {
-    soundFx.playHapticTick();
-    const slot = slots.find((s) => s.id === slotId);
-    if (!slot) return;
-    const newRotation = ((slot.rotation || 0) + 90) % 360;
-    const updated = slots.map((s) => (s.id === slotId ? { ...s, rotation: newRotation } : s));
-    onChangeTemplate({ ...template, slots: updated });
-  };
-
-  // Toggle Slot Fit (Cover vs Contain)
-  const handleToggleSlotFit = (slotId: string) => {
-    soundFx.playHapticTick();
-    const slot = slots.find((s) => s.id === slotId);
-    if (!slot) return;
-    const newFit = slot.objectFit === 'contain' ? 'cover' : 'contain';
-    const updated = slots.map((s) => (s.id === slotId ? { ...s, objectFit: newFit } : s));
-    onChangeTemplate({ ...template, slots: updated });
-  };
-
-  // Delete Slot with Safety Check
+  // Delete Frame / Slot
   const handleDeleteSlot = (slotId: string) => {
     soundFx.playHapticTick();
     if (slots.length > 1) {
@@ -416,22 +392,41 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
     }
   };
 
-  // Cycle between slots in the collage
-  const handleCycleSlot = (direction: 'next' | 'prev') => {
-    if (slots.length === 0) return;
+  // Toggle Fit Mode (cover vs contain)
+  const handleToggleFit = (slotId: string) => {
     soundFx.playHapticTick();
-    const currentIdx = slots.findIndex((s) => s.id === selectedSlotId);
-    if (currentIdx === -1) {
-      if (slots.length > 0 && slots[0]?.id) {
-        onSelectSlot(slots[0].id);
-      }
-      return;
-    }
-    const nextIdx =
-      direction === 'next'
-        ? (currentIdx + 1) % slots.length
-        : (currentIdx - 1 + slots.length) % slots.length;
-    onSelectSlot(slots[nextIdx].id);
+    const slot = slots.find((s) => s.id === slotId);
+    if (!slot) return;
+    const nextFit: 'cover' | 'contain' = slot.fit === 'contain' ? 'cover' : 'contain';
+    const updated = slots.map((s) => (s.id === slotId ? { ...s, fit: nextFit } : s));
+    onChangeTemplate({ ...template, slots: updated });
+  };
+
+  // Rotate Slot 90 Degrees
+  const handleRotateSlotQuarter = (slotId: string) => {
+    soundFx.playHapticTick();
+    const slot = slots.find((s) => s.id === slotId);
+    if (!slot) return;
+    const newRotation = ((slot.rotation || 0) + 90) % 360;
+    const updated = slots.map((s) => (s.id === slotId ? { ...s, rotation: newRotation } : s));
+    onChangeTemplate({ ...template, slots: updated });
+  };
+
+  // Nudge Slot Position by dx, dy percentage
+  const handleNudgeSlot = (slotId: string, dx: number, dy: number) => {
+    soundFx.playHapticTick();
+    const slot = slots.find((s) => s.id === slotId);
+    if (!slot) return;
+    const updated = slots.map((s) =>
+      s.id === slotId
+        ? {
+            ...s,
+            x: Math.max(-20, Math.min(100, Math.round((s.x + dx) * 10) / 10)),
+            y: Math.max(-20, Math.min(100, Math.round((s.y + dy) * 10) / 10)),
+          }
+        : s
+    );
+    onChangeTemplate({ ...template, slots: updated });
   };
 
   // Handle replacing media for a single slot
@@ -720,7 +715,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
         </div>
       )}
 
-      {/* Canvas Area Container with Responsive Side Menu */}
+      {/* Canvas Area with Docked Side Edit Menu */}
       <div className="relative w-full flex items-center justify-center">
         {/* The Slide Canvas Itself */}
         <div
@@ -1305,175 +1300,31 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
           </div>
         );
       })}
-      </div>
+        </div>
 
-      {/* Dedicated Single Side Action Menu for Selected Image Frame */}
-      {selectedSlot && !isPreview && (
-        <aside
-          id="slot-edit-side-menu"
-          className={`z-40 transition-all duration-200 ease-out select-none ${
-            menuSide === 'left'
-              ? 'sm:absolute sm:right-[calc(100%+14px)] sm:top-1/2 sm:-translate-y-1/2'
-              : 'sm:absolute sm:left-[calc(100%+14px)] sm:top-1/2 sm:-translate-y-1/2'
-          } max-sm:absolute max-sm:right-2 max-sm:top-1/2 max-sm:-translate-y-1/2`}
-        >
-          <div className="bg-[#1C1C1E]/95 text-white backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-1.5 flex flex-col items-center gap-1 min-w-[44px] animate-in fade-in zoom-in-95">
-            {/* Frame Indicator & Navigation */}
-            <div className="w-full flex flex-col items-center py-1 px-1 border-b border-white/10 text-center">
-              <span className="text-[9px] font-mono font-bold tracking-wider text-amber-400 uppercase">
-                {selectedSlotIndex + 1}/{slots.length}
-              </span>
-              <div className="flex items-center gap-1 mt-1">
-                <button
-                  type="button"
-                  onClick={() => handleCycleSlot('prev')}
-                  className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded transition-colors"
-                  title="Previous Photo in Collage"
-                >
-                  <ChevronUp className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCycleSlot('next')}
-                  className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded transition-colors"
-                  title="Next Photo in Collage"
-                >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Drag Move Handle */}
-            <div
-              onPointerDown={(e) => handleStartSlotMove(e, selectedSlot)}
-              className="w-8 h-8 flex items-center justify-center text-[#0A84FF] hover:bg-[#0A84FF]/20 rounded-xl cursor-grab active:cursor-grabbing transition-colors"
-              title="Click and drag to Move Image Frame"
-            >
-              <Move className="w-4 h-4" />
-            </div>
-
-            {/* Center on Canvas */}
-            <button
-              type="button"
-              onClick={() => handleCenterSlot(selectedSlot.id)}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
-              title="Center Image on Canvas"
-            >
-              <AlignCenter className="w-4 h-4" />
-            </button>
-
-            {/* Layer Ordering */}
-            <button
-              type="button"
-              onClick={() => handleAdjustSlotLayer(selectedSlot.id, 1)}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
-              title="Bring Forward in Layers"
-            >
-              <ArrowUp className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAdjustSlotLayer(selectedSlot.id, -1)}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
-              title="Send Backward in Layers"
-            >
-              <ArrowDown className="w-4 h-4" />
-            </button>
-
-            {/* Duplicate */}
-            <button
-              type="button"
-              onClick={() => handleDuplicateSlot(selectedSlot.id)}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
-              title="Duplicate Frame"
-            >
-              <Copy className="w-4 h-4" />
-            </button>
-
-            {/* Replace Media */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveUploadSlotId(selectedSlot.id);
-                if (fileInputRef.current) fileInputRef.current.click();
-                soundFx.playHapticTick();
-              }}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
-              title="Upload Photo or Video from device"
-            >
-              <Upload className="w-4 h-4" />
-            </button>
-            {onChooseFromLibraryForSlot && (
-              <button
-                type="button"
-                onClick={() => {
-                  onChooseFromLibraryForSlot(selectedSlot.id);
-                  soundFx.playHapticTick();
-                }}
-                className="w-8 h-8 flex items-center justify-center text-amber-300 hover:text-amber-200 hover:bg-white/15 rounded-xl transition-colors"
-                title="Choose from Curated Library"
-              >
-                <Camera className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Rotate & Fit */}
-            <button
-              type="button"
-              onClick={() => handleRotateSlotQuarter(selectedSlot.id)}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
-              title="Rotate 90°"
-            >
-              <RotateCw className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToggleSlotFit(selectedSlot.id)}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
-              title={`Fit Mode: ${selectedSlot.objectFit === 'contain' ? 'Contain (Click for Cover)' : 'Cover (Click for Contain)'}`}
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Delete Frame */}
-            <div className="w-full h-[1px] bg-white/10 my-0.5" />
-            <button
-              type="button"
-              onClick={() => handleDeleteSlot(selectedSlot.id)}
-              disabled={slots.length <= 1}
-              className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${
-                slots.length <= 1
-                  ? 'text-white/25 cursor-not-allowed'
-                  : 'text-red-400 hover:text-red-300 hover:bg-red-500/20 active:scale-95'
-              }`}
-              title={slots.length <= 1 ? "Collage requires at least one frame" : "Delete Frame"}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-
-            {/* Switch Side & Close */}
-            <div className="w-full h-[1px] bg-white/10 my-0.5" />
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => setMenuSide((prev) => (prev === 'right' ? 'left' : 'right'))}
-                className="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-md transition-colors"
-                title={`Move Menu to ${menuSide === 'right' ? 'Left' : 'Right'} Side of Canvas`}
-              >
-                <ArrowLeftRight className="w-3 h-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onSelectSlot(null)}
-                className="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-md transition-colors"
-                title="Deselect Frame"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </aside>
-      )}
+        {/* Single Menu to Edit Images Docked on Side of Canvas */}
+        {!isPreview && slots && slots.length > 0 && (
+          <TemplateCanvasSideMenu
+            slots={slots}
+            selectedSlotId={selectedSlotId}
+            onSelectSlot={onSelectSlot}
+            onSelectText={onSelectText}
+            onStartMoveSlot={handleStartSlotMove}
+            onCenterSlot={handleCenterSlot}
+            onAdjustSlotLayer={handleAdjustSlotLayer}
+            onDuplicateSlot={handleDuplicateSlot}
+            onUploadForSlot={(slotId) => {
+              setActiveUploadSlotId(slotId);
+              if (fileInputRef.current) fileInputRef.current.click();
+              soundFx.playHapticTick();
+            }}
+            onChooseFromLibraryForSlot={onChooseFromLibraryForSlot}
+            onDeleteSlot={handleDeleteSlot}
+            onToggleFitSlot={handleToggleFit}
+            onRotateSlot={handleRotateSlotQuarter}
+            onNudgeSlot={handleNudgeSlot}
+          />
+        )}
       </div>
     </div>
   );

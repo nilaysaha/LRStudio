@@ -177,7 +177,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
     if (tpl.collageData) {
       // Clone collage data for custom editing
       const clonedCollage: CollageTemplate = safeClone(tpl.collageData);
-      if (activeTemplateUserMedia && clonedCollage.slots?.[0]) {
+      if (activeTemplateUserMedia && clonedCollage.slots && clonedCollage.slots[0]) {
         clonedCollage.slots[0].media = activeTemplateUserMedia;
       }
       setCustomCollage(clonedCollage);
@@ -227,7 +227,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
     soundFx.playShutter();
     if (tpl.collageData) {
       const clonedCollage: CollageTemplate = safeClone(tpl.collageData);
-      if (clonedCollage.slots?.[0]) {
+      if (clonedCollage.slots && clonedCollage.slots[0]) {
         clonedCollage.slots[0].media = media;
       }
       onCreateProject(
@@ -341,7 +341,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
           const picked = pickedMedias[idx % pickedMedias.length];
           return picked ? { ...slot, media: picked } : slot;
         });
-      } else if (blankProjectMedia && clonedCollage.slots?.[0]) {
+      } else if (blankProjectMedia && clonedCollage.slots && clonedCollage.slots[0]) {
         clonedCollage.slots[0].media = blankProjectMedia;
       }
 

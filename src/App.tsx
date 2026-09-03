@@ -77,7 +77,10 @@ export default function App() {
       if (savedProjects) {
         const parsed = JSON.parse(savedProjects);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map((p: any) => ({
+            ...p,
+            adjustments: createAdjustmentsCopy(p.adjustments),
+          }));
         }
       }
     } catch {
