@@ -9,6 +9,10 @@ interface TemplateSelectorDrawerProps {
   onClose: () => void;
   currentTemplateId: string | null;
   onSelectTemplate: (template: CollageTemplate) => void;
+  onAddSlideAsNew?: (template: CollageTemplate) => void;
+  mode?: 'add' | 'replace';
+  title?: string;
+  subtitle?: string;
 }
 
 const CATEGORIES = [
@@ -26,6 +30,10 @@ export const TemplateSelectorDrawer: React.FC<TemplateSelectorDrawerProps> = ({
   onClose,
   currentTemplateId,
   onSelectTemplate,
+  onAddSlideAsNew,
+  mode = 'add',
+  title,
+  subtitle,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [slotFilter, setSlotFilter] = useState<'all' | '2' | '3' | '4' | '6' | '9'>('all');
@@ -49,19 +57,49 @@ export const TemplateSelectorDrawer: React.FC<TemplateSelectorDrawerProps> = ({
     return matchesCategory && matchesSlot && matchesSearch;
   });
 
+  const handleTemplateChosen = (tpl: CollageTemplate) => {
+    soundFx.playShutter();
+    if (mode === 'add' && onAddSlideAsNew) {
+      onAddSlideAsNew(tpl);
+    } else {
+      onSelectTemplate(tpl);
+    }
+    onClose();
+  };
+
+  const headerTitle =
+    title ||
+    (mode === 'add'
+      ? 'Add New Slide from Template'
+      : 'Change Current Slide Layout');
+  const headerSubtitle =
+    subtitle ||
+    (mode === 'add'
+      ? 'Select any collage or story template to append as a new slide in your project'
+      : 'Select a template to change the format of your currently active slide');
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 select-none animate-in fade-in">
       <div className="bg-[#FAF9F6] border border-[#E6E2D3] w-full max-w-2xl max-h-[85vh] rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in slide-in-from-bottom-6 sm:zoom-in-95">
         {/* Header */}
         <div className="px-5 py-4 border-b border-[#E6E2D3] bg-white flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#2A2723]" />
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-xl ${mode === 'add' ? 'bg-amber-100 text-amber-800' : 'bg-[#FAF9F6] text-[#2A2723]'}`}>
+              <Sparkles className="w-4 h-4" />
+            </div>
             <div>
-              <h2 className="text-sm font-bold tracking-wider uppercase text-[#2A2723] font-editorial">
-                LumenLabs Story & Collage Templates
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold tracking-wider uppercase text-[#2A2723] font-editorial">
+                  {headerTitle}
+                </h2>
+                {mode === 'add' && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-black">
+                    + New Slide
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-[#7E7365]">
-                Customize multi-slot layouts with your own images, videos, and quotes
+                {headerSubtitle}
               </p>
             </div>
           </div>
@@ -156,11 +194,7 @@ export const TemplateSelectorDrawer: React.FC<TemplateSelectorDrawerProps> = ({
             return (
               <div
                 key={tpl.id}
-                onClick={() => {
-                  soundFx.playShutter();
-                  onSelectTemplate(tpl);
-                  onClose();
-                }}
+                onClick={() => handleTemplateChosen(tpl)}
                 className={`group relative flex flex-col bg-white rounded-xl border overflow-hidden cursor-pointer transition-all hover:shadow-lg ${
                   isSelected
                     ? 'border-[#2A2723] ring-2 ring-[#2A2723]'
@@ -220,7 +254,7 @@ export const TemplateSelectorDrawer: React.FC<TemplateSelectorDrawerProps> = ({
                       {tpl.categoryLabel}
                     </span>
                     <span className="text-[10px] font-semibold text-[#0A84FF] group-hover:underline">
-                      Use Template →
+                      {mode === 'add' ? '+ Add As Slide →' : 'Use Template →'}
                     </span>
                   </div>
                 </div>

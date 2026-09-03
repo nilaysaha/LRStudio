@@ -57,6 +57,7 @@ interface TemplateCustomizerBarProps {
   presets: Preset[];
   onApplyPresetToTemplate?: (preset: Preset) => void;
   onOpenTemplateSelector?: () => void;
+  onOpenAddSlideSelector?: () => void;
   onOpenExport?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -87,6 +88,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
   presets,
   onApplyPresetToTemplate,
   onOpenTemplateSelector,
+  onOpenAddSlideSelector,
   onOpenExport,
   isCollapsed = false,
   onToggleCollapse,
@@ -232,7 +234,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
               onAddNewSlide={() => {
                 if (onAddNewSlide) onAddNewSlide();
               }}
-              onOpenTemplateSelector={onOpenTemplateSelector}
+              onOpenTemplateSelector={onOpenAddSlideSelector || onOpenTemplateSelector}
             />
           )}
 
@@ -1261,7 +1263,7 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
           onAddNewSlide={() => {
             if (onAddNewSlide) onAddNewSlide();
           }}
-          onOpenTemplateSelector={onOpenTemplateSelector}
+          onOpenTemplateSelector={onOpenAddSlideSelector || onOpenTemplateSelector}
         />
       )}
 

@@ -125,6 +125,7 @@ export default function App() {
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
   const [isTemplateDrawerOpen, setIsTemplateDrawerOpen] = useState(false);
+  const [templateDrawerMode, setTemplateDrawerMode] = useState<'add' | 'replace'>('add');
   const [isPlayingMaster, setIsPlayingMaster] = useState(true);
   const [isBottomDrawerCollapsed, setIsBottomDrawerCollapsed] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
@@ -1916,7 +1917,14 @@ export default function App() {
           onRecordVideoForSlot={handleRecordVideoForSlot}
           onTakePhotoForSlot={handleTakePhotoForSlot}
           onBatchUploadMultipleMedia={handleBatchUploadMultipleMedia}
-          onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
+          onOpenTemplateSelector={() => {
+            setTemplateDrawerMode('replace');
+            setIsTemplateDrawerOpen(true);
+          }}
+          onOpenAddSlideSelector={() => {
+            setTemplateDrawerMode('add');
+            setIsTemplateDrawerOpen(true);
+          }}
           onOpenExport={() => setIsExportOpen(true)}
           currentProject={currentProject}
           onSelectProjectSlide={handleSelectProjectSlide}
@@ -1924,8 +1932,8 @@ export default function App() {
           onDeleteProjectSlide={handleDeleteProjectSlide}
           onReorderProjectSlides={handleReorderProjectSlides}
           onAddNewSlide={() => {
-            setProjectsModalTab('templates');
-            setIsProjectsModalOpen(true);
+            setTemplateDrawerMode('add');
+            setIsTemplateDrawerOpen(true);
           }}
           isCollapsed={isDesktopSidebarCollapsed}
           onToggleCollapse={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
@@ -1951,7 +1959,14 @@ export default function App() {
             onApplyPresetToTemplate={(preset) => {
               updateAdjustments(createAdjustmentsCopy(preset.adjustments), true, true);
             }}
-            onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
+            onOpenTemplateSelector={() => {
+              setTemplateDrawerMode('replace');
+              setIsTemplateDrawerOpen(true);
+            }}
+            onOpenAddSlideSelector={() => {
+              setTemplateDrawerMode('add');
+              setIsTemplateDrawerOpen(true);
+            }}
             onOpenExport={() => setIsExportOpen(true)}
             isCollapsed={isBottomDrawerCollapsed}
             onToggleCollapse={() => setIsBottomDrawerCollapsed((prev) => !prev)}
@@ -1961,8 +1976,8 @@ export default function App() {
             onDeleteProjectSlide={handleDeleteProjectSlide}
             onReorderProjectSlides={handleReorderProjectSlides}
             onAddNewSlide={() => {
-              setProjectsModalTab('templates');
-              setIsProjectsModalOpen(true);
+              setTemplateDrawerMode('add');
+              setIsTemplateDrawerOpen(true);
             }}
           />
         ) : (
@@ -1989,7 +2004,9 @@ export default function App() {
         isOpen={isTemplateDrawerOpen}
         onClose={() => setIsTemplateDrawerOpen(false)}
         currentTemplateId={activeCollage?.id || null}
+        mode={templateDrawerMode}
         onSelectTemplate={handleSelectCollageTemplate}
+        onAddSlideAsNew={handleAddCollageToCurrentProject}
       />
 
       {/* LumenLabs Project Templates & Project Management Studio Modal */}

@@ -41,6 +41,7 @@ interface DesktopSidebarProps {
   onTakePhotoForSlot?: (slotId: string) => void;
   onBatchUploadMultipleMedia?: () => void;
   onOpenTemplateSelector?: () => void;
+  onOpenAddSlideSelector?: () => void;
   onOpenExport?: () => void;
   // Multi-Slide Project Props
   currentProject?: Project | null;
@@ -88,6 +89,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onTakePhotoForSlot,
   onBatchUploadMultipleMedia,
   onOpenTemplateSelector,
+  onOpenAddSlideSelector,
   onOpenExport,
   currentProject,
   onSelectProjectSlide,
@@ -190,6 +192,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               onChangeAdjustments({ ...adjustments, ...preset.adjustments });
             }}
             onOpenTemplateSelector={onOpenTemplateSelector}
+            onOpenAddSlideSelector={onOpenAddSlideSelector}
             onOpenExport={onOpenExport}
             isCollapsed={false}
             project={currentProject}
