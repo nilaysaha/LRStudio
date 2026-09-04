@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { TemplateSlot } from '../../types';
 import { soundFx } from '../../utils/audio';
+import { getSlotLayerInfo } from '../../utils/layerUtils';
 
 interface TemplateCanvasSideMenuProps {
   slots: TemplateSlot[];
@@ -29,7 +30,7 @@ interface TemplateCanvasSideMenuProps {
   onSelectText?: (textId: string | null) => void;
   onStartMoveSlot?: (e: React.PointerEvent, slot: TemplateSlot) => void;
   onCenterSlot: (slotId: string) => void;
-  onAdjustSlotLayer: (slotId: string, delta: number) => void;
+  onAdjustSlotLayer: (slotId: string, action: 'forward' | 'backward' | 'front' | 'back' | number) => void;
   onDuplicateSlot: (slotId: string) => void;
   onUploadForSlot: (slotId: string) => void;
   onChooseFromLibraryForSlot?: (slotId: string) => void;
@@ -61,6 +62,7 @@ export const TemplateCanvasSideMenu: React.FC<TemplateCanvasSideMenuProps> = ({
 
   const selectedSlot = slots.find((s) => s.id === selectedSlotId);
   const activeIndex = selectedSlot ? slots.findIndex((s) => s.id === selectedSlot.id) : -1;
+  const layerInfo = selectedSlot ? getSlotLayerInfo(slots, selectedSlot.id) : null;
 
   // Positioning classes based on dockSide
   const positionClasses =
@@ -241,10 +243,19 @@ export const TemplateCanvasSideMenu: React.FC<TemplateCanvasSideMenuProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onAdjustSlotLayer(selectedSlot.id, 1);
+                onAdjustSlotLayer(selectedSlot.id, e.shiftKey ? 'front' : 'forward');
               }}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition-colors cursor-pointer"
-              title="Bring Forward (Layer Up)"
+              disabled={!layerInfo?.canBringForward}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${
+                layerInfo?.canBringForward
+                  ? 'text-white/80 hover:text-white hover:bg-white/20 cursor-pointer active:scale-95'
+                  : 'text-white/25 cursor-not-allowed'
+              }`}
+              title={
+                layerInfo?.canBringForward
+                  ? `Bring Forward (Shift+Click: Bring to Front) [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                  : `Top Layer [Layer ${layerInfo?.layerNumber || 1}/${layerInfo?.totalLayers || 1}]`
+              }
             >
               <ArrowUp className="w-4 h-4" />
             </button>
@@ -254,10 +265,19 @@ export const TemplateCanvasSideMenu: React.FC<TemplateCanvasSideMenuProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onAdjustSlotLayer(selectedSlot.id, -1);
+                onAdjustSlotLayer(selectedSlot.id, e.shiftKey ? 'back' : 'backward');
               }}
-              className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition-colors cursor-pointer"
-              title="Send Backward (Layer Down)"
+              disabled={!layerInfo?.canSendBackward}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${
+                layerInfo?.canSendBackward
+                  ? 'text-white/80 hover:text-white hover:bg-white/20 cursor-pointer active:scale-95'
+                  : 'text-white/25 cursor-not-allowed'
+              }`}
+              title={
+                layerInfo?.canSendBackward
+                  ? `Send Backward (Shift+Click: Send to Back) [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                  : `Bottom Layer [Layer ${layerInfo?.layerNumber || 1}/${layerInfo?.totalLayers || 1}]`
+              }
             >
               <ArrowDown className="w-4 h-4" />
             </button>

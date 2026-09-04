@@ -328,6 +328,7 @@ export interface TemplateTextElement {
   width?: number; // percentage width
   style?: TextStyleMode;
   rotation?: number;
+  zIndex?: number;
   uppercase?: boolean;
   letterSpacing?: string;
   opacity?: number;

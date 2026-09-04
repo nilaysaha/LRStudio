@@ -13,6 +13,7 @@ import {
   Preset, Project
 } from '../../types';
 import { soundFx } from '../../utils/audio';
+import { reorderSlotLayer, getSlotLayerInfo, reorderTextLayer } from '../../utils/layerUtils';
 import { ProjectFilmstrip } from './ProjectFilmstrip';
 
 const TEXT_COLORS = [
@@ -124,6 +125,26 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
     const updated = textElements.map((t) =>
       t.id === textId ? { ...t, ...updates } : t
     );
+    onChangeTemplate({ ...template, textElements: updated });
+  };
+
+  // Adjust slot layer order helper
+  const handleAdjustSlotLayer = (
+    slotId: string,
+    action: 'forward' | 'backward' | 'front' | 'back'
+  ) => {
+    soundFx.playHapticTick();
+    const updated = reorderSlotLayer(slots, slotId, action);
+    onChangeTemplate({ ...template, slots: updated });
+  };
+
+  // Adjust text layer order helper
+  const handleAdjustTextLayer = (
+    textId: string,
+    action: 'forward' | 'backward' | 'front' | 'back'
+  ) => {
+    soundFx.playHapticTick();
+    const updated = reorderTextLayer(textElements, textId, action);
     onChangeTemplate({ ...template, textElements: updated });
   };
 
@@ -552,33 +573,54 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
 
                     {/* Quick Layer & Action Bar */}
                     <div className="flex items-center justify-between gap-1 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const currentZ = selectedSlot.zIndex || 2;
-                          updateSlot(selectedSlot.id, { zIndex: currentZ + 1 });
-                          soundFx.playHapticTick();
-                        }}
-                        className="flex-1 py-1 px-1.5 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded-lg text-[10px] font-medium text-[#2A2723] flex items-center justify-center gap-1"
-                        title="Bring Forward"
-                      >
-                        <ArrowUp className="w-3 h-3" />
-                        <span>Forward</span>
-                      </button>
+                      {(() => {
+                        const layerInfo = getSlotLayerInfo(slots, selectedSlot.id);
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                handleAdjustSlotLayer(selectedSlot.id, e.shiftKey ? 'front' : 'forward');
+                              }}
+                              disabled={!layerInfo.canBringForward}
+                              className={`flex-1 py-1 px-1.5 border border-[#E6E2D3] rounded-lg text-[10px] font-medium flex items-center justify-center gap-1 transition-all ${
+                                layerInfo.canBringForward
+                                  ? 'bg-white hover:bg-[#F0EEE6] text-[#2A2723] cursor-pointer active:scale-95'
+                                  : 'bg-[#F9F7F1] text-[#A69E91] cursor-not-allowed opacity-60'
+                              }`}
+                              title={
+                                layerInfo.canBringForward
+                                  ? `Bring Forward (Shift+Click: Bring to Front) [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                                  : `Top Layer [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                              }
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                              <span>Forward</span>
+                            </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const currentZ = selectedSlot.zIndex || 2;
-                          updateSlot(selectedSlot.id, { zIndex: Math.max(1, currentZ - 1) });
-                          soundFx.playHapticTick();
-                        }}
-                        className="flex-1 py-1 px-1.5 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded-lg text-[10px] font-medium text-[#2A2723] flex items-center justify-center gap-1"
-                        title="Send Backward"
-                      >
-                        <ArrowDown className="w-3 h-3" />
-                        <span>Back</span>
-                      </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                handleAdjustSlotLayer(selectedSlot.id, e.shiftKey ? 'back' : 'backward');
+                              }}
+                              disabled={!layerInfo.canSendBackward}
+                              className={`flex-1 py-1 px-1.5 border border-[#E6E2D3] rounded-lg text-[10px] font-medium flex items-center justify-center gap-1 transition-all ${
+                                layerInfo.canSendBackward
+                                  ? 'bg-white hover:bg-[#F0EEE6] text-[#2A2723] cursor-pointer active:scale-95'
+                                  : 'bg-[#F9F7F1] text-[#A69E91] cursor-not-allowed opacity-60'
+                              }`}
+                              title={
+                                layerInfo.canSendBackward
+                                  ? `Send Backward (Shift+Click: Send to Back) [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                                  : `Bottom Layer [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                              }
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                              <span>Back</span>
+                            </button>
+                          </>
+                        );
+                      })()}
 
                       <button
                         type="button"
@@ -591,7 +633,8 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                             y: Math.min(70, selectedSlot.y + 5),
                             zIndex: (selectedSlot.zIndex || 2) + 1,
                           };
-                          onChangeTemplate({ ...template, slots: [...slots, newSlot] });
+                          const updatedSlots = reorderSlotLayer([...slots, newSlot], newSlot.id, 'front');
+                          onChangeTemplate({ ...template, slots: updatedSlots });
                           onSelectSlot(newSlot.id);
                           soundFx.playShutter();
                         }}
@@ -1549,31 +1592,52 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                     <span>+15°</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const currentZ = selectedSlot.zIndex || 2;
-                      updateSlot(selectedSlot.id, { zIndex: currentZ + 1 });
-                      soundFx.playHapticTick();
-                    }}
-                    className="p-1 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded text-[#2A2723]"
-                    title="Bring Forward"
-                  >
-                    <ArrowUp className="w-3.5 h-3.5" />
-                  </button>
+                  {(() => {
+                    const layerInfo = getSlotLayerInfo(slots, selectedSlot.id);
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            handleAdjustSlotLayer(selectedSlot.id, e.shiftKey ? 'front' : 'forward');
+                          }}
+                          disabled={!layerInfo.canBringForward}
+                          className={`p-1 border border-[#E6E2D3] rounded transition-all ${
+                            layerInfo.canBringForward
+                              ? 'bg-white hover:bg-[#F0EEE6] text-[#2A2723] cursor-pointer active:scale-95'
+                              : 'bg-[#F9F7F1] text-[#A69E91] cursor-not-allowed opacity-60'
+                          }`}
+                          title={
+                            layerInfo.canBringForward
+                              ? `Bring Forward (Shift+Click: Bring to Front) [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                              : `Top Layer [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                          }
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const currentZ = selectedSlot.zIndex || 2;
-                      updateSlot(selectedSlot.id, { zIndex: Math.max(1, currentZ - 1) });
-                      soundFx.playHapticTick();
-                    }}
-                    className="p-1 bg-white hover:bg-[#F0EEE6] border border-[#E6E2D3] rounded text-[#2A2723]"
-                    title="Send Backward"
-                  >
-                    <ArrowDown className="w-3.5 h-3.5" />
-                  </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            handleAdjustSlotLayer(selectedSlot.id, e.shiftKey ? 'back' : 'backward');
+                          }}
+                          disabled={!layerInfo.canSendBackward}
+                          className={`p-1 border border-[#E6E2D3] rounded transition-all ${
+                            layerInfo.canSendBackward
+                              ? 'bg-white hover:bg-[#F0EEE6] text-[#2A2723] cursor-pointer active:scale-95'
+                              : 'bg-[#F9F7F1] text-[#A69E91] cursor-not-allowed opacity-60'
+                          }`}
+                          title={
+                            layerInfo.canSendBackward
+                              ? `Send Backward (Shift+Click: Send to Back) [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                              : `Bottom Layer [Layer ${layerInfo.layerNumber}/${layerInfo.totalLayers}]`
+                          }
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    );
+                  })()}
 
                   <button
                     type="button"
@@ -1586,7 +1650,8 @@ export const TemplateCustomizerBar: React.FC<TemplateCustomizerBarProps> = ({
                         y: Math.min(70, selectedSlot.y + 5),
                         zIndex: (selectedSlot.zIndex || 2) + 1,
                       };
-                      onChangeTemplate({ ...template, slots: [...slots, newSlot] });
+                      const updatedSlots = reorderSlotLayer([...slots, newSlot], newSlot.id, 'front');
+                      onChangeTemplate({ ...template, slots: updatedSlots });
                       onSelectSlot(newSlot.id);
                       soundFx.playShutter();
                     }}

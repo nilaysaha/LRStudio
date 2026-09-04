@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { CollageTemplate, TemplateSlot, TemplateTextElement, MediaItem, Adjustments } from '../../types';
 import { soundFx } from '../../utils/audio';
+import { reorderSlotLayer } from '../../utils/layerUtils';
 import { TemplateCanvasSideMenu } from './TemplateCanvasSideMenu';
 
 interface TemplateCanvasRendererProps {
@@ -358,16 +359,26 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       zIndex: (sourceSlot.zIndex || 2) + 1,
     };
 
-    onChangeTemplate({ ...template, slots: [...slots, newSlot] });
+    const updatedSlots = reorderSlotLayer([...slots, newSlot], newSlot.id, 'front');
+    onChangeTemplate({ ...template, slots: updatedSlots });
     onSelectSlot(newSlot.id);
   };
 
-  // Change Layer Order (Bring Forward / Send Backward)
-  const handleAdjustSlotLayer = (slotId: string, delta: number) => {
+  // Change Layer Order (Bring Forward / Send Backward / To Front / To Back)
+  const handleAdjustSlotLayer = (
+    slotId: string,
+    action: 'forward' | 'backward' | 'front' | 'back' | number
+  ) => {
     soundFx.playHapticTick();
-    const updatedSlots = slots.map((s) =>
-      s.id === slotId ? { ...s, zIndex: Math.max(1, (s.zIndex || 2) + delta) } : s
-    );
+    const resolvedAction: 'forward' | 'backward' | 'front' | 'back' =
+      action === 'front' || action === 'back'
+        ? action
+        : typeof action === 'number'
+        ? action > 0
+          ? 'forward'
+          : 'backward'
+        : action;
+    const updatedSlots = reorderSlotLayer(slots, slotId, resolvedAction);
     onChangeTemplate({ ...template, slots: updatedSlots });
   };
 
@@ -872,7 +883,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
               width: `${slot.width}%`,
               height: `${slot.height}%`,
               transform: slot.rotation ? `rotate(${slot.rotation}deg)` : undefined,
-              zIndex: slot.zIndex || 2,
+              zIndex: isCurrentlyMoving ? 999 : (slot.zIndex || 2),
               borderRadius: slot.borderRadius ? `${slot.borderRadius}px` : undefined,
             }}
           >
@@ -1213,6 +1224,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
               }`,
               width: txt.width ? `${txt.width}%` : undefined,
               textAlign: txt.align,
+              zIndex: txt.zIndex || 35,
             }}
           >
             {/* Style wrappers */}
