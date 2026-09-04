@@ -245,6 +245,9 @@ export default function App() {
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedProjectSignaturesRef = useRef<Map<string, string>>(new Map());
   const initialCloudProjectSyncDoneRef = useRef<boolean>(false);
+  const isIncomingCloudUpdateRef = useRef<boolean>(false);
+  const isAutoSaveInProgressRef = useRef<boolean>(false);
+  const lastSaveTimeRef = useRef<number>(0);
 
   // Real-time Firestore Cloud Project Synchronization (Linked to user.uid)
   useEffect(() => {
@@ -257,6 +260,7 @@ export default function App() {
       user.uid,
       (cloudProjects) => {
         if (cloudProjects && cloudProjects.length > 0) {
+          isIncomingCloudUpdateRef.current = true;
           // Register signatures of all cloud projects so auto-save won't redundantly re-save them
           cloudProjects.forEach((p) => {
             lastSavedProjectSignaturesRef.current.set(p.id, computeProjectSignature(p));
@@ -299,6 +303,11 @@ export default function App() {
           setLastSavedAt(Date.now());
           setSaveStatus('saved');
           initialCloudProjectSyncDoneRef.current = true;
+
+          // Clear incoming cloud update flag after state settlement
+          setTimeout(() => {
+            isIncomingCloudUpdateRef.current = false;
+          }, 400);
         }
       },
       (err) => {
@@ -376,6 +385,10 @@ export default function App() {
       return;
     }
 
+    if (isIncomingCloudUpdateRef.current) {
+      return;
+    }
+
     const activeProj = projects.find((p) => p.id === currentProjectId);
     if (!activeProj) {
       return;
@@ -396,19 +409,41 @@ export default function App() {
       clearTimeout(autoSaveTimeoutRef.current);
     }
 
+    // Debounce by 2500ms to allow editing interactions without flooding Firestore writes
     autoSaveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await saveProjectToFirestore(user.uid, activeProj);
-        lastSavedProjectSignaturesRef.current.set(activeProj.id, currentSig);
-        setLastSavedAt(Date.now());
-        setSaveStatus('saved');
-      } catch (err) {
-        console.warn('Direct Firebase auto-save notice:', err);
-        lastSavedProjectSignaturesRef.current.set(activeProj.id, currentSig);
-        setLastSavedAt(Date.now());
-        setSaveStatus('saved');
+      if (isAutoSaveInProgressRef.current) {
+        return;
       }
-    }, 600);
+      // Throttle: ensure at least 2500ms between consecutive writes
+      const timeSinceLastWrite = Date.now() - lastSaveTimeRef.current;
+      if (timeSinceLastWrite < 2500) {
+        autoSaveTimeoutRef.current = setTimeout(async () => {
+          await performAutoSave();
+        }, 2500 - timeSinceLastWrite);
+        return;
+      }
+
+      await performAutoSave();
+
+      async function performAutoSave() {
+        isAutoSaveInProgressRef.current = true;
+        try {
+          await saveProjectToFirestore(user!.uid, activeProj!);
+          lastSavedProjectSignaturesRef.current.set(activeProj!.id, currentSig);
+          lastSaveTimeRef.current = Date.now();
+          setLastSavedAt(Date.now());
+          setSaveStatus('saved');
+        } catch (err) {
+          console.warn('Direct Firebase auto-save notice:', err);
+          lastSavedProjectSignaturesRef.current.set(activeProj!.id, currentSig);
+          lastSaveTimeRef.current = Date.now();
+          setLastSavedAt(Date.now());
+          setSaveStatus('saved');
+        } finally {
+          isAutoSaveInProgressRef.current = false;
+        }
+      }
+    }, 2500);
 
     return () => {
       if (autoSaveTimeoutRef.current) {
@@ -420,6 +455,7 @@ export default function App() {
   // Sync active project state whenever currentMedia, adjustments, or activeCollage change
   useEffect(() => {
     if (!currentProjectId || !currentMedia) return;
+    if (isIncomingCloudUpdateRef.current) return;
 
     setProjects((prev) => {
       const idx = prev.findIndex((p) => p.id === currentProjectId);

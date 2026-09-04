@@ -56,13 +56,36 @@ export function isQuotaError(error: unknown): boolean {
   const errStr = `${code} ${msg}`.toLowerCase();
   return (
     errStr.includes('resource-exhausted') ||
+    errStr.includes('resource_exhausted') ||
     errStr.includes('quota exceeded') ||
     errStr.includes('quota limit exceeded') ||
     errStr.includes('daily write units') ||
     errStr.includes('exceeded for quota metric') ||
     errStr.includes('maximum backoff delay') ||
+    errStr.includes('write stream exhausted') ||
+    errStr.includes('queued writes') ||
+    errStr.includes('stream exhausted') ||
+    errStr.includes('write-stream') ||
     errStr.includes('free tier database')
   );
+}
+
+// Global safety net to catch Firestore background stream errors
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (isQuotaError(event.reason)) {
+      try {
+        event.preventDefault();
+      } catch {}
+      markCloudQuotaExhausted(event.reason?.message || 'Firestore stream write quota');
+    }
+  });
+
+  window.addEventListener('error', (event) => {
+    if (isQuotaError(event.error) || isQuotaError(event.message)) {
+      markCloudQuotaExhausted(event.message || 'Firestore stream queue');
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +191,13 @@ export async function syncUserProfile(user: FirebaseUser): Promise<void> {
   if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
   if (isCloudQuotaExceeded()) return;
 
+  const sessionKey = `lumenlab_synced_profile_${user.uid}`;
+  try {
+    if (sessionStorage.getItem(sessionKey)) {
+      return; // Already synchronized in this session
+    }
+  } catch {}
+
   try {
     const userDocRef = doc(db, 'users', user.uid);
     const userData = {
@@ -178,14 +208,23 @@ export async function syncUserProfile(user: FirebaseUser): Promise<void> {
       updatedAt: Date.now(),
     };
     await setDoc(userDocRef, userData, { merge: true });
+    try {
+      sessionStorage.setItem(sessionKey, 'true');
+    } catch {}
   } catch (error) {
     if (isQuotaError(error)) {
       markCloudQuotaExhausted('User profile write');
+      try {
+        sessionStorage.setItem(sessionKey, 'true');
+      } catch {}
       return;
     }
     console.warn('Sync user profile warning:', error);
   }
 }
+
+// In-flight write deduplication to prevent write-stream saturation
+const pendingProjectWrites = new Map<string, Promise<void>>();
 
 /**
  * Save / Update a Project in /users/{userId}/projects/{projectId}
@@ -202,17 +241,38 @@ export async function saveProjectToFirestore(userId: string, project: Project): 
   if (isCloudQuotaExceeded()) return;
 
   const path = `users/${userId}/projects/${project.id}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'projects', project.id);
-    const payload = sanitizeProjectForFirestore(userId, project);
-    await setDoc(docRef, payload, { merge: true });
-  } catch (error) {
-    if (isQuotaError(error)) {
-      markCloudQuotaExhausted('Project write');
-      return; // Handled gracefully via local mirror
-    }
-    handleFirestoreError(error, OperationType.WRITE, path);
+
+  // If a write for this project is currently in flight, wait for it before starting the next one
+  const inFlight = pendingProjectWrites.get(project.id);
+  if (inFlight) {
+    try {
+      await inFlight;
+    } catch {}
   }
+
+  // Re-check quota after awaiting in-flight write
+  if (isCloudQuotaExceeded()) return;
+
+  const writePromise = (async () => {
+    try {
+      const docRef = doc(db, 'users', userId, 'projects', project.id);
+      const payload = sanitizeProjectForFirestore(userId, project);
+      await setDoc(docRef, payload, { merge: true });
+    } catch (error) {
+      if (isQuotaError(error)) {
+        markCloudQuotaExhausted('Project write');
+        return; // Handled gracefully via local mirror
+      }
+      handleFirestoreError(error, OperationType.WRITE, path);
+    } finally {
+      if (pendingProjectWrites.get(project.id) === writePromise) {
+        pendingProjectWrites.delete(project.id);
+      }
+    }
+  })();
+
+  pendingProjectWrites.set(project.id, writePromise);
+  await writePromise;
 }
 
 /**
