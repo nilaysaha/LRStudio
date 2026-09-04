@@ -39,6 +39,7 @@ import { TemplateCustomizerBar } from './components/template/TemplateCustomizerB
 import { TemplateSelectorDrawer } from './components/template/TemplateSelectorDrawer';
 import { SlidePresentationPreviewModal } from './components/template/SlidePresentationPreviewModal';
 import { DesktopSidebar } from './components/DesktopSidebar';
+import { ProjectSlidesLeftMenu } from './components/ProjectSlidesLeftMenu';
 import { soundFx } from './utils/audio';
 import {
   Sparkles, Grid, Eye, RefreshCw, LayoutTemplate, Sliders, ChevronUp,
@@ -129,6 +130,8 @@ export default function App() {
   const [isPlayingMaster, setIsPlayingMaster] = useState(true);
   const [isBottomDrawerCollapsed, setIsBottomDrawerCollapsed] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
+  const [isLeftSlidesMenuCollapsed, setIsLeftSlidesMenuCollapsed] = useState(false);
+  const [isMobileSlidesDrawerOpen, setIsMobileSlidesDrawerOpen] = useState(false);
   const slotUploadInputRef = useRef<HTMLInputElement>(null);
   const appBatchFileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadSlotId, setActiveUploadSlotId] = useState<string | null>(null);
@@ -1598,6 +1601,11 @@ export default function App() {
         e.preventDefault();
         setIsDesktopSidebarCollapsed((prev) => !prev);
         soundFx.playHapticTick();
+      } else if (e.key === '[' && !e.ctrlKey && !e.metaKey) {
+        // Toggle Left Slides Menu
+        e.preventDefault();
+        setIsLeftSlidesMenuCollapsed((prev) => !prev);
+        soundFx.playHapticTick();
       } else if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         setIsExportOpen(true);
@@ -1692,137 +1700,51 @@ export default function App() {
 
       {/* Center Workspace (Canvas + Desktop Sidebar) */}
       <div className="flex-1 flex flex-col md:flex-row min-h-0 w-full overflow-hidden relative">
+        {/* Dedicated Left Menu for Project & Slides (Never overlaps with single slide menu) */}
+        {activeCollage && (
+          <ProjectSlidesLeftMenu
+            project={currentProject}
+            activeCollage={activeCollage}
+            onSelectProjectSlide={handleSelectProjectSlide}
+            onDuplicateProjectSlide={handleDuplicateProjectSlide}
+            onDeleteProjectSlide={handleDeleteProjectSlide}
+            onReorderProjectSlides={handleReorderProjectSlides}
+            onAddNewSlide={() => {
+              setProjectsModalTab('templates');
+              setIsProjectsModalOpen(true);
+              soundFx.playHapticTick();
+            }}
+            onOpenProjectStudio={() => {
+              setProjectsModalTab('my-projects');
+              setIsProjectsModalOpen(true);
+              soundFx.playHapticTick();
+            }}
+            isCollapsed={isLeftSlidesMenuCollapsed}
+            onToggleCollapse={() => setIsLeftSlidesMenuCollapsed((prev) => !prev)}
+            isMobileOpen={isMobileSlidesDrawerOpen}
+            onCloseMobile={() => setIsMobileSlidesDrawerOpen(false)}
+          />
+        )}
+
         {/* Main Canvas Viewport Area */}
         <section className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 bg-[#F5F2EB]">
-          {/* Template & Project Mode Controls Header Bar */}
+          {/* Mobile-only Trigger for Left Slides Drawer */}
           {activeCollage && (
-            <div className="absolute top-2 left-3 right-3 sm:top-3 sm:left-4 sm:right-4 z-20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pointer-events-none">
-              {/* Left: Project Badge & Active Template Info / Slide Switcher */}
-              <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-2xl border border-[#E6E2D3] shadow-md max-w-full overflow-x-auto no-scrollbar">
-                {/* Project Title Tag */}
-                {currentProject && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProjectsModalTab('my-projects');
-                      setIsProjectsModalOpen(true);
-                      soundFx.playHapticTick();
-                    }}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#F0EEE6] text-[#2A2723] border border-[#E6E2D3] text-[11px] font-semibold transition-colors"
-                    title="Open Project Studio"
-                  >
-                    <FolderOpen className="w-3 h-3 text-[#A69480]" />
-                    <span className="max-w-[120px] truncate">{currentProject.name}</span>
-                  </button>
-                )}
-
-                {/* Multi-Slide Chips with < > Arrows (if project has collages list) */}
-                {currentProject?.collages && currentProject.collages.length > 0 ? (
-                  <div className="flex items-center gap-1">
-                    {/* Previous Slide Arrow < */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const total = currentProject.collages.length;
-                        const currentIdx = currentProject.activeCollageIndex ?? 0;
-                        const prevIdx = (currentIdx - 1 + total) % total;
-                        handleSelectProjectSlide(prevIdx);
-                      }}
-                      className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95 transition-all cursor-pointer"
-                      title="Previous Slide (<)"
-                      aria-label="Previous Slide"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                    </button>
-
-                    {currentProject.collages.map((col, idx) => {
-                      const isSlideActive = (currentProject.activeCollageIndex ?? 0) === idx;
-                      return (
-                        <button
-                          key={col.id || idx}
-                          type="button"
-                          onClick={() => handleSelectProjectSlide(idx)}
-                          className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                            isSlideActive
-                              ? 'bg-[#2A2723] text-white shadow-xs'
-                              : 'bg-[#FAF9F6] text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] border border-[#E6E2D3]'
-                          }`}
-                        >
-                          <Layers className="w-2.5 h-2.5" />
-                          <span>Slide {idx + 1}</span>
-                        </button>
-                      );
-                    })}
-
-                    {/* Next Slide Arrow > */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const total = currentProject.collages.length;
-                        const currentIdx = currentProject.activeCollageIndex ?? 0;
-                        const nextIdx = (currentIdx + 1) % total;
-                        handleSelectProjectSlide(nextIdx);
-                      }}
-                      className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] active:scale-95 transition-all cursor-pointer"
-                      title="Next Slide (>)"
-                      aria-label="Next Slide"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Add Slide Quick Action */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProjectsModalTab('templates');
-                        setIsProjectsModalOpen(true);
-                        soundFx.playHapticTick();
-                      }}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-[#FAF9F6] hover:bg-[#EAE6DF] text-[#2A2723] border border-dashed border-[#A69480] text-[10px] font-semibold transition-colors cursor-pointer"
-                      title="Add Template as New Slide"
-                    >
-                      <Plus className="w-2.5 h-2.5" />
-                      <span className="hidden xs:inline">Slide</span>
-                    </button>
-
-                    {/* Slide actions: Duplicate / Delete */}
-                    <button
-                      type="button"
-                      onClick={() => handleDuplicateProjectSlide()}
-                      className="p-1 rounded-md text-[#7E7365] hover:text-[#2A2723] hover:bg-[#F0EEE6] transition-colors cursor-pointer"
-                      title="Duplicate active slide"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
-
-                    {currentProject.collages.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleDeleteProjectSlide(
-                            currentProject.activeCollageIndex ?? 0
-                          )
-                        }
-                        className="p-1 rounded-md text-[#7E7365] hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                        title="Delete active slide"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <LayoutTemplate className="w-3.5 h-3.5 text-[#2A2723]" />
-                    <span className="text-xs font-bold text-[#2A2723]">
-                      {activeCollage.name}
-                    </span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#FAF9F6] text-[#7E7365] border border-[#E6E2D3]">
-                      {activeCollage.aspectLabel}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileSlidesDrawerOpen(true);
+                soundFx.playHapticTick();
+              }}
+              className="md:hidden absolute top-2 left-2 z-30 flex items-center gap-1.5 px-2.5 py-1 bg-white/95 backdrop-blur-md border border-[#E6E2D3] rounded-full text-xs font-semibold shadow-md text-[#2A2723] active:scale-95 transition-all cursor-pointer"
+              title="Open Slides Menu"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-[#A69480]" />
+              <span>
+                Slide {(currentProject?.activeCollageIndex ?? 0) + 1}/
+                {currentProject?.collages?.length || 1}
+              </span>
+            </button>
           )}
 
           {!activeCollage ? (
