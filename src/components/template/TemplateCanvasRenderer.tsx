@@ -457,6 +457,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
       onChangeTemplate({ ...template, slots: updatedSlots });
     }
 
+    onSelectSlot(activeUploadSlotId);
     setActiveUploadSlotId(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };

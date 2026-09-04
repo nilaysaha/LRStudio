@@ -119,6 +119,90 @@ export function getLocalMirror<T>(userId: string | undefined, domain: 'projects'
 }
 
 /**
+ * Sanitizes a CollageTemplate before saving to Firestore,
+ * ensuring non-serializable File objects and undefined values are cleanly stripped.
+ */
+function sanitizeCollageForFirestore(collage: any): Record<string, any> {
+  if (!collage || typeof collage !== 'object') return {};
+
+  const clean: Record<string, any> = {
+    id: collage.id || `collage-${Date.now()}`,
+    name: collage.name || 'Slide',
+    aspectRatio: collage.aspectRatio || 9 / 16,
+    format: collage.format || '9:16',
+    slots: (collage.slots || []).map((slot: any) => {
+      const cleanSlot: Record<string, any> = {
+        id: slot.id,
+        x: Number(slot.x) || 0,
+        y: Number(slot.y) || 0,
+        width: Number(slot.width) || 0,
+        height: Number(slot.height) || 0,
+        rotation: Number(slot.rotation) || 0,
+        zIndex: Number(slot.zIndex) || 1,
+        borderRadius: Number(slot.borderRadius) || 0,
+        borderWidth: Number(slot.borderWidth) || 0,
+        borderColor: slot.borderColor || 'transparent',
+      };
+      if (slot.label) cleanSlot.label = slot.label;
+      if (slot.fit) cleanSlot.fit = slot.fit;
+      if (slot.filter) cleanSlot.filter = slot.filter;
+      if (slot.flipH !== undefined) cleanSlot.flipH = Boolean(slot.flipH);
+      if (slot.flipV !== undefined) cleanSlot.flipV = Boolean(slot.flipV);
+      if (slot.opacity !== undefined) cleanSlot.opacity = Number(slot.opacity);
+      if (slot.colorPalette) cleanSlot.colorPalette = slot.colorPalette;
+      if (slot.media) {
+        cleanSlot.media = {
+          id: slot.media.id || `media-${Date.now()}`,
+          name: slot.media.name || 'Media',
+          type: slot.media.type === 'video' ? 'video' : 'image',
+          url: slot.media.url || '',
+          aspectRatio: slot.media.aspectRatio || 1,
+          width: slot.media.width || 1080,
+          height: slot.media.height || 1920,
+          source: slot.media.source || 'upload',
+          createdAt: slot.media.createdAt || Date.now(),
+        };
+        if (slot.media.duration) cleanSlot.media.duration = slot.media.duration;
+        // Notice: slot.media.file is deliberately omitted as browser File objects cannot be stored in Firestore
+      }
+      return cleanSlot;
+    }),
+  };
+
+  if (collage.backgroundColor) clean.backgroundColor = collage.backgroundColor;
+  if (collage.backgroundGradient) clean.backgroundGradient = collage.backgroundGradient;
+  if (collage.previewThumbnail) clean.previewThumbnail = collage.previewThumbnail;
+  if (collage.textElements && Array.isArray(collage.textElements)) {
+    clean.textElements = collage.textElements.map((txt: any) => ({
+      id: txt.id,
+      text: txt.text || '',
+      x: Number(txt.x) || 0,
+      y: Number(txt.y) || 0,
+      fontSize: Number(txt.fontSize) || 24,
+      fontFamily: txt.fontFamily || 'Inter',
+      fontWeight: txt.fontWeight || 'normal',
+      fontStyle: txt.fontStyle || 'normal',
+      color: txt.color || '#ffffff',
+      zIndex: Number(txt.zIndex) || 10,
+      rotation: Number(txt.rotation) || 0,
+      ...(txt.letterSpacing ? { letterSpacing: txt.letterSpacing } : {}),
+      ...(txt.lineHeight ? { lineHeight: txt.lineHeight } : {}),
+      ...(txt.uppercase !== undefined ? { uppercase: Boolean(txt.uppercase) } : {}),
+    }));
+  }
+  if (collage.overlays) {
+    clean.overlays = safeClone(collage.overlays);
+  }
+  if (collage.adjustments) {
+    clean.adjustments = safeClone(collage.adjustments);
+  }
+  if (collage.moodKeywords && Array.isArray(collage.moodKeywords)) {
+    clean.moodKeywords = [...collage.moodKeywords];
+  }
+  return clean;
+}
+
+/**
  * Sanitizes project data before saving to Firestore
  * ensuring clean object structures without undefined values or non-serializable properties
  */
@@ -154,9 +238,9 @@ function sanitizeProjectForFirestore(userId: string, project: Project): Record<s
 
   // Adjustments & Collages
   if (project.adjustments) clean.adjustments = safeClone(project.adjustments);
-  if (project.activeCollage) clean.activeCollage = safeClone(project.activeCollage);
+  if (project.activeCollage) clean.activeCollage = sanitizeCollageForFirestore(project.activeCollage);
   if (project.collages && Array.isArray(project.collages)) {
-    clean.collages = safeClone(project.collages);
+    clean.collages = project.collages.map((col) => sanitizeCollageForFirestore(col));
   }
 
   return clean;

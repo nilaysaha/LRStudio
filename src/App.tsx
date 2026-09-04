@@ -288,14 +288,15 @@ export default function App() {
             return cloudProjects.map((cp) => {
               if (cp.id === activeProjId) {
                 const currentLocal = prevProjects.find((p) => p.id === cp.id);
-                const localIdx = currentLocal?.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+                const localIdx = activeCollageIndexRef.current ?? currentLocal?.activeCollageIndex ?? 0;
+                // If local project already has collages, preserve local collages to protect unsaved/recent slide edits
                 const preservedCollages =
-                  cp.collages && cp.collages.length > 0
-                    ? cp.collages
-                    : currentLocal?.collages;
+                  currentLocal?.collages && currentLocal.collages.length > 0
+                    ? currentLocal.collages
+                    : cp.collages;
                 const targetCol =
-                  (preservedCollages && preservedCollages[localIdx]) ||
                   currentLocal?.activeCollage ||
+                  (preservedCollages && preservedCollages[localIdx]) ||
                   cp.activeCollage;
                 return {
                   ...cp,
@@ -317,7 +318,9 @@ export default function App() {
             (activeProjId && cloudProjects.find((p) => p.id === activeProjId)) ||
             cloudProjects[0];
 
-          if (activeProj) {
+          // ONLY bootstrap active media/adjustments/collage on the INITIAL startup sync
+          // During an active session, in-memory state is authoritative for the slide being edited
+          if (!initialCloudProjectSyncDoneRef.current && activeProj) {
             setCurrentMedia((prevM) => {
               if (prevM?.id === activeProj.media?.id && prevM?.url === activeProj.media?.url) {
                 return prevM;
@@ -522,7 +525,7 @@ export default function App() {
       }
 
       const updated = [...prev];
-      const activeIdx = currentP.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+      const activeIdx = activeCollageIndexRef.current ?? currentP.activeCollageIndex ?? 0;
       let collages = currentP.collages ? [...currentP.collages] : undefined;
       if (collages && activeCollage && activeIdx >= 0 && activeIdx < collages.length) {
         collages[activeIdx] = activeCollage;
@@ -920,7 +923,7 @@ export default function App() {
             if (p.id !== currentProjectId) return p;
             const currentCollages =
               p.collages && p.collages.length > 0 ? [...p.collages] : [updated];
-            const idx = p.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+            const idx = activeCollageIndexRef.current ?? p.activeCollageIndex ?? 0;
             if (idx >= 0 && idx < currentCollages.length) {
               currentCollages[idx] = updated;
             } else {
@@ -940,7 +943,7 @@ export default function App() {
 
       if (pushToHistory && updated) {
         const currentP = projects.find((p) => p.id === currentProjectId) || currentProject;
-        const currentIdx = currentP?.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+        const currentIdx = activeCollageIndexRef.current ?? currentP?.activeCollageIndex ?? 0;
         const currentCollages =
           currentP?.collages && currentP.collages.length > 0
             ? [...currentP.collages]
@@ -1119,7 +1122,7 @@ export default function App() {
     const targetIdx =
       typeof index === 'number'
         ? index
-        : (currentProject.activeCollageIndex ?? activeCollageIndexRef.current ?? 0);
+        : (activeCollageIndexRef.current ?? currentProject.activeCollageIndex ?? 0);
     const source =
       (currentProject.collages && currentProject.collages[targetIdx]) ||
       currentProject.activeCollage ||
@@ -1255,7 +1258,7 @@ export default function App() {
     list.splice(toIndex, 0, movedItem);
 
     // Track new active index
-    const currentActiveIdx = currentProject.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+    const currentActiveIdx = activeCollageIndexRef.current ?? currentProject.activeCollageIndex ?? 0;
     let newActiveIdx = currentActiveIdx;
     if (currentActiveIdx === fromIndex) {
       newActiveIdx = toIndex;
@@ -1342,12 +1345,18 @@ export default function App() {
       aspectRatio: isVideo ? 16 / 9 : 4 / 5,
       width: 1080,
       height: 1920,
+      createdAt: Date.now(),
+      source: 'upload',
     };
+
+    // Store in media library for quick reuse
+    handleAddUserMedia(newMedia);
 
     const updatedSlots = activeCollage.slots.map((s) =>
       s.id === activeUploadSlotId ? { ...s, media: newMedia } : s
     );
     handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots }, true, true);
+    setSelectedSlotId(activeUploadSlotId);
     setActiveUploadSlotId(null);
     if (slotUploadInputRef.current) slotUploadInputRef.current.value = '';
   };
@@ -1892,7 +1901,7 @@ export default function App() {
             >
               <FolderOpen className="w-3.5 h-3.5 text-[#A69480]" />
               <span>
-                Slide {(currentProject?.activeCollageIndex ?? 0) + 1}/
+                Slide {(activeCollageIndexRef.current ?? currentProject?.activeCollageIndex ?? 0) + 1}/
                 {currentProject?.collages?.length || 1}
               </span>
             </button>
@@ -1909,6 +1918,7 @@ export default function App() {
           ) : (
             <div className="w-full h-full flex items-center justify-center p-2 sm:p-5 pt-3 sm:pt-4 overflow-y-auto">
               <TemplateCanvasRenderer
+                key={`canvas-slide-${activeCollage.id}-${activeCollageIndexRef.current ?? 0}`}
                 template={activeCollage}
                 onChangeTemplate={handleUpdateActiveCollage}
                 selectedSlotId={selectedSlotId}
@@ -1923,6 +1933,7 @@ export default function App() {
                 onOpenTemplateSelector={() => setIsTemplateDrawerOpen(true)}
                 onOpenExport={() => setIsExportOpen(true)}
                 onImportFileForSlot={async (slotId, file) => {
+                  if (!activeCollage) return;
                   const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
                   const url = URL.createObjectURL(file);
                   const newMedia: MediaItem = {
@@ -1937,11 +1948,12 @@ export default function App() {
                     createdAt: Date.now(),
                     source: 'upload',
                   };
-                  setUserMediaLibrary((prev) => [newMedia, ...prev]);
+                  handleAddUserMedia(newMedia);
                   const updatedSlots = activeCollage.slots.map((s) =>
                     s.id === slotId ? { ...s, media: newMedia } : s
                   );
-                  handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots });
+                  handleUpdateActiveCollage({ ...activeCollage, slots: updatedSlots }, true, true);
+                  setSelectedSlotId(slotId);
                 }}
               />
             </div>
@@ -1954,7 +1966,7 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   const total = currentProject.collages.length;
-                  const currentIdx = currentProject.activeCollageIndex ?? 0;
+                  const currentIdx = activeCollageIndexRef.current ?? currentProject.activeCollageIndex ?? 0;
                   const prevIdx = (currentIdx - 1 + total) % total;
                   handleSelectProjectSlide(prevIdx);
                 }}
@@ -1970,7 +1982,7 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   const total = currentProject.collages.length;
-                  const currentIdx = currentProject.activeCollageIndex ?? 0;
+                  const currentIdx = activeCollageIndexRef.current ?? currentProject.activeCollageIndex ?? 0;
                   const nextIdx = (currentIdx + 1) % total;
                   handleSelectProjectSlide(nextIdx);
                 }}
