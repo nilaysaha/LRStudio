@@ -100,11 +100,17 @@ export default function App() {
     return 'proj-default-sunbath';
   });
 
+  const currentProjectIdRef = useRef<string>(currentProjectId);
+  useEffect(() => {
+    currentProjectIdRef.current = currentProjectId;
+  }, [currentProjectId]);
+
   // -------------------------------------------------------------
   // -------------------------------------------------------------
   // 2. Active Media, Adjustments & Collage State
   // -------------------------------------------------------------
   const activeInitialProject = projects.find((p) => p.id === currentProjectId) || projects[0] || INITIAL_SEEDED_PROJECTS[0];
+  const activeCollageIndexRef = useRef<number>(activeInitialProject?.activeCollageIndex ?? 0);
 
   const [currentMedia, setCurrentMedia] = useState<MediaItem | null>(() => {
     return activeInitialProject ? activeInitialProject.media : SAMPLE_MEDIA_GALLERY[0];
@@ -118,6 +124,12 @@ export default function App() {
 
   // Current active project object
   const currentProject = projects.find((p) => p.id === currentProjectId) || null;
+
+  useEffect(() => {
+    if (currentProject?.activeCollageIndex !== undefined) {
+      activeCollageIndexRef.current = currentProject.activeCollageIndex;
+    }
+  }, [currentProject?.activeCollageIndex]);
 
   // Collage & Template Customizer State
   const [activeCollage, setActiveCollage] = useState<CollageTemplate | null>(() => {
@@ -269,14 +281,40 @@ export default function App() {
             lastSavedProjectSignaturesRef.current.set(p.id, computeProjectSignature(p));
           });
 
-          setProjects(cloudProjects);
+          const activeProjId = currentProjectIdRef.current;
+
+          // Preserve activeCollageIndex and slide selection for currently active project to prevent reversion
+          setProjects((prevProjects) => {
+            return cloudProjects.map((cp) => {
+              if (cp.id === activeProjId) {
+                const currentLocal = prevProjects.find((p) => p.id === cp.id);
+                const localIdx = currentLocal?.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+                const preservedCollages =
+                  cp.collages && cp.collages.length > 0
+                    ? cp.collages
+                    : currentLocal?.collages;
+                const targetCol =
+                  (preservedCollages && preservedCollages[localIdx]) ||
+                  currentLocal?.activeCollage ||
+                  cp.activeCollage;
+                return {
+                  ...cp,
+                  collages: preservedCollages || cp.collages,
+                  activeCollageIndex: localIdx,
+                  activeCollage: targetCol || cp.activeCollage,
+                };
+              }
+              return cp;
+            });
+          });
+
           setCurrentProjectId((prevId) => {
             if (prevId && cloudProjects.some((p) => p.id === prevId)) return prevId;
             return cloudProjects[0].id;
           });
 
           const activeProj =
-            (currentProjectId && cloudProjects.find((p) => p.id === currentProjectId)) ||
+            (activeProjId && cloudProjects.find((p) => p.id === activeProjId)) ||
             cloudProjects[0];
 
           if (activeProj) {
@@ -292,10 +330,15 @@ export default function App() {
               }
               return createAdjustmentsCopy(activeProj.adjustments);
             });
+
+            // Respect the selected slide index from local ref / project
+            const activeIdx = activeCollageIndexRef.current ?? activeProj.activeCollageIndex ?? 0;
             const activeCol =
+              (activeProj.collages && activeProj.collages[activeIdx]) ||
               activeProj.activeCollage ||
-              (activeProj.collages && activeProj.collages[activeProj.activeCollageIndex || 0]) ||
+              (activeProj.collages && activeProj.collages[0]) ||
               null;
+
             setActiveCollage((prevCol) => {
               if (JSON.stringify(prevCol || null) === JSON.stringify(activeCol || null)) {
                 return prevCol;
@@ -479,6 +522,11 @@ export default function App() {
       }
 
       const updated = [...prev];
+      const activeIdx = currentP.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+      let collages = currentP.collages ? [...currentP.collages] : undefined;
+      if (collages && activeCollage && activeIdx >= 0 && activeIdx < collages.length) {
+        collages[activeIdx] = activeCollage;
+      }
       updated[idx] = {
         ...currentP,
         updatedAt: Date.now(),
@@ -486,6 +534,8 @@ export default function App() {
         adjustments: createAdjustmentsCopy(adjustments),
         thumbnailUrl: activeCollage ? activeCollage.previewThumbnail : currentMedia.url,
         activeCollage: activeCollage || undefined,
+        activeCollageIndex: activeIdx,
+        collages: collages || currentP.collages,
       };
       return updated;
     });
@@ -527,12 +577,15 @@ export default function App() {
         setProjects(cloudProjects);
         const activeProj = cloudProjects.find((p) => p.id === currentProjectId) || cloudProjects[0];
         if (activeProj) {
+          currentProjectIdRef.current = activeProj.id;
           setCurrentProjectId(activeProj.id);
           setCurrentMedia(activeProj.media);
           setAdjustments(createAdjustmentsCopy(activeProj.adjustments));
+          const activeIdx = activeProj.activeCollageIndex ?? 0;
+          activeCollageIndexRef.current = activeIdx;
           const activeCol =
+            (activeProj.collages && activeProj.collages[activeIdx]) ||
             activeProj.activeCollage ||
-            (activeProj.collages && activeProj.collages[activeProj.activeCollageIndex || 0]) ||
             null;
           setActiveCollage(activeCol);
         }
@@ -679,22 +732,28 @@ export default function App() {
       setSelectedTextId(targetSnapshot.selectedTextId);
 
       // 4. Restore project slides if applicable
-      if (currentProjectId && targetSnapshot.projectCollages) {
-        const restoredCollages = targetSnapshot.projectCollages.map((c) => cloneCollageTemplate(c)!);
-        const restoredIdx = targetSnapshot.activeCollageIndex ?? 0;
-        setProjects((prev) =>
-          prev.map((p) => {
-            if (p.id !== currentProjectId) return p;
-            return {
-              ...p,
-              updatedAt: Date.now(),
-              collages: restoredCollages,
-              activeCollageIndex: restoredIdx,
-              activeCollage: restoredCollages[restoredIdx] || restoredCollage || undefined,
-              thumbnailUrl: (restoredCollages[restoredIdx] || restoredCollage)?.previewThumbnail || p.thumbnailUrl,
-            };
-          })
-        );
+      if (currentProjectId) {
+        if (targetSnapshot.activeCollageIndex !== undefined) {
+          activeCollageIndexRef.current = targetSnapshot.activeCollageIndex;
+        }
+        if (targetSnapshot.projectCollages) {
+          const restoredCollages = targetSnapshot.projectCollages.map((c) => cloneCollageTemplate(c)!);
+          const restoredIdx = targetSnapshot.activeCollageIndex ?? 0;
+          activeCollageIndexRef.current = restoredIdx;
+          setProjects((prev) =>
+            prev.map((p) => {
+              if (p.id !== currentProjectId) return p;
+              return {
+                ...p,
+                updatedAt: Date.now(),
+                collages: restoredCollages,
+                activeCollageIndex: restoredIdx,
+                activeCollage: restoredCollages[restoredIdx] || restoredCollage || undefined,
+                thumbnailUrl: (restoredCollages[restoredIdx] || restoredCollage)?.previewThumbnail || p.thumbnailUrl,
+              };
+            })
+          );
+        }
       }
     }
   }, [historyIndex, history, currentProjectId]);
@@ -724,22 +783,28 @@ export default function App() {
       setSelectedTextId(targetSnapshot.selectedTextId);
 
       // 4. Restore project slides if applicable
-      if (currentProjectId && targetSnapshot.projectCollages) {
-        const restoredCollages = targetSnapshot.projectCollages.map((c) => cloneCollageTemplate(c)!);
-        const restoredIdx = targetSnapshot.activeCollageIndex ?? 0;
-        setProjects((prev) =>
-          prev.map((p) => {
-            if (p.id !== currentProjectId) return p;
-            return {
-              ...p,
-              updatedAt: Date.now(),
-              collages: restoredCollages,
-              activeCollageIndex: restoredIdx,
-              activeCollage: restoredCollages[restoredIdx] || restoredCollage || undefined,
-              thumbnailUrl: (restoredCollages[restoredIdx] || restoredCollage)?.previewThumbnail || p.thumbnailUrl,
-            };
-          })
-        );
+      if (currentProjectId) {
+        if (targetSnapshot.activeCollageIndex !== undefined) {
+          activeCollageIndexRef.current = targetSnapshot.activeCollageIndex;
+        }
+        if (targetSnapshot.projectCollages) {
+          const restoredCollages = targetSnapshot.projectCollages.map((c) => cloneCollageTemplate(c)!);
+          const restoredIdx = targetSnapshot.activeCollageIndex ?? 0;
+          activeCollageIndexRef.current = restoredIdx;
+          setProjects((prev) =>
+            prev.map((p) => {
+              if (p.id !== currentProjectId) return p;
+              return {
+                ...p,
+                updatedAt: Date.now(),
+                collages: restoredCollages,
+                activeCollageIndex: restoredIdx,
+                activeCollage: restoredCollages[restoredIdx] || restoredCollage || undefined,
+                thumbnailUrl: (restoredCollages[restoredIdx] || restoredCollage)?.previewThumbnail || p.thumbnailUrl,
+              };
+            })
+          );
+        }
       }
     }
   }, [historyIndex, history, currentProjectId]);
@@ -815,11 +880,14 @@ export default function App() {
 
   // Select an existing project
   const handleSelectProject = (project: Project) => {
+    currentProjectIdRef.current = project.id;
     setCurrentProjectId(project.id);
     setCurrentMedia(project.media);
+    const targetIdx = project.activeCollageIndex ?? 0;
+    activeCollageIndexRef.current = targetIdx;
     const activeCol =
+      (project.collages && project.collages[targetIdx]) ||
       project.activeCollage ||
-      (project.collages && project.collages[project.activeCollageIndex || 0]) ||
       null;
     setActiveCollage(activeCol);
     setSelectedSlotId(null);
@@ -846,31 +914,49 @@ export default function App() {
   const handleUpdateActiveCollage = useCallback(
     (updated: CollageTemplate | null, pushToHistory = true, isDiscrete = true) => {
       setActiveCollage(updated);
-      let updatedProjects = projects;
       if (currentProjectId && updated) {
-        updatedProjects = projects.map((p) => {
-          if (p.id !== currentProjectId) return p;
-          const currentCollages =
-            p.collages && p.collages.length > 0 ? [...p.collages] : [updated];
-          const idx = p.activeCollageIndex ?? 0;
-          if (idx >= 0 && idx < currentCollages.length) {
-            currentCollages[idx] = updated;
-          } else {
-            currentCollages.push(updated);
-          }
-          return {
-            ...p,
-            updatedAt: Date.now(),
-            activeCollage: updated,
-            collages: currentCollages,
-            thumbnailUrl: updated.previewThumbnail || p.thumbnailUrl,
-          };
-        });
-        setProjects(updatedProjects);
+        setProjects((prev) =>
+          prev.map((p) => {
+            if (p.id !== currentProjectId) return p;
+            const currentCollages =
+              p.collages && p.collages.length > 0 ? [...p.collages] : [updated];
+            const idx = p.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+            if (idx >= 0 && idx < currentCollages.length) {
+              currentCollages[idx] = updated;
+            } else {
+              currentCollages.push(updated);
+            }
+            return {
+              ...p,
+              updatedAt: Date.now(),
+              activeCollage: updated,
+              activeCollageIndex: idx,
+              collages: currentCollages,
+              thumbnailUrl: updated.previewThumbnail || p.thumbnailUrl,
+            };
+          })
+        );
       }
 
       if (pushToHistory && updated) {
-        const activeProj = updatedProjects.find((p) => p.id === currentProjectId) || currentProject;
+        const currentP = projects.find((p) => p.id === currentProjectId) || currentProject;
+        const currentIdx = currentP?.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
+        const currentCollages =
+          currentP?.collages && currentP.collages.length > 0
+            ? [...currentP.collages]
+            : [updated];
+        if (currentIdx >= 0 && currentIdx < currentCollages.length) {
+          currentCollages[currentIdx] = updated;
+        }
+        const activeProj: Project | null = currentP
+          ? {
+              ...currentP,
+              activeCollage: updated,
+              activeCollageIndex: currentIdx,
+              collages: currentCollages,
+            }
+          : null;
+
         const snapshot = createHistorySnapshot(
           adjustments,
           currentMedia,
@@ -904,25 +990,40 @@ export default function App() {
       })),
     };
 
+    const existing =
+      currentProject?.collages && currentProject.collages.length > 0
+        ? [...currentProject.collages]
+        : currentProject?.activeCollage
+        ? [currentProject.activeCollage]
+        : activeCollage
+        ? [activeCollage]
+        : [];
+    const updatedList = [...existing, clonedCollage];
+    const newIdx = updatedList.length - 1;
+
+    activeCollageIndexRef.current = newIdx;
+
     let updatedProject: Project | null = null;
+    if (currentProject) {
+      updatedProject = {
+        ...currentProject,
+        updatedAt: Date.now(),
+        collages: updatedList,
+        activeCollageIndex: newIdx,
+        activeCollage: clonedCollage,
+      };
+    }
+
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id !== currentProjectId) return p;
-        const existing =
-          p.collages && p.collages.length > 0
-            ? [...p.collages]
-            : p.activeCollage
-            ? [p.activeCollage]
-            : [];
-        const updatedList = [...existing, clonedCollage];
-        updatedProject = {
+        return {
           ...p,
           updatedAt: Date.now(),
           collages: updatedList,
-          activeCollageIndex: updatedList.length - 1,
+          activeCollageIndex: newIdx,
           activeCollage: clonedCollage,
         };
-        return updatedProject;
       })
     );
 
@@ -951,34 +1052,61 @@ export default function App() {
 
   // Switch between slides in the current project
   const handleSelectProjectSlide = (index: number) => {
-    if (!currentProject || !currentProject.collages || !currentProject.collages[index]) return;
-    const targetCollage = currentProject.collages[index];
+    if (!currentProject) return;
+    const slidesList =
+      currentProject.collages && currentProject.collages.length > 0
+        ? currentProject.collages
+        : currentProject.activeCollage
+        ? [currentProject.activeCollage]
+        : activeCollage
+        ? [activeCollage]
+        : [];
+
+    if (!slidesList[index]) return;
+    const targetCollage = slidesList[index];
+
+    activeCollageIndexRef.current = index;
     setActiveCollage(targetCollage);
     setSelectedSlotId(null);
     setSelectedTextId(null);
-    let updatedProject: Project | null = null;
+
+    const updatedProj: Project = {
+      ...currentProject,
+      activeCollageIndex: index,
+      activeCollage: targetCollage,
+      collages: slidesList,
+      updatedAt: Date.now(),
+    };
+
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id === currentProjectId) {
-          updatedProject = { ...p, activeCollageIndex: index, activeCollage: targetCollage };
-          return updatedProject;
+          return {
+            ...p,
+            activeCollageIndex: index,
+            activeCollage: targetCollage,
+            collages: slidesList,
+            updatedAt: Date.now(),
+          };
         }
         return p;
       })
     );
+
     const targetAdj = targetCollage.adjustments
       ? createAdjustmentsCopy(targetCollage.adjustments)
       : adjustments;
     if (targetCollage.adjustments) {
       setAdjustments(targetAdj);
     }
+
     const snapshot = createHistorySnapshot(
       targetAdj,
       currentMedia,
       targetCollage,
       null,
       null,
-      updatedProject,
+      updatedProj,
       'Select Slide'
     );
     recordHistory(snapshot, { isDiscrete: true, actionType: 'slide' });
@@ -991,7 +1119,7 @@ export default function App() {
     const targetIdx =
       typeof index === 'number'
         ? index
-        : (currentProject.activeCollageIndex ?? 0);
+        : (currentProject.activeCollageIndex ?? activeCollageIndexRef.current ?? 0);
     const source =
       (currentProject.collages && currentProject.collages[targetIdx]) ||
       currentProject.activeCollage ||
@@ -1012,18 +1140,26 @@ export default function App() {
     const updatedList = [...existing, cloned];
     const newIdx = updatedList.length - 1;
 
-    let updatedProject: Project | null = null;
+    activeCollageIndexRef.current = newIdx;
+
+    const updatedProject: Project = {
+      ...currentProject,
+      updatedAt: Date.now(),
+      collages: updatedList,
+      activeCollageIndex: newIdx,
+      activeCollage: cloned,
+    };
+
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id === currentProjectId) {
-          updatedProject = {
+          return {
             ...p,
             updatedAt: Date.now(),
             collages: updatedList,
             activeCollageIndex: newIdx,
             activeCollage: cloned,
           };
-          return updatedProject;
         }
         return p;
       })
@@ -1053,18 +1189,26 @@ export default function App() {
     const nextIdx = Math.max(0, Math.min(index, updatedList.length - 1));
     const nextCollage = updatedList[nextIdx];
 
-    let updatedProject: Project | null = null;
+    activeCollageIndexRef.current = nextIdx;
+
+    const updatedProject: Project = {
+      ...currentProject,
+      updatedAt: Date.now(),
+      collages: updatedList,
+      activeCollageIndex: nextIdx,
+      activeCollage: nextCollage,
+    };
+
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id === currentProjectId) {
-          updatedProject = {
+          return {
             ...p,
             updatedAt: Date.now(),
             collages: updatedList,
             activeCollageIndex: nextIdx,
             activeCollage: nextCollage,
           };
-          return updatedProject;
         }
         return p;
       })
@@ -1111,7 +1255,7 @@ export default function App() {
     list.splice(toIndex, 0, movedItem);
 
     // Track new active index
-    const currentActiveIdx = currentProject.activeCollageIndex ?? 0;
+    const currentActiveIdx = currentProject.activeCollageIndex ?? activeCollageIndexRef.current ?? 0;
     let newActiveIdx = currentActiveIdx;
     if (currentActiveIdx === fromIndex) {
       newActiveIdx = toIndex;
@@ -1121,20 +1265,27 @@ export default function App() {
       newActiveIdx = currentActiveIdx + 1;
     }
 
+    activeCollageIndexRef.current = newActiveIdx;
     const activeCol = list[newActiveIdx] || currentProject.activeCollage || activeCollage;
 
-    let updatedProject: Project | null = null;
+    const updatedProject: Project = {
+      ...currentProject,
+      updatedAt: Date.now(),
+      collages: list,
+      activeCollageIndex: newActiveIdx,
+      activeCollage: activeCol,
+    };
+
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id === currentProjectId) {
-          updatedProject = {
+          return {
             ...p,
             updatedAt: Date.now(),
             collages: list,
             activeCollageIndex: newActiveIdx,
             activeCollage: activeCol,
           };
-          return updatedProject;
         }
         return p;
       })
