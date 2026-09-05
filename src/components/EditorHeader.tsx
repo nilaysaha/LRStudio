@@ -422,20 +422,6 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 </>
               )}
             </button>
-
-            {/* Direct Quick Save Button */}
-            <button
-              type="button"
-              onClick={() => {
-                onOpenExport();
-                soundFx.playHapticTick();
-              }}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2A2723] hover:bg-black text-white font-semibold text-xs tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-              title="Save and Export Image / Project"
-            >
-              <Download className="w-3 h-3 stroke-[2.4]" />
-              <span>Save</span>
-            </button>
           </div>
         </div>
 
@@ -891,8 +877,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                       <Download className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-[#2A2723] uppercase tracking-wider">Save & Export Options</h4>
-                      <p className="text-[10px] text-[#7E7365]">High-resolution image, multi-slide PDF, carousel strip, or ZIP</p>
+                      <h4 className="text-xs font-bold text-[#2A2723] uppercase tracking-wider">Save & Export</h4>
+                      <p className="text-[10px] text-[#7E7365]">Save current image, multi-slide PDF, panorama strip, or ZIP bundle</p>
                     </div>
                   </div>
                   <button
@@ -903,8 +889,9 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   </button>
                 </div>
 
-                {/* Primary Export CTA */}
+                {/* Primary Export & Save CTA */}
                 <button
+                  id="export-panel-save-btn"
                   onClick={() => {
                     setActiveTab(null);
                     onOpenExport();
@@ -917,8 +904,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                       <Download className="w-3.5 h-3.5 stroke-[2.4]" />
                     </div>
                     <div className="text-left">
-                      <div className="text-xs font-bold">Open Full Export & Share Dialog</div>
-                      <div className="text-[10px] text-stone-300">Format, DPI, aspect ratio, & social share</div>
+                      <div className="text-xs font-bold">Save & Export Image</div>
+                      <div className="text-[10px] text-stone-300">Format (JPG, PNG, WebP), DPI, aspect ratio, & share</div>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-stone-400" />
@@ -1538,10 +1525,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                     onOpenExport();
                     soundFx.playHapticTick();
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#2A2723] text-white text-xs font-semibold flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#2A2723] text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 transition-all"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Open Full Export & Share Dialog</span>
+                  <span>Save & Export Image</span>
                 </button>
 
                 <div className="grid grid-cols-3 gap-2">
