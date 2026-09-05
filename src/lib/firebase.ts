@@ -13,11 +13,14 @@ import {
   doc,
   collection,
   getDocs,
+  getDoc,
   setDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot,
   query,
   orderBy,
+  increment,
   Unsubscribe,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -100,10 +103,13 @@ export {
   collection,
   doc,
   getDocs,
+  getDoc,
   setDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot,
   query,
   orderBy,
+  increment,
 };
 export type { FirebaseUser, Unsubscribe };

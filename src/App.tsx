@@ -33,6 +33,8 @@ import { MediaLibraryModal } from './components/MediaLibraryModal';
 import { SavePresetModal } from './components/SavePresetModal';
 import { ExportModal } from './components/ExportModal';
 import { ProjectsModal } from './components/ProjectsModal';
+import { MarketplaceModal } from './components/MarketplaceModal';
+import { MarketplaceDisclaimerModal } from './components/MarketplaceDisclaimerModal';
 import { SignInGatePage } from './components/SignInGatePage';
 import { TemplateCanvasRenderer } from './components/template/TemplateCanvasRenderer';
 import { TemplateCustomizerBar } from './components/template/TemplateCustomizerBar';
@@ -44,7 +46,7 @@ import { soundFx } from './utils/audio';
 import {
   Sparkles, Grid, Eye, RefreshCw, LayoutTemplate, Sliders, ChevronUp,
   Layers, Plus, Copy, Trash2, ChevronLeft, ChevronRight, FolderPlus,
-  FolderOpen, Play
+  FolderOpen, Play, Globe, X
 } from 'lucide-react';
 
 const STORAGE_KEY_CUSTOM_PRESETS = 'lumenlab_custom_presets_v1';
@@ -205,8 +207,65 @@ export default function App() {
   const [isSlidePreviewOpen, setIsSlidePreviewOpen] = useState(false);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [projectsModalTab, setProjectsModalTab] = useState<'my-projects' | 'templates' | 'library'>('my-projects');
+  const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
+  const [isDisclaimerOpen, setIsDisclaimerOpen] = useState(false);
+  const [hasDismissedMarketplaceNotice, setHasDismissedMarketplaceNotice] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('lumenlab_marketplace_notice_dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [showSignInModal, setShowSignInModal] = useState(false);
+
+  // Handle replication of a project from the Community Marketplace
+  const handleProjectReplicated = useCallback((replicatedProject: Project) => {
+    setProjects((prev) => {
+      const existingIndex = prev.findIndex((p) => p.id === replicatedProject.id);
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = replicatedProject;
+        return next;
+      }
+      return [replicatedProject, ...prev];
+    });
+
+    setCurrentProjectId(replicatedProject.id);
+    currentProjectIdRef.current = replicatedProject.id;
+    activeCollageIndexRef.current = replicatedProject.activeCollageIndex ?? 0;
+
+    if (replicatedProject.activeCollage) {
+      setActiveCollage(replicatedProject.activeCollage);
+      setSelectedSlotId(replicatedProject.activeCollage.slots[0]?.id || null);
+      setSelectedTextId(null);
+    } else {
+      setActiveCollage(null);
+      setSelectedSlotId(null);
+      setSelectedTextId(null);
+    }
+
+    if (replicatedProject.media) {
+      setCurrentMedia(replicatedProject.media);
+    }
+
+    const newAdjustments = createAdjustmentsCopy(replicatedProject.adjustments || defaultAdjustments);
+    setAdjustments(newAdjustments);
+
+    const snapshot = createHistorySnapshot(
+      newAdjustments,
+      replicatedProject.media,
+      replicatedProject.activeCollage || null,
+      null,
+      null,
+      replicatedProject,
+      `Replicate: ${replicatedProject.name}`
+    );
+    setHistory([snapshot]);
+    setHistoryIndex(0);
+
+    soundFx.playShutter();
+  }, []);
 
   const handleOpenExportWithOptions = (options?: { scope?: 'all-slides' | 'current'; singleFileType?: 'pdf' | 'strip' | 'zip' }) => {
     setExportInitialScope(options?.scope);
@@ -1822,6 +1881,14 @@ export default function App() {
           setProjectsModalTab('templates');
           setIsProjectsModalOpen(true);
         }}
+        onOpenMarketplace={() => {
+          setIsMarketplaceOpen(true);
+          soundFx.playHapticTick();
+        }}
+        onOpenDisclaimer={() => {
+          setIsDisclaimerOpen(true);
+          soundFx.playHapticTick();
+        }}
         saveStatus={saveStatus}
         lastSavedAt={lastSavedAt}
         totalProjectsCount={projects.length}
@@ -1838,6 +1905,54 @@ export default function App() {
           soundFx.playHapticTick();
         }}
       />
+
+      {/* Community Marketplace Public Publishing Transparency Banner */}
+      {!hasDismissedMarketplaceNotice && (
+        <div
+          id="marketplace-transparency-banner"
+          className="flex-shrink-0 bg-amber-50/95 border-b border-amber-200/90 px-3 sm:px-6 py-1.5 flex items-center justify-between gap-3 text-xs text-amber-950 z-20 select-none animate-in slide-in-from-top-1 duration-200"
+        >
+          <div className="flex items-center gap-2 overflow-hidden">
+            <Globe className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
+            <p className="truncate text-[11px] sm:text-xs">
+              <strong className="font-semibold text-amber-900">Community Edition:</strong> Because users are not paying for services, all creations are shared on the common Marketplace. Replicate any project to rank creators!
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => {
+                soundFx.playHapticTick();
+                setIsMarketplaceOpen(true);
+              }}
+              className="px-2.5 py-0.5 rounded-full bg-amber-200/70 hover:bg-amber-200 text-amber-950 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Explore Marketplace
+            </button>
+            <button
+              onClick={() => {
+                soundFx.playHapticTick();
+                setIsDisclaimerOpen(true);
+              }}
+              className="hidden md:inline text-amber-800 hover:text-amber-950 underline text-[11px] font-medium cursor-pointer whitespace-nowrap"
+            >
+              Disclaimer & Terms
+            </button>
+            <button
+              onClick={() => {
+                soundFx.playHapticTick();
+                setHasDismissedMarketplaceNotice(true);
+                try {
+                  localStorage.setItem('lumenlab_marketplace_notice_dismissed', 'true');
+                } catch {}
+              }}
+              className="w-5 h-5 rounded-full hover:bg-amber-200/60 text-amber-800 flex items-center justify-center cursor-pointer transition-colors"
+              title="Dismiss notice"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Hidden File Input for Customizing Active Template Slot */}
       <input
@@ -2155,6 +2270,29 @@ export default function App() {
           setCameraInitialMode('video');
           setCameraTargetSlotId(null);
           setIsCameraOpen(true);
+        }}
+        onOpenMarketplace={() => {
+          setIsMarketplaceOpen(true);
+          soundFx.playHapticTick();
+        }}
+      />
+
+      {/* Community Marketplace Modal */}
+      <MarketplaceModal
+        isOpen={isMarketplaceOpen}
+        onClose={() => setIsMarketplaceOpen(false)}
+        onProjectReplicated={handleProjectReplicated}
+        onOpenDisclaimer={() => setIsDisclaimerOpen(true)}
+        currentProjectId={currentProjectId}
+      />
+
+      {/* Community Transparency & Marketplace Policy Disclaimer Modal */}
+      <MarketplaceDisclaimerModal
+        isOpen={isDisclaimerOpen}
+        onClose={() => setIsDisclaimerOpen(false)}
+        onOpenMarketplace={() => {
+          setIsDisclaimerOpen(false);
+          setIsMarketplaceOpen(true);
         }}
       />
 

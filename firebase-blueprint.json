@@ -205,9 +205,100 @@
         }
       },
       "required": ["id", "userId", "name", "adjustments"]
+    },
+    "MarketplaceProject": {
+      "title": "MarketplaceProject",
+      "description": "Publicly published creation on common marketplace for replication and ranking",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Unique marketplace project ID"
+        },
+        "originalProjectId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Origin project ID"
+        },
+        "creatorId": {
+          "type": "string",
+          "description": "Creator auth UID or guest"
+        },
+        "creatorName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Creator display name"
+        },
+        "creatorPhotoURL": {
+          "type": "string",
+          "description": "Creator avatar image URL"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Project title"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Project description"
+        },
+        "templateId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Associated template ID"
+        },
+        "templateTag": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Template aesthetic tag"
+        },
+        "media": {
+          "type": "object",
+          "description": "Main media asset"
+        },
+        "adjustments": {
+          "type": "object",
+          "description": "Color grading adjustments"
+        },
+        "collages": {
+          "type": "array",
+          "description": "Multi-page slide templates"
+        },
+        "activeCollage": {
+          "type": "object",
+          "description": "Currently active collage canvas"
+        },
+        "activeCollageIndex": {
+          "type": "number",
+          "description": "Active slide index"
+        },
+        "aspectRatio": {
+          "type": "number",
+          "description": "Aspect ratio of canvas"
+        },
+        "replicationCount": {
+          "type": "number",
+          "description": "Total times replicated by other users for ranking"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp ms"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last update timestamp ms"
+        }
+      },
+      "required": ["id", "creatorId", "name", "replicationCount", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
+    "/marketplace_projects/{projectId}": {
+      "schema": "MarketplaceProject",
+      "description": "Public community marketplace collection containing all user creations ranked by replication count"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User account document"

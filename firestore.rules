@@ -87,6 +87,46 @@ service cloud.firestore {
         data.adjustments is map;
     }
 
+    // Marketplace Project validation
+    function isValidMarketplaceProject(data) {
+      return data.id is string &&
+        isValidId(data.id) &&
+        data.creatorId is string &&
+        data.name is string &&
+        data.name.size() > 0 &&
+        data.name.size() <= 100 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+        (!('templateId' in data) || (data.templateId is string && data.templateId.size() <= 128)) &&
+        (!('templateTag' in data) || (data.templateTag is string && data.templateTag.size() <= 64)) &&
+        (!('creatorName' in data) || (data.creatorName is string && data.creatorName.size() <= 100)) &&
+        (!('creatorPhotoURL' in data) || (data.creatorPhotoURL is string && data.creatorPhotoURL.size() <= 2048)) &&
+        data.replicationCount is number &&
+        data.replicationCount >= 0 &&
+        data.createdAt is number &&
+        data.updatedAt is number;
+    }
+
+    // Common Marketplace creations collection
+    // Accessible to all users for browsing, exploration, and replication
+    match /marketplace_projects/{projectId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() &&
+        isValidId(projectId) &&
+        incoming().creatorId == request.auth.uid &&
+        isValidMarketplaceProject(incoming());
+      allow update: if isSignedIn() && isValidId(projectId) && (
+        // Creator updates project
+        (existing().creatorId == request.auth.uid &&
+         incoming().creatorId == existing().creatorId &&
+         isValidMarketplaceProject(incoming())) ||
+        // Community replication: increment replicationCount by 1
+        (incoming().diff(existing()).affectedKeys().hasOnly(['replicationCount', 'updatedAt']) &&
+         incoming().replicationCount is number &&
+         incoming().replicationCount == existing().replicationCount + 1)
+      );
+      allow delete: if isSignedIn() && isValidId(projectId) && existing().creatorId == request.auth.uid;
+    }
+
     // User document rules
     match /users/{userId} {
       allow get: if isOwner(userId);

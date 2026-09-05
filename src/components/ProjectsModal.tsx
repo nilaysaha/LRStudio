@@ -5,7 +5,7 @@ import {
   Layers, Heart, Sun, Eye, Zap, Compass, PenTool, Flame,
   Smartphone, BookOpen, Paperclip, Grid, LayoutGrid, LayoutTemplate,
   Sliders, Image as ImageIcon, CheckCircle2, HardDrive, CheckSquare,
-  Square, Wand2, Filter, Clock, ArrowUpRight, Shuffle, Cloud, LogIn, LogOut, User as UserIcon
+  Square, Wand2, Filter, Clock, ArrowUpRight, Shuffle, Cloud, LogIn, LogOut, User as UserIcon, Globe
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -42,6 +42,7 @@ interface ProjectsModalProps {
   onImportFileToProject?: (file: File) => Promise<MediaItem | null>;
   onOpenCamera?: () => void;
   onRecordVideo?: () => void;
+  onOpenMarketplace?: () => void;
 }
 
 export const ProjectsModal: React.FC<ProjectsModalProps> = ({
@@ -61,6 +62,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   onAddUserMedia,
   onOpenCamera,
   onRecordVideo,
+  onOpenMarketplace,
 }) => {
   const { user, signInWithGoogle, logout } = useAuth();
 
@@ -737,6 +739,25 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 {userMediaLibrary.length}
               </span>
             </button>
+
+            {onOpenMarketplace && (
+              <button
+                id="projects-modal-marketplace-btn"
+                onClick={() => {
+                  soundFx.playHapticTick();
+                  onClose();
+                  onOpenMarketplace();
+                }}
+                className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold text-amber-950 hover:bg-amber-100 transition-all cursor-pointer whitespace-nowrap bg-amber-50/80 border border-amber-200/90 ml-1"
+                title="Browse & Replicate public creations on the Community Marketplace"
+              >
+                <Globe className="w-3.5 h-3.5 text-amber-700" />
+                <span>Community Marketplace</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full font-extrabold bg-amber-400 text-amber-950 uppercase tracking-wider">
+                  Ranked
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Quick Create Buttons */}

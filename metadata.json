@@ -1,6 +1,6 @@
 {
   "name": "LumenLab",
-  "description": "Editorial photo and video editing studio with LumenLabs project templates, retro date stamps, film video recording, and WebGL filters.",
+  "description": "Editorial photo and video editing studio with community marketplace, project replication ranking, LumenLabs templates, and retro styling.",
   "requestFramePermissions": [
     "camera",
     "microphone"

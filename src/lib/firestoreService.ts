@@ -4,18 +4,21 @@ import {
   doc,
   collection,
   setDoc,
+  updateDoc,
   deleteDoc,
   getDocs,
   onSnapshot,
   query,
   orderBy,
+  increment,
   handleFirestoreError,
   OperationType,
   FirebaseUser,
   Unsubscribe,
 } from './firebase';
-import { Project, MediaItem, Preset } from '../types';
+import { Project, MediaItem, Preset, MarketplaceProject } from '../types';
 import { safeClone, safeJsonParse, safeJsonStringify } from '../utils/safeClone';
+import { SEED_MARKETPLACE_PROJECTS } from '../constants/seedMarketplaceProjects';
 
 // ---------------------------------------------------------------------------
 // Cloud Quota & Offline Fallback Circuit Breaker
@@ -116,6 +119,84 @@ export function getLocalMirror<T>(userId: string | undefined, domain: 'projects'
     console.warn(`Local mirror storage read warning for ${domain}:`, err);
     return fallback;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Common Community Marketplace Mirror Storage
+// ---------------------------------------------------------------------------
+const MARKETPLACE_STORAGE_KEY = 'lumenlab_marketplace_projects';
+
+export function getMarketplaceLocalMirror(): MarketplaceProject[] {
+  try {
+    const stored = localStorage.getItem(MARKETPLACE_STORAGE_KEY);
+    if (!stored) {
+      // Initialize with curated seed projects
+      const initial = safeClone(SEED_MARKETPLACE_PROJECTS);
+      localStorage.setItem(MARKETPLACE_STORAGE_KEY, safeJsonStringify(initial));
+      return initial;
+    }
+    const parsed = safeJsonParse(stored, SEED_MARKETPLACE_PROJECTS);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed as MarketplaceProject[];
+    }
+    return safeClone(SEED_MARKETPLACE_PROJECTS);
+  } catch (err) {
+    console.warn('Marketplace mirror read error:', err);
+    return safeClone(SEED_MARKETPLACE_PROJECTS);
+  }
+}
+
+export function saveMarketplaceLocalMirror(projects: MarketplaceProject[]): void {
+  try {
+    localStorage.setItem(MARKETPLACE_STORAGE_KEY, safeJsonStringify(projects));
+  } catch (err) {
+    console.warn('Marketplace mirror write warning:', err);
+  }
+}
+
+/**
+ * Sanitizes a MarketplaceProject for Firestore
+ */
+function sanitizeMarketplaceProjectForFirestore(item: MarketplaceProject): Record<string, any> {
+  const clean: Record<string, any> = {
+    id: item.id,
+    originalProjectId: item.originalProjectId || item.id,
+    creatorId: item.creatorId || 'community',
+    name: (item.name || 'Untitled Creation').slice(0, 100),
+    replicationCount: typeof item.replicationCount === 'number' ? Math.max(0, item.replicationCount) : 0,
+    createdAt: item.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  if (item.description) clean.description = item.description.slice(0, 1000);
+  if (item.templateId) clean.templateId = item.templateId.slice(0, 128);
+  if (item.templateTag) clean.templateTag = item.templateTag.slice(0, 64);
+  if (item.creatorName) clean.creatorName = item.creatorName.slice(0, 100);
+  if (item.creatorPhotoURL) clean.creatorPhotoURL = item.creatorPhotoURL.slice(0, 2048);
+  if (item.aspectRatio) clean.aspectRatio = item.aspectRatio;
+  if (item.activeCollageIndex !== undefined) clean.activeCollageIndex = item.activeCollageIndex;
+
+  if (item.media) {
+    clean.media = {
+      id: item.media.id,
+      name: item.media.name,
+      type: item.media.type,
+      url: item.media.url,
+      aspectRatio: item.media.aspectRatio || 1,
+      width: item.media.width || 1000,
+      height: item.media.height || 1000,
+      source: item.media.source || 'upload',
+    };
+    if (item.media.duration) clean.media.duration = item.media.duration;
+  }
+
+  if (item.adjustments) clean.adjustments = safeClone(item.adjustments);
+  if (item.activeCollage) clean.activeCollage = sanitizeCollageForFirestore(item.activeCollage);
+  if (item.collages && Array.isArray(item.collages)) {
+    clean.collages = item.collages.map((col) => sanitizeCollageForFirestore(col));
+  }
+
+  return clean;
 }
 
 /**
@@ -320,6 +401,11 @@ export async function saveProjectToFirestore(userId: string, project: Project): 
   const updatedLocal = idx >= 0 ? [...existingLocal] : [project, ...existingLocal];
   if (idx >= 0) updatedLocal[idx] = project;
   saveLocalMirror(userId, 'projects', updatedLocal);
+
+  // Auto-publish all user projects to the common community marketplace
+  publishProjectToMarketplace(userId, project).catch((err) => {
+    console.warn('Marketplace auto-publish notice:', err);
+  });
 
   if (!auth.currentUser || auth.currentUser.uid !== userId) return;
   if (isCloudQuotaExceeded()) return;
@@ -772,3 +858,213 @@ export function subscribeToPresets(
     return () => {};
   }
 }
+
+// ---------------------------------------------------------------------------
+// Common Community Marketplace Service
+// ---------------------------------------------------------------------------
+
+/**
+ * Sorts marketplace projects primarily by replicationCount (descending),
+ * then by updatedAt (descending), ensuring clear ranking hierarchy.
+ */
+export function sortMarketplaceByReplications(items: MarketplaceProject[]): MarketplaceProject[] {
+  return [...items].sort((a, b) => {
+    const diff = (b.replicationCount || 0) - (a.replicationCount || 0);
+    if (diff !== 0) return diff;
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  });
+}
+
+/**
+ * Automatically publishes any project created by any user to the common marketplace
+ */
+export async function publishProjectToMarketplace(
+  userId: string,
+  project: Project,
+  creatorProfile?: { displayName?: string | null; photoURL?: string | null }
+): Promise<void> {
+  const localMarketplace = getMarketplaceLocalMirror();
+  const existingIdx = localMarketplace.findIndex(
+    (m) => m.id === project.id || m.originalProjectId === project.id
+  );
+  const existingReplicationCount = existingIdx >= 0 ? localMarketplace[existingIdx].replicationCount || 0 : 0;
+  const existingPublishedAt = existingIdx >= 0 ? localMarketplace[existingIdx].publishedAt : Date.now();
+
+  const creatorName =
+    creatorProfile?.displayName ||
+    auth.currentUser?.displayName ||
+    (auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : 'Community Creator');
+  const creatorPhotoURL =
+    creatorProfile?.photoURL ||
+    auth.currentUser?.photoURL ||
+    undefined;
+
+  const marketplaceItem: MarketplaceProject = {
+    ...safeClone(project),
+    id: project.id,
+    originalProjectId: project.id,
+    creatorId: userId || auth.currentUser?.uid || 'community',
+    creatorName,
+    creatorPhotoURL,
+    replicationCount: existingReplicationCount,
+    publishedAt: existingPublishedAt,
+    updatedAt: Date.now(),
+  };
+
+  // 1. Update local storage mirror
+  if (existingIdx >= 0) {
+    localMarketplace[existingIdx] = marketplaceItem;
+  } else {
+    localMarketplace.unshift(marketplaceItem);
+  }
+  saveMarketplaceLocalMirror(localMarketplace);
+
+  // 2. Sync to Firestore /marketplace_projects/{project.id} if authenticated & quota ok
+  if (!auth.currentUser || isCloudQuotaExceeded()) return;
+
+  const path = `marketplace_projects/${project.id}`;
+  try {
+    const docRef = doc(db, 'marketplace_projects', project.id);
+    const payload = sanitizeMarketplaceProjectForFirestore(marketplaceItem);
+    await setDoc(docRef, payload, { merge: true });
+  } catch (error) {
+    if (isQuotaError(error)) {
+      markCloudQuotaExhausted('Marketplace auto-publish');
+      return;
+    }
+    // Non-fatal, log notice and maintain local mirror
+    console.warn('Marketplace cloud publishing notice on path:', path, error);
+  }
+}
+
+/**
+ * Fetches all creations published to the common marketplace, ranked by replicationCount
+ */
+export async function fetchMarketplaceProjects(): Promise<MarketplaceProject[]> {
+  const localList = getMarketplaceLocalMirror();
+  if (isCloudQuotaExceeded()) {
+    return sortMarketplaceByReplications(localList);
+  }
+
+  const path = 'marketplace_projects';
+  try {
+    const colRef = collection(db, 'marketplace_projects');
+    const q = query(colRef, orderBy('replicationCount', 'desc'));
+    const snapshot = await getDocs(q);
+    const cloudItems: MarketplaceProject[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as MarketplaceProject;
+      cloudItems.push(data);
+    });
+
+    if (cloudItems.length > 0) {
+      // Merge cloud items with local additions and initial seeds
+      const mergedMap = new Map<string, MarketplaceProject>();
+      SEED_MARKETPLACE_PROJECTS.forEach((item) => mergedMap.set(item.id, item));
+      cloudItems.forEach((item) => mergedMap.set(item.id, item));
+      localList.forEach((item) => {
+        if (!mergedMap.has(item.id)) {
+          mergedMap.set(item.id, item);
+        }
+      });
+      const merged = Array.from(mergedMap.values());
+      saveMarketplaceLocalMirror(merged);
+      return sortMarketplaceByReplications(merged);
+    }
+    return sortMarketplaceByReplications(localList);
+  } catch (error) {
+    if (isQuotaError(error)) {
+      markCloudQuotaExhausted('Marketplace fetch');
+      return sortMarketplaceByReplications(localList);
+    }
+    console.warn('Marketplace fetch fallback to mirror:', error);
+    return sortMarketplaceByReplications(localList);
+  }
+}
+
+/**
+ * Replicates a marketplace project:
+ * - Increments replicationCount for ranking
+ * - Creates a new cloned project in the user's project library
+ * - Automatically publishes the new clone to the marketplace
+ * - Returns the newly replicated project ready to open in the editor
+ */
+export async function replicateMarketplaceProject(
+  marketplaceProject: MarketplaceProject,
+  targetUserId?: string
+): Promise<{ replicatedProject: Project; updatedReplicationCount: number }> {
+  const currentCount = marketplaceProject.replicationCount || 0;
+  const newCount = currentCount + 1;
+
+  // 1. Update local marketplace mirror replication count
+  const localMarketplace = getMarketplaceLocalMirror();
+  const mIdx = localMarketplace.findIndex((m) => m.id === marketplaceProject.id);
+  if (mIdx >= 0) {
+    localMarketplace[mIdx].replicationCount = newCount;
+    localMarketplace[mIdx].updatedAt = Date.now();
+  } else {
+    localMarketplace.unshift({
+      ...marketplaceProject,
+      replicationCount: newCount,
+      updatedAt: Date.now(),
+    });
+  }
+  saveMarketplaceLocalMirror(localMarketplace);
+
+  // 2. Increment replicationCount in Firestore if connected
+  if (auth.currentUser && !isCloudQuotaExceeded()) {
+    try {
+      const docRef = doc(db, 'marketplace_projects', marketplaceProject.id);
+      await updateDoc(docRef, {
+        replicationCount: increment(1),
+        updatedAt: Date.now(),
+      });
+    } catch (err) {
+      if (isQuotaError(err)) {
+        markCloudQuotaExhausted('Marketplace replication increment');
+      } else {
+        console.warn('Marketplace cloud replication count increment notice:', err);
+      }
+    }
+  }
+
+  // 3. Create a unique cloned project for the user
+  const effectiveUserId = targetUserId || auth.currentUser?.uid || 'guest';
+  const newProjId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const replicatedProject: Project = {
+    ...safeClone(marketplaceProject),
+    id: newProjId,
+    name: `${marketplaceProject.name} (Remix)`,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  // 4. Save to user's projects (which also auto-publishes this new creation to marketplace!)
+  await saveProjectToFirestore(effectiveUserId, replicatedProject);
+
+  return {
+    replicatedProject,
+    updatedReplicationCount: newCount,
+  };
+}
+
+/**
+ * Removes a project from the marketplace (if deleted by creator)
+ */
+export async function deleteMarketplaceProject(projectId: string): Promise<void> {
+  const localMarketplace = getMarketplaceLocalMirror();
+  saveMarketplaceLocalMirror(localMarketplace.filter((m) => m.id !== projectId));
+
+  if (!auth.currentUser || isCloudQuotaExceeded()) return;
+  try {
+    const docRef = doc(db, 'marketplace_projects', projectId);
+    await deleteDoc(docRef);
+  } catch (err) {
+    if (isQuotaError(err)) {
+      markCloudQuotaExhausted('Marketplace delete');
+      return;
+    }
+    console.warn('Marketplace delete error:', err);
+  }
+}
+

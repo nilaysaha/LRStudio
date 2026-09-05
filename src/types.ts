@@ -457,3 +457,13 @@ export interface Project {
   activeCollage?: CollageTemplate;
 }
 
+export interface MarketplaceProject extends Project {
+  originalProjectId: string;
+  creatorId: string;
+  creatorName: string;
+  creatorPhotoURL?: string;
+  replicationCount: number;
+  publishedAt: number;
+  badge?: string;
+}
+

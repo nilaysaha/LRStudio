@@ -5,7 +5,7 @@ import {
   RotateCcw, Menu, X, ChevronLeft, ChevronRight, Sliders, Info, FolderOpen,
   Plus, ChevronDown, Video, LayoutGrid, FileText, Package, Layers, Share2,
   Maximize2, Minimize2, Database, CheckCircle2, HardDrive, AlertCircle, Loader2, Clock,
-  Cloud, CloudRain, LogIn, LogOut, User as UserIcon, ShieldCheck
+  Cloud, CloudRain, LogIn, LogOut, User as UserIcon, ShieldCheck, Globe, Trophy, Flame
 } from 'lucide-react';
 import { MediaItem, Project } from '../types';
 import { PROJECT_TEMPLATE_TAGS } from '../constants/projectTemplates';
@@ -36,6 +36,8 @@ interface EditorHeaderProps {
   onImportMediaFile?: (file: File) => void;
   onOpenProjectsModal?: () => void;
   onOpenTemplatesGallery?: () => void;
+  onOpenMarketplace?: () => void;
+  onOpenDisclaimer?: () => void;
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   lastSavedAt?: number | null;
   totalProjectsCount?: number;
@@ -71,6 +73,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onImportMediaFile,
   onOpenProjectsModal,
   onOpenTemplatesGallery,
+  onOpenMarketplace,
+  onOpenDisclaimer,
   saveStatus = 'saved',
   lastSavedAt = null,
   totalProjectsCount = 1,
@@ -325,6 +329,41 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                     <span>Templates</span>
+                  </button>
+                )}
+
+                {/* Community Marketplace Access Button */}
+                {onOpenMarketplace && (
+                  <button
+                    id="header-marketplace-btn"
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      onOpenMarketplace();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-amber-500/15 hover:from-amber-500/25 hover:to-orange-500/25 border border-amber-300 text-xs font-bold text-amber-950 transition-all cursor-pointer shadow-xs active:scale-95 flex-shrink-0 whitespace-nowrap"
+                    title="Community Marketplace: Explore, Discover & Replicate Creations"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Marketplace</span>
+                    <span className="flex items-center justify-center text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-amber-400 text-amber-950 shadow-2xs">
+                      Public
+                    </span>
+                  </button>
+                )}
+
+                {/* Community Public Disclaimer Notice Pill */}
+                {onOpenDisclaimer && (
+                  <button
+                    id="header-disclaimer-pill-btn"
+                    onClick={() => {
+                      soundFx.playHapticTick();
+                      onOpenDisclaimer();
+                    }}
+                    className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100 hover:bg-stone-200 border border-stone-200 text-[11px] text-stone-700 font-medium transition-colors cursor-pointer whitespace-nowrap"
+                    title="All creations are published to the open Community Marketplace because LumenLab is free. Click to view full policy."
+                  >
+                    <Info className="w-3 h-3 text-stone-500" />
+                    <span>Free Community Service</span>
                   </button>
                 )}
 
@@ -1355,6 +1394,49 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Community Marketplace in Mobile Drawer */}
+            {onOpenMarketplace && (
+              <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 p-3 rounded-2xl border border-amber-300 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Globe className="w-4 h-4 text-amber-700" />
+                    <span className="text-xs font-bold text-amber-950">Community Marketplace</span>
+                  </div>
+                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950">
+                    Public
+                  </span>
+                </div>
+                <p className="text-[10px] text-amber-900/90 leading-tight">
+                  Discover public projects from community creators. Replicate any project to adopt its film recipes and layouts into your studio.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      onOpenMarketplace();
+                      closeHamburger();
+                      soundFx.playHapticTick();
+                    }}
+                    className="flex-1 py-1.5 px-3 rounded-xl bg-[#2A2723] text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-xs cursor-pointer"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Open Marketplace</span>
+                  </button>
+                  {onOpenDisclaimer && (
+                    <button
+                      onClick={() => {
+                        onOpenDisclaimer();
+                        closeHamburger();
+                        soundFx.playHapticTick();
+                      }}
+                      className="py-1.5 px-2.5 rounded-xl bg-white border border-amber-300 text-amber-950 text-xs font-medium cursor-pointer"
+                    >
+                      Policy
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Section 0: Active Project & LumenLabs Templates */}
             <div>
