@@ -29,15 +29,22 @@ import { safeJsonStringify } from '../utils/safeClone';
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with custom database ID from config (MANDATORY)
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Initialize Firestore with custom database ID from config (if specified, otherwise default)
+export const db = (firebaseConfig as Record<string, unknown>).firestoreDatabaseId
+  ? getFirestore(app, (firebaseConfig as Record<string, unknown>).firestoreDatabaseId as string)
+  : getFirestore(app);
 
 // Initialize Firebase Auth
 export const auth = getAuth(app);
 
-// Google Auth Provider
+// Google Auth Provider with Google Workspace Scopes
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+// Workspace Scopes for Google Forms & Drive
+googleProvider.addScope('https://www.googleapis.com/auth/forms.body');
+googleProvider.addScope('https://www.googleapis.com/auth/forms.body.readonly');
+googleProvider.addScope('https://www.googleapis.com/auth/forms.responses.readonly');
+googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 
 // ---------------------------------------------------------------------------
 // Error Handling conforming to Firebase Integration Skill

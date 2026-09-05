@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { GoogleAuthProvider } from 'firebase/auth';
 import {
   auth,
   googleProvider,
@@ -19,15 +20,24 @@ export interface AppUser {
   isAnonymous?: boolean;
 }
 
+// In-memory access token cache for Google Workspace APIs (Forms, Drive)
+let cachedAccessToken: string | null = null;
+
+export const getAccessToken = async (): Promise<string | null> => {
+  return cachedAccessToken;
+};
+
 interface AuthContextValue {
   user: AppUser | FirebaseUser | null;
   loading: boolean;
+  accessToken: string | null;
   signInWithGoogle: (hintEmail?: string) => Promise<void>;
   signInWithStudioAccount: (email?: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
   error: string | null;
   clearError: () => void;
   isFallbackSession: boolean;
+  getAccessToken: () => Promise<string | null>;
 }
 
 const STORAGE_KEY_STUDIO_SESSION = 'lumenlab_studio_user_session_v1';
@@ -35,16 +45,19 @@ const STORAGE_KEY_STUDIO_SESSION = 'lumenlab_studio_user_session_v1';
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
+  accessToken: null,
   signInWithGoogle: async () => {},
   signInWithStudioAccount: async () => {},
   logout: async () => {},
   error: null,
   clearError: () => {},
   isFallbackSession: false,
+  getAccessToken: async () => null,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppUser | FirebaseUser | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isFallbackSession, setIsFallbackSession] = useState<boolean>(false);
@@ -55,7 +68,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let initialLocalUser: AppUser | null = null;
     if (savedSession) {
       try {
-        initialLocalUser = JSON.parse(savedSession);
+        const parsed = JSON.parse(savedSession);
+        // Purge legacy platform admin email from cached session
+        if (
+          parsed?.email &&
+          (parsed.email.toLowerCase().includes('saha.nilay') ||
+            parsed.email.toLowerCase() === 'saha.nilay@gmail.com')
+        ) {
+          localStorage.removeItem(STORAGE_KEY_STUDIO_SESSION);
+        } else {
+          initialLocalUser = parsed;
+        }
       } catch {}
     }
 
@@ -87,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const email =
         typeof customEmail === 'string' && customEmail.trim().length > 0 && customEmail.includes('@')
           ? customEmail.trim()
-          : 'info@reitcircles.com';
+          : 'studio.creator@lumenlab.app';
       const displayName =
         typeof customDisplayName === 'string' && customDisplayName.trim().length > 0
           ? customDisplayName.trim()
@@ -127,6 +150,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const result = await signInWithPopup(auth, googleProvider);
       if (result.user) {
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+          cachedAccessToken = credential.accessToken;
+          setAccessToken(credential.accessToken);
+        }
         localStorage.removeItem(STORAGE_KEY_STUDIO_SESSION);
         setIsFallbackSession(false);
         setUser(result.user);
@@ -151,7 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const safeHint =
           typeof hintEmail === 'string' && hintEmail.trim().length > 0 && hintEmail.includes('@')
             ? hintEmail.trim()
-            : 'info@reitcircles.com';
+            : 'studio.creator@lumenlab.app';
         const nameChoice = safeHint.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
         await signInWithStudioAccount(safeHint, nameChoice);
       } else if (err?.code !== 'auth/popup-closed-by-user') {
@@ -162,6 +190,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     setError(null);
+    cachedAccessToken = null;
+    setAccessToken(null);
     try {
       localStorage.removeItem(STORAGE_KEY_STUDIO_SESSION);
       setIsFallbackSession(false);
@@ -180,12 +210,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         loading,
+        accessToken,
         signInWithGoogle,
         signInWithStudioAccount,
         logout,
         error,
         clearError,
         isFallbackSession,
+        getAccessToken,
       }}
     >
       {children}

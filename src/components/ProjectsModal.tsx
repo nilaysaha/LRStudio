@@ -5,7 +5,8 @@ import {
   Layers, Heart, Sun, Eye, Zap, Compass, PenTool, Flame,
   Smartphone, BookOpen, Paperclip, Grid, LayoutGrid, LayoutTemplate,
   Sliders, Image as ImageIcon, CheckCircle2, HardDrive, CheckSquare,
-  Square, Wand2, Filter, Clock, ArrowUpRight, Shuffle, Cloud, LogIn, LogOut, User as UserIcon, Globe
+  Square, Wand2, Filter, Clock, ArrowUpRight, Shuffle, Cloud, LogIn, LogOut, User as UserIcon, Globe,
+  MessageSquarePlus
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -43,6 +44,7 @@ interface ProjectsModalProps {
   onOpenCamera?: () => void;
   onRecordVideo?: () => void;
   onOpenMarketplace?: () => void;
+  onOpenFeedback?: () => void;
 }
 
 export const ProjectsModal: React.FC<ProjectsModalProps> = ({
@@ -63,6 +65,7 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   onOpenCamera,
   onRecordVideo,
   onOpenMarketplace,
+  onOpenFeedback,
 }) => {
   const { user, signInWithGoogle, logout } = useAuth();
 
@@ -756,6 +759,22 @@ export const ProjectsModal: React.FC<ProjectsModalProps> = ({
                 <span className="text-[9px] px-1.5 py-0.2 rounded-full font-extrabold bg-amber-400 text-amber-950 uppercase tracking-wider">
                   Ranked
                 </span>
+              </button>
+            )}
+
+            {onOpenFeedback && (
+              <button
+                id="projects-modal-feedback-btn"
+                onClick={() => {
+                  soundFx.playHapticTick();
+                  onClose();
+                  onOpenFeedback();
+                }}
+                className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold text-stone-800 hover:bg-stone-100 transition-all cursor-pointer whitespace-nowrap bg-white border border-stone-200 ml-1"
+                title="Send Feedback & Feature Requests via Google Forms"
+              >
+                <MessageSquarePlus className="w-3.5 h-3.5 text-amber-600" />
+                <span>Feedback & Forms</span>
               </button>
             )}
           </div>

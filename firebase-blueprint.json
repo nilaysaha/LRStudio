@@ -292,9 +292,71 @@
         }
       },
       "required": ["id", "creatorId", "name", "replicationCount", "createdAt", "updatedAt"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "User feedback and feature requests for app improvements",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique feedback ID"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["feature_request", "bug_report", "preset_request", "performance", "general"],
+          "description": "Feedback category"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Feedback summary or feature request title"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 5000,
+          "description": "Detailed explanation and desired capabilities"
+        },
+        "rating": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "User satisfaction rating (1-5)"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "User email for follow-up"
+        },
+        "userName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "googleFormId": {
+          "type": "string",
+          "description": "Associated Google Form ID if synced"
+        },
+        "recipientEmails": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Target email notification recipients"
+        },
+        "upvotes": {
+          "type": "number",
+          "description": "Community upvote tally"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Submission timestamp"
+        }
+      },
+      "required": ["id", "category", "title", "description", "rating", "createdAt"]
     }
   },
   "firestore": {
+    "/user_feedback/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "Feedback submissions, feature requests and bug reports with notification routing"
+    },
     "/marketplace_projects/{projectId}": {
       "schema": "MarketplaceProject",
       "description": "Public community marketplace collection containing all user creations ranked by replication count"

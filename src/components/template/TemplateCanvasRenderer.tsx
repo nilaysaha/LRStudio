@@ -643,7 +643,7 @@ export const TemplateCanvasRenderer: React.FC<TemplateCanvasRendererProps> = ({
 
       {/* Slide Quick Action Menu (Centered Nicely Above Canvas) */}
       {!isPreview && (
-        <div className="w-full flex items-center justify-center mb-3 px-2 z-30 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="w-full flex items-center justify-center mb-3 px-2 z-10 animate-in fade-in slide-in-from-top-1 duration-200">
           {/* Centered Editing Actions Pill Bar */}
           <div className="flex items-center justify-center gap-1.5 bg-white/95 hover:bg-white backdrop-blur-md px-2 py-1 rounded-full border border-[#E6E2D3] shadow-md transition-all max-w-full overflow-x-auto no-scrollbar">
             {/* Info Icon with Tooltip for Template Details */}

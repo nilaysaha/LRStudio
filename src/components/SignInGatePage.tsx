@@ -24,7 +24,7 @@ export const SignInGatePage: React.FC<SignInGatePageProps> = ({
 }) => {
   const { loading, signInWithGoogle, signInWithStudioAccount, error, clearError } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [emailInput, setEmailInput] = useState('info@reitcircles.com');
+  const [emailInput, setEmailInput] = useState('');
   const [showOtherEmailOptions, setShowOtherEmailOptions] = useState(false);
 
   // Standard Google login: Browser natively prompts with all signed-in Google accounts
@@ -177,31 +177,6 @@ export const SignInGatePage: React.FC<SignInGatePageProps> = ({
                 onSubmit={handleCustomEmailSignIn}
                 className="flex flex-col gap-2.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-150"
               >
-                {/* Quick select chip */}
-                <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
-                  <span className="text-[#7E7365]">Suggested:</span>
-                  <button
-                    type="button"
-                    onClick={() => setEmailInput('info@reitcircles.com')}
-                    className={`px-2.5 py-0.5 rounded-full border transition-all cursor-pointer font-mono text-[10px] ${
-                      emailInput === 'info@reitcircles.com'
-                        ? 'bg-amber-100 border-amber-300 text-[#2A2723] font-bold'
-                        : 'bg-[#FAF9F6] border-[#E6E2D3] text-[#7E7365] hover:border-amber-300'
-                    }`}
-                  >
-                    info@reitcircles.com
-                  </button>
-                  {emailInput && (
-                    <button
-                      type="button"
-                      onClick={() => setEmailInput('')}
-                      className="px-2 py-0.5 text-[10px] text-[#A39989] hover:text-[#2A2723] cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-
                 <div className="relative">
                   <Mail className="w-4 h-4 text-[#A39989] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input

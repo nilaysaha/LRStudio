@@ -106,6 +106,37 @@ service cloud.firestore {
         data.updatedAt is number;
     }
 
+    // Feedback & Feature Requests validation
+    function isValidFeedback(data) {
+      return data.id is string &&
+        isValidId(data.id) &&
+        data.category in ['feature_request', 'bug_report', 'preset_request', 'performance', 'general'] &&
+        data.title is string &&
+        data.title.size() > 0 &&
+        data.title.size() <= 200 &&
+        data.description is string &&
+        data.description.size() > 0 &&
+        data.description.size() <= 5000 &&
+        data.rating is number &&
+        data.rating >= 1 &&
+        data.rating <= 5 &&
+        data.createdAt is number;
+    }
+
+    // User Feedback & Feature Requests Collection
+    // Supports user submissions, email notification routing, and community feature voting
+    match /user_feedback/{feedbackId} {
+      allow get, list: if true;
+      allow create: if isValidId(feedbackId) && isValidFeedback(incoming());
+      allow update: if isValidId(feedbackId) && (
+        // Allow incrementing upvotes for community feature requests
+        incoming().diff(existing()).affectedKeys().hasOnly(['upvotes', 'updatedAt']) &&
+        incoming().upvotes is number &&
+        incoming().upvotes >= 0
+      );
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
     // Common Marketplace creations collection
     // Accessible to all users for browsing, exploration, and replication
     match /marketplace_projects/{projectId} {

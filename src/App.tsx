@@ -35,6 +35,7 @@ import { ExportModal } from './components/ExportModal';
 import { ProjectsModal } from './components/ProjectsModal';
 import { MarketplaceModal } from './components/MarketplaceModal';
 import { MarketplaceDisclaimerModal } from './components/MarketplaceDisclaimerModal';
+import { FeedbackModal } from './components/FeedbackModal';
 import { SignInGatePage } from './components/SignInGatePage';
 import { TemplateCanvasRenderer } from './components/template/TemplateCanvasRenderer';
 import { TemplateCustomizerBar } from './components/template/TemplateCustomizerBar';
@@ -209,6 +210,7 @@ export default function App() {
   const [projectsModalTab, setProjectsModalTab] = useState<'my-projects' | 'templates' | 'library'>('my-projects');
   const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
   const [isDisclaimerOpen, setIsDisclaimerOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [hasDismissedMarketplaceNotice, setHasDismissedMarketplaceNotice] = useState<boolean>(() => {
     try {
       return localStorage.getItem('lumenlab_marketplace_notice_dismissed') === 'true';
@@ -1889,6 +1891,10 @@ export default function App() {
           setIsDisclaimerOpen(true);
           soundFx.playHapticTick();
         }}
+        onOpenFeedback={() => {
+          setIsFeedbackOpen(true);
+          soundFx.playHapticTick();
+        }}
         saveStatus={saveStatus}
         lastSavedAt={lastSavedAt}
         totalProjectsCount={projects.length}
@@ -2011,7 +2017,7 @@ export default function App() {
                 setIsMobileSlidesDrawerOpen(true);
                 soundFx.playHapticTick();
               }}
-              className="md:hidden absolute top-2 left-2 z-30 flex items-center gap-1.5 px-2.5 py-1 bg-white/95 backdrop-blur-md border border-[#E6E2D3] rounded-full text-xs font-semibold shadow-md text-[#2A2723] active:scale-95 transition-all cursor-pointer"
+              className="md:hidden absolute top-2 left-2 z-10 flex items-center gap-1.5 px-2.5 py-1 bg-white/95 backdrop-blur-md border border-[#E6E2D3] rounded-full text-xs font-semibold shadow-md text-[#2A2723] active:scale-95 transition-all cursor-pointer"
               title="Open Slides Menu"
             >
               <FolderOpen className="w-3.5 h-3.5 text-[#A69480]" />
@@ -2085,7 +2091,7 @@ export default function App() {
                   const prevIdx = (currentIdx - 1 + total) % total;
                   handleSelectProjectSlide(prevIdx);
                 }}
-                className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+                className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-10 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
                 title="Previous Slide (<)"
                 aria-label="Previous Slide"
               >
@@ -2101,7 +2107,7 @@ export default function App() {
                   const nextIdx = (currentIdx + 1) % total;
                   handleSelectProjectSlide(nextIdx);
                 }}
-                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-10 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer group"
                 title="Next Slide (>)"
                 aria-label="Next Slide"
               >
@@ -2119,7 +2125,7 @@ export default function App() {
                 setIsDesktopSidebarCollapsed(false);
                 soundFx.playHapticTick();
               }}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md text-xs font-semibold absolute top-4 right-4 z-30 transition-all hover:scale-105 active:scale-95 cursor-pointer animate-in fade-in zoom-in-95 group"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 hover:bg-white text-[#2A2723] border border-[#E6E2D3] shadow-lg backdrop-blur-md text-xs font-semibold absolute top-4 right-4 z-10 transition-all hover:scale-105 active:scale-95 cursor-pointer animate-in fade-in zoom-in-95 group"
               title="Show Design Tools (\)"
             >
               <Sliders className="w-3.5 h-3.5 text-amber-600 group-hover:rotate-45 transition-transform" />
@@ -2275,6 +2281,10 @@ export default function App() {
           setIsMarketplaceOpen(true);
           soundFx.playHapticTick();
         }}
+        onOpenFeedback={() => {
+          setIsFeedbackOpen(true);
+          soundFx.playHapticTick();
+        }}
       />
 
       {/* Community Marketplace Modal */}
@@ -2294,6 +2304,12 @@ export default function App() {
           setIsDisclaimerOpen(false);
           setIsMarketplaceOpen(true);
         }}
+      />
+
+      {/* Google Forms & Direct Email Feedback Modal */}
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
       />
 
       {/* Live Camera Viewfinder Modal */}
